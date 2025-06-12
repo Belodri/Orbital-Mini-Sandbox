@@ -16,7 +16,7 @@ BRIDGE_PROJECT_PATH="src/Bridge/Bridge.csproj"
 WEBAPP_SOURCE_PATH="src/WebApp"
 DIST_PATH="dist"
 
-# The path where the Blazor build process places its output.
+# The path where the dotnet build process places its output.
 # This is inside the C# project's bin directory.
 BRIDGE_BUILD_OUTPUT_PATH="src/Bridge/bin/Release/net9.0/wwwroot"
 
@@ -36,12 +36,13 @@ dotnet publish "$BRIDGE_PROJECT_PATH" -c Release
 echo "Copying web assets to '$DIST_PATH'..."
 
 
-# 3a. Copy the entire Blazor framework output (_framework folder)
+# 3a. Copy the entire framework output (_framework folder)
 # This contains the .NET runtime, our DLLs, and the dotnet.js loader.
-echo "Copying Blazor framework..."
+echo "Copying framework..."
 cp -r "$BRIDGE_BUILD_OUTPUT_PATH/_framework" "$DIST_PATH/"
 
 # 3b. Copy the WebApp's HTML and JavaScript files.
+# NOTE: Replace this with a proper build process later
 echo "Copying WebApp files (HTML, JS)..."
 cp -r "$WEBAPP_SOURCE_PATH/"* "$DIST_PATH/"
 
