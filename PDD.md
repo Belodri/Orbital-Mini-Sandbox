@@ -290,6 +290,7 @@ public struct EngineResult<T>
     - `PhysicsEngine` instance (composition)
     - `MemoryBufferHandler` instance (composition)
     - Last tick error message (for on-demand retrieval)
+
 `MemoryBufferHandler`
 - Specialized component responsible for efficient shared memory management
 - **Responsibilities:**
