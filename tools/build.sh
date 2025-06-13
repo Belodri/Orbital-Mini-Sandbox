@@ -15,10 +15,11 @@ set -e
 BRIDGE_PROJECT_PATH="src/Bridge/Bridge.csproj"
 WEBAPP_SOURCE_PATH="src/WebApp"
 DIST_PATH="dist"
+BRIDGE_DIST_PATH="dist/bridge"
 
 # The path where the dotnet build process places its output.
 # This is inside the C# project's bin directory.
-BRIDGE_BUILD_OUTPUT_PATH="src/Bridge/bin/Release/net9.0/wwwroot"
+BRIDGE_BUILD_OUTPUT_PATH="src/Bridge/bin/Release/net9.0/publish/wwwroot"
 
 # --- 1. Clean: Remove the old distribution folder ---
 echo "Cleaning old distribution folder..."
@@ -27,24 +28,25 @@ mkdir -p "$DIST_PATH"
 
 # --- 2. Build: Compile the C# Bridge project ---
 echo "Building C# EngineBridge in Release mode..."
-# The 'dotnet publish' command is ideal for this. It builds the project
-# and places all necessary files for deployment in a standard location.
-# We specify the output directory to be the default one for clarity.
+# 'dotnet publish' builds the project. The actual web assets we need
+# will be located in the 'wwwroot' subfolder of the output.
 dotnet publish "$BRIDGE_PROJECT_PATH" -c Release
 
-# --- 3. Deploy: Copy assets to the distribution folder ---
-echo "Copying web assets to '$DIST_PATH'..."
+# --- 3. Deploy: Copy bridge assets to the distribution folder ---
+echo "Copying bridge assets to '$BRIDGE_DIST_PATH'..."
+# We copy ONLY the contents of wwwroot, as 'dotnet publish' creates
+# other hosting files (e.g., web.config) that we don't need.
+mkdir "$BRIDGE_DIST_PATH"
+cp "$BRIDGE_BUILD_OUTPUT_PATH/bridge.mjs" "$BRIDGE_DIST_PATH/"
+cp -r "$BRIDGE_BUILD_OUTPUT_PATH/_framework" "$BRIDGE_DIST_PATH/"
 
-
-# 3a. Copy the entire framework output (_framework folder)
-# This contains the .NET runtime, our DLLs, and the dotnet.js loader.
-echo "Copying framework..."
-cp -r "$BRIDGE_BUILD_OUTPUT_PATH/_framework" "$DIST_PATH/"
-
-# 3b. Copy the WebApp's HTML and JavaScript files.
+# --- 4. Deploy: Copy WebApp assets to the distribution folder ---
 # NOTE: Replace this with a proper build process later
+# We explicitly copy only the needed files and folders to avoid including
+# development-only files like .d.ts, jsconfig.json, etc.
 echo "Copying WebApp files (HTML, JS)..."
-cp -r "$WEBAPP_SOURCE_PATH/"* "$DIST_PATH/"
+cp "$WEBAPP_SOURCE_PATH/index.html" "$DIST_PATH/"
+cp -r "$WEBAPP_SOURCE_PATH/scripts" "$DIST_PATH/"
 
 # --- Finished ---
 echo "--- Build successful! ---"
