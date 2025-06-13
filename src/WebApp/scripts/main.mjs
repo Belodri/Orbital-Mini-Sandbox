@@ -2,7 +2,7 @@ import Bridge from '../bridge/bridge.mjs';
 
 async function initialize() {
     await Bridge.initialize();
-    await test();
+    //await test();
 }
 
 async function test() {

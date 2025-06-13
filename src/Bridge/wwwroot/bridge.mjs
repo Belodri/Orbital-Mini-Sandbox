@@ -8,13 +8,17 @@ const dotnet = _dotnet;
 
 export default class Bridge {
     static #CONFIG = {
+        DEBUG_MODE: true,
         NAMESPACE: "Bridge",
         CLASS_NAME: "EngineBridge",
         METHODS_SYNC: [
-            "Tick"
+            
         ],
         METHODS_ASYNC: [
-            "GetTickErrorText"
+            "GetSimStateLayout",
+            "GetBodyStateLayout",
+            "SetTestString",
+            "GetTestString"
         ],
     }
 
@@ -29,13 +33,15 @@ export default class Bridge {
     static #EngineBridge;
 
     static async initialize() {
-        const {NAMESPACE, CLASS_NAME} = Bridge.#CONFIG;
+        const {NAMESPACE, CLASS_NAME, DEBUG_MODE} = Bridge.#CONFIG;
         if(Bridge.#api) throw new Error("Bridge has already been initialized.");
 
         Bridge.#api = await dotnet.create();
         Bridge.#monoConfig = Bridge.#api.getConfig();
         Bridge.#exports = await Bridge.#api.getAssemblyExports(Bridge.#monoConfig.mainAssemblyName);
         Bridge.#EngineBridge = Bridge.#exports[NAMESPACE][CLASS_NAME];
+
+        if(DEBUG_MODE) globalThis.EngineBridge = this;
 
         return true;
     }

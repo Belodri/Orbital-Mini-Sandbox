@@ -3,10 +3,9 @@ using Physics;
 
 namespace Bridge;
 
-
 internal class Program
 {
-    private static async Task Main(string[] args)
+    private static void Main(string[] args)
     {
         
     }
@@ -16,25 +15,26 @@ public static partial class EngineBridge
 {
     internal static readonly PhysicsEngine physicsEngine;
 
-    private static string lastTickError = "";
+    internal static readonly MemoryBufferHandler _memoryBufferHandler; 
+
+    private static string testString = "";
 
     static EngineBridge()
     {
         physicsEngine = new PhysicsEngine();
+        _memoryBufferHandler = new MemoryBufferHandler();
     }
 
     [JSExport]
-    public static void Tick()
-    {
-        physicsEngine.Tick();
-        if (lastTickError == "") lastTickError = "TESTING";
-        else lastTickError = "";
-    }
+    public static string[] GetSimStateLayout() => MemoryBufferHandler.SimStateLayout;
 
     [JSExport]
-    public static string GetTickErrorText()
-    {
-        return lastTickError;
-    }
+    public static string[] GetBodyStateLayout() => MemoryBufferHandler.BodyStateLayout;
+
+    [JSExport]
+    public static void SetTestString(string newTestString) => testString = newTestString;
+
+    [JSExport]
+    public static string GetTestString() => testString;
 }
 
