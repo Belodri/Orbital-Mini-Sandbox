@@ -3,7 +3,7 @@ import { dotnet as _dotnet } from './_framework/dotnet.js';
 const dotnet = _dotnet;
 
 /**
- * @import { MonoConfig, RuntimeAPI,  } from '../../Bridge/types/dotnet.js'
+ * @import { MonoConfig, RuntimeAPI,  } from '../types/dotnet.js'
  */
 
 export default class Bridge {
@@ -55,6 +55,10 @@ export default class Bridge {
         return method(...args);
     }
 
+    /*
+        Turn some calls into a promise just so they're put on the task stack and allow other, 
+        more pressing code to run before.
+    */
     static callAsync(name, ...args) {
         if(!Bridge.#CONFIG.METHODS_ASYNC.includes(name)) {
             throw new Error(`Method "${name}" is not in the configured list of async methods.`);
