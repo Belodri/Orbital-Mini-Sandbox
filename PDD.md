@@ -438,6 +438,7 @@ OrbitalSandbox.Physics/
 - State Ownership
 	- Current simulation instance
 	- locked state
+
 `Simulation`
 - Coordinates all simulation components and manages the overall simulation state. Acts as the central orchestrator that ensures all physics components work together cohesively.
 - Responsibilities
@@ -450,6 +451,7 @@ OrbitalSandbox.Physics/
 	- `prevBodies` - Collection of outdated CelestialBody instances for double-buffering
 	- `calculator` - Calculator instance; not persistent
 	- `grid` - Grid instance
+
 `Timer`
 - Manages the temporal aspects of the simulation including speed, direction, and execution timing. Calculates the delta time for each calculation step.
 - Responsibilities
@@ -460,6 +462,7 @@ OrbitalSandbox.Physics/
 	- Current simulation timestamp
 	- Time direction (forward/backward)
 	- Simulation speed multiplier
+
 `Calculator`
 - Performs the core physics calculations for each simulation timestep. Handles all gravitational force computations and mutates celestial bodies. Optimized for performance as it executes during every simulation tick.
 - Responsibilities
@@ -470,6 +473,7 @@ OrbitalSandbox.Physics/
 	- readonly grid
 	- readonly deltaTime
 	- readonly prevBodies
+
 `Grid`
 - Provides spatial partitioning functionality through QuadTree implementation to optimize gravitational force calculations. Reduces computational complexity from O(n²) to more efficient spatial queries.
 - Responsibilities
@@ -479,6 +483,7 @@ OrbitalSandbox.Physics/
 - State Ownership
 	- QuadTree spatial data structure
 	- Spatial partitioning configuration parameters
+
 `CelestialBody`
 - Encapsulates the complete state and behavior of individual celestial bodies.
 - Responsibilities
@@ -490,6 +495,7 @@ OrbitalSandbox.Physics/
 	- Vector2 Velocity (vx, vy)
 	- double Mass
 	- bool Enabled
+
 ### PhysicsEngine.Tick() workflow
 Core workflow when Tick() is called on an instance of PhysicsEngine
 1. `PhysicsEngine` Enables syncLock (also prevents further PhysicsEngine.Tick() calls)
