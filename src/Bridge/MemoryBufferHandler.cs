@@ -24,6 +24,7 @@ internal class MemoryBufferHandler : IDisposable
     // Layout for simulation metadata (fixed-size Float64 buffer).
     public static readonly string[] SimStateLayout = [
         "bodyBufferPtr",    // Pointer to the BodyStateBuffer
+        "bodyBufferSize",   // The size of the buffer
         "tickError", "simulationTime", "timeScale", "timeIsForward", "bodyCount"
     ];
 
@@ -72,6 +73,7 @@ internal class MemoryBufferHandler : IDisposable
         double* pBuffer = (double*)_simStateBufferPtr;
         // Cast the nint pointer to a double. This is safe on wasm32.
         pBuffer[SimLayoutCache["bodyBufferPtr"]] = (double)_bodyStateBufferPtr;
+        pBuffer[SimLayoutCache["bodyBufferSize"]] = (double)_bodyStateBufferSizeInBytes;
     }
 
     public void EnsureBodyCapacity(int requiredBodyCount)
@@ -90,6 +92,35 @@ internal class MemoryBufferHandler : IDisposable
         _bodyStateBufferSizeInBytes = newSizeInBytes;
 
         UpdateSimStateBodyBufferPtr();
+    }
+
+    internal unsafe void WriteToBodyStateBuffer(double[][] bodyBufferData)
+    {
+        EnsureBodyCapacity(bodyBufferData.Length);
+
+        double* bodyState = (double*)_bodyStateBufferPtr;
+        int bodyStride = BodyStateLayout.Length;
+
+        for (int i = 0; i < bodyBufferData.Length; i++)
+        {
+            double[] currentBodyData = bodyBufferData[i];
+            double* currentBody = bodyState + (i * bodyStride);
+
+            for (int j = 0; j < currentBodyData.Length; j++)
+            {
+                currentBody[j] = currentBodyData[j];
+            }
+        }
+    }
+
+    internal unsafe void WriteToSimStateBuffer(double[] simBufferData)
+    {
+        double* simState = (double*)_simStateBufferPtr;
+
+        for (int i = 0; i < simBufferData.Length; i++)
+        {
+            simState[i] = simBufferData[i];
+        }
     }
 
 

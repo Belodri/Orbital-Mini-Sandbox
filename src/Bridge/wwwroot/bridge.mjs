@@ -12,14 +12,19 @@ export default class Bridge {
         NAMESPACE: "Bridge",
         CLASS_NAME: "EngineBridge",
         METHODS_SYNC: [
-            
-        ],
-        METHODS_ASYNC: [
+            "GetSimStateBufferPtr",
+            "GetSimStateBufferSize",
             "GetSimStateLayout",
             "GetBodyStateLayout",
+        ],
+        METHODS_ASYNC: [
             "SetTestString",
             "GetTestString"
-        ],
+        ]
+    }
+
+    static log(msg, ...args) {
+        if(Bridge.#CONFIG.DEBUG_MODE) console.log(msg, ...args);
     }
 
     /** @type {RuntimeAPI} */
@@ -32,6 +37,20 @@ export default class Bridge {
 
     static #EngineBridge;
 
+    /** @type {Float64Array} */
+    static #simBufferView;
+
+    /** @type {Float64Array} */
+    static #bodyStateBufferView;
+
+    /** @type {Record<string, [index: number]>} */
+    static #bodyStateLayoutRecord;
+
+    /** @type {Record<string, [index: number]>} */
+    static #simStateLayoutRecord;
+
+    //#region Initialization
+
     static async initialize() {
         const {NAMESPACE, CLASS_NAME, DEBUG_MODE} = Bridge.#CONFIG;
         if(Bridge.#api) throw new Error("Bridge has already been initialized.");
@@ -41,10 +60,32 @@ export default class Bridge {
         Bridge.#exports = await Bridge.#api.getAssemblyExports(Bridge.#monoConfig.mainAssemblyName);
         Bridge.#EngineBridge = Bridge.#exports[NAMESPACE][CLASS_NAME];
 
-        if(DEBUG_MODE) globalThis.EngineBridge = this;
+        Bridge.#simStateLayoutRecord = Bridge.#getStateLayoutRecord(Bridge.callSync("GetSimStateLayout"));
+        Bridge.#bodyStateLayoutRecord = Bridge.#getStateLayoutRecord(Bridge.callSync("GetBodyStateLayout"));
 
+        Bridge.#setSimStateBufferView();
+        Bridge.#setBodyStateBufferView()
+
+        if(DEBUG_MODE) globalThis.EngineBridge = this;
         return true;
     }
+
+    /**
+     * @param {string[]} layoutArr
+     * @returns {Record<string, [index: number]>}
+     */
+    static #getStateLayoutRecord(layoutArr) {
+        const record = {};
+        for(let i = 0; i < layoutArr.length; i++) {
+            record[layoutArr[i]] = i;
+        }
+        return record;
+    }
+
+    //#endregion
+
+
+    //#region Temporary C# method call utils
 
     static callSync(name, ...args) {
         if(!Bridge.#CONFIG.METHODS_SYNC.includes(name)) {
@@ -87,4 +128,40 @@ export default class Bridge {
         return method;
     }
 
+    //#endregion
+
+    static #setSimStateBufferView() {
+        const simStatePtr = this.callSync("GetSimStateBufferPtr");
+        const simStateSize = this.callSync("GetSimStateBufferSize");
+
+        this.log(`Received SimStateBuffer info: Pointer=${simStatePtr}, Size=${simStateSize} bytes`);
+
+        const wasmHeap = this.#api.localHeapViewU8().buffer;
+        const arrayLength = simStateSize / Float64Array.BYTES_PER_ELEMENT;
+        this.#simBufferView = new Float64Array(wasmHeap, simStatePtr, arrayLength);
+
+        return this;
+    }
+
+    /**
+     * Sets the view into the bodyStateBuffer based on the pointers and size in simStateBuffer.
+     * @returns {this}
+     */
+    static #setBodyStateBufferView() {
+        if(!this.#simBufferView) throw new Error(`simBufferView not initialized.`);
+
+        const ptr = this.#simBufferView[Bridge.#simStateLayoutRecord["bodyBufferPtr"]];
+        const size = this.#simBufferView[Bridge.#simStateLayoutRecord["bodyBufferSize"]];   
+
+        this.log(`Received BodyStateBuffer info: Pointer=${ptr}, Size=${size} bytes`);
+
+        if(typeof ptr !== "number" || ptr === 0) throw new Error(`Invalid bodyBufferPtr=${ptr}`);
+        if(typeof size !== "number" || size === 0) throw new Error(`Invalid bodyBufferSize=${ptr}`);
+
+        const wasmHeap = this.#api.localHeapViewU8().buffer;
+        const arrayLength = size / Float64Array.BYTES_PER_ELEMENT;
+        this.#bodyStateBufferView = new Float64Array(wasmHeap, ptr, arrayLength);
+
+        return this;
+    }
 }

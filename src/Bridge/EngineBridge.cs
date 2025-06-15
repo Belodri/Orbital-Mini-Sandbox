@@ -23,6 +23,18 @@ public static partial class EngineBridge
         memoryBufferHandler = new MemoryBufferHandler(100);
     }
 
+    [JSExport]
+    public static void Tick(double timestamp)
+    {
+        TickDataDto TickData = physicsEngine.Tick(timestamp);
+    }
+
+    [JSExport]
+    public static void CreateTestSim(int bodyCount)
+    {
+        physicsEngine.CreateTestSim(bodyCount);
+    }
+
     /// <summary>
     /// Exports the memory address (pointer) of the primary simulation state buffer in the WASM memory heap.
     /// </summary>
