@@ -27,6 +27,12 @@ export default class Bridge {
         body: undefined,
     }
 
+    /** @type {{ptr: number, size: number}} */
+    static #bodyBufferPtrCache = {
+        ptr: undefined,
+        size: undefined
+    }
+
     /** @type {{sim: Record<string, number>, body: Record<string, number>}} */
     static #layoutRecord = {
         sim: undefined,
@@ -97,7 +103,7 @@ export default class Bridge {
         Bridge.#layoutRecord.body = Bridge.#getStateLayoutRecord(Bridge.#GetBodyStateLayout());
 
         Bridge.#setSimStateBufferView();
-        Bridge.#setBodyStateBufferView()
+        Bridge.#setBodyStateBufferView();
 
         if(DEBUG_MODE) globalThis.EngineBridge = this;
     }
@@ -188,15 +194,18 @@ export default class Bridge {
 
     /**
      * Sets the view into the bodyStateBuffer based on the pointers and size in simStateBuffer.
+     * Compares the cached ptr and size to the values in the bufferView.sim and only updates if they're different and updates the cache.
      * @returns {this}
      */
     static #setBodyStateBufferView() {
         if(!this.#bufferView.sim) throw new Error(`simBufferView not initialized.`);
 
         const ptr = this.#bufferView.sim[Bridge.#layoutRecord.sim["_bodyBufferPtr"]];
-        const size = this.#bufferView.sim[Bridge.#layoutRecord.sim["_bodyBufferSize"]];   
+        const size = this.#bufferView.sim[Bridge.#layoutRecord.sim["_bodyBufferSize"]];
 
-        this.#log(`Received BodyStateBuffer info: Pointer=${ptr}, Size=${size} bytes`);
+        if(this.#bodyBufferPtrCache.ptr === ptr && this.#bodyBufferPtrCache.size === size) {
+            return this;
+        }
 
         if(typeof ptr !== "number" || ptr === 0) throw new Error(`Invalid _bodyBufferPtr=${ptr}`);
         if(typeof size !== "number" || size === 0) throw new Error(`Invalid _bodyBufferSize=${size}`);
@@ -204,6 +213,9 @@ export default class Bridge {
         const wasmHeap = this.#host.api.localHeapViewU8().buffer;
         const arrayLength = size / Float64Array.BYTES_PER_ELEMENT;
         this.#bufferView.body = new Float64Array(wasmHeap, ptr, arrayLength);
+
+        this.#bodyBufferPtrCache.ptr = ptr;
+        this.#bodyBufferPtrCache.size = size;
 
         return this;
     }
@@ -237,6 +249,8 @@ export default class Bridge {
             console.error("Shared memory buffers not initialized. Cannot get state.");
             return null;
         }
+
+        this.#setBodyStateBufferView();
 
         // Ensure reader cache values are properly initialized
         if(!this.#readerCache.isInitialized) this.#initReader();
