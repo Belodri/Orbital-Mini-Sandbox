@@ -5,23 +5,6 @@ using Physics;
 
 namespace Bridge;
 
-
-#region Layout Definitions
-
-// Defines the memory layout structures as strongly-typed records. These records are the
-// Single Source of Truth for the entire shared memory layout.
-//
-// - Property names MUST be written in camelCase! as they define the names of the properties in Javascript
-// - All properties MUST be of type 'int'! The system relies on this, as the properties will hold
-//       the integer index/offset for each field within the shared memory array.
-
-#pragma warning disable IDE1006 // Naming Styles
-internal record SimStateLayoutRec(int bodyBufferPtr, int bodyBufferSize, int simulationTime, int timeScale, int timeIsForward, int bodyCount);
-internal record BodyStateLayoutRec(int id, int enabled, int mass, int posX, int posY, int velX, int velY);
-#pragma warning restore IDE1006 // Naming Styles
-
-#endregion
-
 internal class MemoryBufferHandler : IDisposable
 {
     // Pointers
@@ -125,8 +108,8 @@ internal class MemoryBufferHandler : IDisposable
         unsafe
         {
             double* pSimState = (double*)_simStateBufferPtr;
-            pSimState[SimStateLayout.bodyBufferPtr] = (double)_bodyStateBufferPtr;
-            pSimState[SimStateLayout.bodyBufferSize] = _bodyStateBufferSizeInBytes;
+            pSimState[SimStateLayout._bodyBufferPtr] = (double)_bodyStateBufferPtr;
+            pSimState[SimStateLayout._bodyBufferSize] = _bodyStateBufferSizeInBytes;
         }
         
     }
@@ -147,8 +130,8 @@ internal class MemoryBufferHandler : IDisposable
     {
         double* pSimState = (double*)_simStateBufferPtr;
 
-        pSimState[SimStateLayout.bodyBufferPtr] = (double)_bodyStateBufferPtr;
-        pSimState[SimStateLayout.bodyBufferSize] = _bodyStateBufferSizeInBytes;
+        pSimState[SimStateLayout._bodyBufferPtr] = (double)_bodyStateBufferPtr;
+        pSimState[SimStateLayout._bodyBufferSize] = _bodyStateBufferSizeInBytes;
         pSimState[SimStateLayout.simulationTime] = tickData.SimStateData.SimulationTime;
         pSimState[SimStateLayout.timeScale] = tickData.SimStateData.TimeScale;
         pSimState[SimStateLayout.timeIsForward] = Convert.ToDouble(tickData.SimStateData.IsTimeForward);
