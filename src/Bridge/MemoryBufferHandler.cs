@@ -1,6 +1,26 @@
+using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using System.Runtime.InteropServices;
+using Physics;
 
 namespace Bridge;
+
+
+#region Layout Definitions
+
+// Defines the memory layout structures as strongly-typed records. These records are the
+// Single Source of Truth for the entire shared memory layout.
+//
+// - Property names MUST be written in camelCase! as they define the names of the properties in Javascript
+// - All properties MUST be of type 'int'! The system relies on this, as the properties will hold
+//       the integer index/offset for each field within the shared memory array.
+
+#pragma warning disable IDE1006 // Naming Styles
+internal record SimStateLayoutRec(int bodyBufferPtr, int bodyBufferSize, int simulationTime, int timeScale, int timeIsForward, int bodyCount);
+internal record BodyStateLayoutRec(int id, int enabled, int mass, int posX, int posY, int velX, int velY);
+#pragma warning restore IDE1006 // Naming Styles
+
+#endregion
 
 internal class MemoryBufferHandler : IDisposable
 {
@@ -21,33 +41,69 @@ internal class MemoryBufferHandler : IDisposable
     // Capacity in number of bodies
     private int _bodyCapacity;
 
-    // Layout for simulation metadata (fixed-size Float64 buffer).
-    public static readonly string[] SimStateLayout = [
-        "bodyBufferPtr",    // Pointer to the BodyStateBuffer
-        "bodyBufferSize",   // The size of the buffer
-        "tickError", "simulationTime", "timeScale", "timeIsForward", "bodyCount"
-    ];
+    #region Static Dynamic Layout Creation
 
-    // Layout for individual body state (dynamic Float64 buffer).
-    public static readonly string[] BodyStateLayout = [
-        "id", "enabled", "mass", "posX", "posY", "velX", "velY"
-    ];
+    // This region contains the logic to automatically generate all necessary layout configurations
+    // from the record definitions above. This ensures the design is DRY 
+    // and that there is a single source of truth for the memory layout.
+    //
+    // This process creates two artifacts for each layout:
+    //   1. A `string[]` (e.g., `SimStateLayoutArr`): An array of the property names.
+    //      This is exported to JavaScript, allowing the JS side to understand the data structure
+    //      without hardcoded values.
+    //
+    //   2. An instance of the record itself (e.g., `SimStateLayout`): A strongly-typed object
+    //      where each property holds its own integer index (e.g., `SimStateLayout.bodyBufferPtr` will be 0).
+    //      This is used internally by the C# hot path for maximum performance, avoiding dictionary lookups.
+    //
+    // This is achieved using minimal, AOT-safe reflection that runs only once during static initialization,
+    // ensuring no performance impact at runtime.
 
-    private static readonly Dictionary<string, int> SimLayoutCache = CreateLayoutCache(SimStateLayout);
-    private static readonly Dictionary<string, int> BodyLayoutCache = CreateLayoutCache(BodyStateLayout);
+    // Layout for Float64 buffer.
+    public static readonly string[] SimStateLayoutArr = GetRecordKeys<SimStateLayoutRec>();
+    public static readonly string[] BodyStateLayoutArr = GetRecordKeys<BodyStateLayoutRec>();
 
-    static Dictionary<string, int> CreateLayoutCache(string[] layout)
+    public static readonly SimStateLayoutRec SimStateLayout = CreateInstanceFromLayout<SimStateLayoutRec>(SimStateLayoutArr);
+    public static readonly BodyStateLayoutRec BodyStateLayout = CreateInstanceFromLayout<BodyStateLayoutRec>(BodyStateLayoutArr);
+
+    /// <summary>
+    /// Creates an array of property names (keys) from a record type.
+    /// This method is compatible with trimming and Native AOT.
+    /// </summary>
+    /// <typeparam name="T">The record or class type to inspect.</typeparam>
+    /// <returns>A string array containing the names of the record's public, declared properties.</returns>
+    private static string[] GetRecordKeys<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicProperties)] T>() where T : class
     {
-        var dict = new Dictionary<string, int>();
-        for (int i = 0; i < layout.Length; i++)
-        {
-            dict[layout[i]] = i;
-        }
-        return dict;
+        return [.. typeof(T)
+            .GetProperties(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+            .Select(p => p.Name)];
     }
 
+    /// <summary>
+    /// Creates an instance of a record type from a layout array.
+    /// The value for each property is set to the index of its name in the layout array.
+    /// </summary>
+    /// <typeparam name="T">The record type to create. Must have a single public constructor with only int parameters.</typeparam>
+    /// <param name="layout">An array of strings where each string is a property name of the record.</param>
+    /// <returns>A new instance of the record T.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if the record does not have a single, unique public constructor.</exception>
+    private static T CreateInstanceFromLayout<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] T>(string[] layout) where T : class
+    {
+        var constructor = typeof(T).GetConstructors().Single();
+        var constructorParams = constructor.GetParameters();
 
-    public MemoryBufferHandler(int initialBodyCapacity = 100)
+        var arguments = constructorParams.Select(param =>
+        {
+            int index = Array.IndexOf(layout, param.Name);
+            return (object)index;
+        }).ToArray();
+
+        return (T)constructor.Invoke(arguments);
+    }
+
+    #endregion
+
+    public MemoryBufferHandler(int initialBodyCapacity = 10)
     {
         if (initialBodyCapacity <= 0)
             throw new ArgumentException("Initial body capacity must be positive", nameof(initialBodyCapacity));
@@ -57,26 +113,69 @@ internal class MemoryBufferHandler : IDisposable
         // Calculate the required size for the buffers.
         unsafe
         {
-            _simStateBufferSizeInBytes = SimStateLayout.Length * sizeof(double);
-            _bodyStateBufferSizeInBytes = BodyStateLayout.Length * sizeof(double) * _bodyCapacity;
+            _simStateBufferSizeInBytes = SimStateLayoutArr.Length * sizeof(double);
+            _bodyStateBufferSizeInBytes = BodyStateLayoutArr.Length * sizeof(double) * _bodyCapacity;
         }
 
         // Allocate the unmanaged memory. Marshal.AllocHGlobal returns an IntPtr, which we store in our nint field.
         _simStateBufferPtr = Marshal.AllocHGlobal(_simStateBufferSizeInBytes);
         _bodyStateBufferPtr = Marshal.AllocHGlobal(_bodyStateBufferSizeInBytes);
 
-        UpdateSimStateBodyBufferPtr();
+        // Setup initial bodyBuffer pointers in shared memory
+        unsafe
+        {
+            double* pSimState = (double*)_simStateBufferPtr;
+            pSimState[SimStateLayout.bodyBufferPtr] = (double)_bodyStateBufferPtr;
+            pSimState[SimStateLayout.bodyBufferSize] = _bodyStateBufferSizeInBytes;
+        }
+        
     }
 
-    private unsafe void UpdateSimStateBodyBufferPtr()
+    #region Data Writing
+
+    internal void WriteTickData(TickDataDto tickData)
     {
-        double* pBuffer = (double*)_simStateBufferPtr;
-        // Cast the nint pointer to a double. This is safe on wasm32.
-        pBuffer[SimLayoutCache["bodyBufferPtr"]] = (double)_bodyStateBufferPtr;
-        pBuffer[SimLayoutCache["bodyBufferSize"]] = (double)_bodyStateBufferSizeInBytes;
+        // Resize if needed and ensure that _bodyStateBufferPtr
+        // and _bodyStateBufferSizeInBytes are up to date
+        EnsureBodyCapacity(tickData.BodiesStateData.Length);
+
+        WriteSimState(tickData);
+        WriteBodyState(tickData);
     }
 
-    public void EnsureBodyCapacity(int requiredBodyCount)
+    private unsafe void WriteSimState(TickDataDto tickData)
+    {
+        double* pSimState = (double*)_simStateBufferPtr;
+
+        pSimState[SimStateLayout.bodyBufferPtr] = (double)_bodyStateBufferPtr;
+        pSimState[SimStateLayout.bodyBufferSize] = _bodyStateBufferSizeInBytes;
+        pSimState[SimStateLayout.simulationTime] = tickData.SimStateData.SimulationTime;
+        pSimState[SimStateLayout.timeScale] = tickData.SimStateData.TimeScale;
+        pSimState[SimStateLayout.timeIsForward] = Convert.ToDouble(tickData.SimStateData.IsTimeForward);
+        pSimState[SimStateLayout.bodyCount] = tickData.BodiesStateData.Length;
+    }
+
+    private unsafe void WriteBodyState(TickDataDto tickData)
+    {
+        double* pBodyState = (double*)_bodyStateBufferPtr;
+        int bodyStride = BodyStateLayoutArr.Length;
+
+        for (int i = 0; i < tickData.BodiesStateData.Length; i++)
+        {
+            BodyStateData body = tickData.BodiesStateData[i];
+            double* pBody = pBodyState + (i * bodyStride);
+
+            pBody[BodyStateLayout.id] = body.Id;
+            pBody[BodyStateLayout.enabled] = Convert.ToDouble(body.Enabled);
+            pBody[BodyStateLayout.mass] = body.Mass;
+            pBody[BodyStateLayout.posX] = body.PosX;
+            pBody[BodyStateLayout.posY] = body.PosY;
+            pBody[BodyStateLayout.velX] = body.VelX;
+            pBody[BodyStateLayout.velY] = body.VelY;
+        }
+    }
+
+    internal void EnsureBodyCapacity(int requiredBodyCount)
     {
         if (requiredBodyCount <= _bodyCapacity) return;
 
@@ -85,43 +184,14 @@ internal class MemoryBufferHandler : IDisposable
         _bodyCapacity = newCapacity;
 
         int newSizeInBytes;
-        unsafe { newSizeInBytes = BodyStateLayout.Length * sizeof(double) * _bodyCapacity; }
+        unsafe { newSizeInBytes = BodyStateLayoutArr.Length * sizeof(double) * _bodyCapacity; }
 
         // Reallocate the unmanaged memory block.
         _bodyStateBufferPtr = Marshal.ReAllocHGlobal(_bodyStateBufferPtr, (nint)newSizeInBytes);
         _bodyStateBufferSizeInBytes = newSizeInBytes;
-
-        UpdateSimStateBodyBufferPtr();
     }
 
-    internal unsafe void WriteToBodyStateBuffer(double[][] bodyBufferData)
-    {
-        EnsureBodyCapacity(bodyBufferData.Length);
-
-        double* bodyState = (double*)_bodyStateBufferPtr;
-        int bodyStride = BodyStateLayout.Length;
-
-        for (int i = 0; i < bodyBufferData.Length; i++)
-        {
-            double[] currentBodyData = bodyBufferData[i];
-            double* currentBody = bodyState + (i * bodyStride);
-
-            for (int j = 0; j < currentBodyData.Length; j++)
-            {
-                currentBody[j] = currentBodyData[j];
-            }
-        }
-    }
-
-    internal unsafe void WriteToSimStateBuffer(double[] simBufferData)
-    {
-        double* simState = (double*)_simStateBufferPtr;
-
-        for (int i = 0; i < simBufferData.Length; i++)
-        {
-            simState[i] = simBufferData[i];
-        }
-    }
+    #endregion
 
 
     #region IDisposable implementation

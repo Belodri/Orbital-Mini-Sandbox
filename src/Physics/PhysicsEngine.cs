@@ -111,7 +111,7 @@ internal class Simulation
         while (ValidId < 0)
         {
             int Id = rnd.Next();
-            if (Bodies.ContainsKey(Id)) ValidId = Id;
+            if (!Bodies.ContainsKey(Id)) ValidId = Id;
         }
 
         //default data; replace with CONFIG later

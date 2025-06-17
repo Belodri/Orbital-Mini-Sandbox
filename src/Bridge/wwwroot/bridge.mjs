@@ -11,68 +11,44 @@ export default class Bridge {
         DEBUG_MODE: true,
         NAMESPACE: "Bridge",
         CLASS_NAME: "EngineBridge",
-        METHODS_SYNC: [
-            "GetSimStateBufferPtr",
-            "GetSimStateBufferSize",
-            "GetSimStateLayout",
-            "GetBodyStateLayout",
-        ],
-        METHODS_ASYNC: [
-            "SetTestString",
-            "GetTestString"
+        /** Keys we don't want to expose in the final public simState object. */
+        PRIVATE_KEYS: [
+            "bodyBufferPtr",
+            "bodyBufferSize"
         ]
     }
 
-    static log(msg, ...args) {
-        if(Bridge.#CONFIG.DEBUG_MODE) console.log(msg, ...args);
+    static #host = {
+        /** @type {RuntimeAPI} */
+        api: undefined,
+        exports: undefined,
+        /** @type {MonoConfig} */
+        monoConfig: undefined,
     }
 
-    /** @type {RuntimeAPI} */
-    static #api;
+    /** @type {{sim: Float64Array, body: Float64Array}} */
+    static #bufferView = {
+        sim: undefined,
+        body: undefined,
+    }
 
-    static #exports;
-
-    /** @type {MonoConfig} */
-    static #monoConfig;
+    /** @type {{sim: Record<string, number>, body: Record<string, number>}} */
+    static #layoutRecord = {
+        sim: undefined,
+        body: undefined,
+    }
 
     static #EngineBridge;
 
-    /** @type {Float64Array} */
-    static #simBufferView;
+    //#region Utils
 
-    /** @type {Float64Array} */
-    static #bodyStateBufferView;
-
-    /** @type {Record<string, [index: number]>} */
-    static #bodyStateLayoutRecord;
-
-    /** @type {Record<string, [index: number]>} */
-    static #simStateLayoutRecord;
-
-    //#region Initialization
-
-    static async initialize() {
-        const {NAMESPACE, CLASS_NAME, DEBUG_MODE} = Bridge.#CONFIG;
-        if(Bridge.#api) throw new Error("Bridge has already been initialized.");
-
-        Bridge.#api = await dotnet.create();
-        Bridge.#monoConfig = Bridge.#api.getConfig();
-        Bridge.#exports = await Bridge.#api.getAssemblyExports(Bridge.#monoConfig.mainAssemblyName);
-        Bridge.#EngineBridge = Bridge.#exports[NAMESPACE][CLASS_NAME];
-
-        Bridge.#simStateLayoutRecord = Bridge.#getStateLayoutRecord(Bridge.callSync("GetSimStateLayout"));
-        Bridge.#bodyStateLayoutRecord = Bridge.#getStateLayoutRecord(Bridge.callSync("GetBodyStateLayout"));
-
-        Bridge.#setSimStateBufferView();
-        Bridge.#setBodyStateBufferView()
-
-        if(DEBUG_MODE) globalThis.EngineBridge = this;
-        return true;
+    static #log(msg, ...args) {
+        if(Bridge.#CONFIG.DEBUG_MODE) console.log(msg, ...args);
     }
 
     /**
      * @param {string[]} layoutArr
-     * @returns {Record<string, [index: number]>}
+     * @returns {Record<string, number>}
      */
     static #getStateLayoutRecord(layoutArr) {
         const record = {};
@@ -85,60 +61,149 @@ export default class Bridge {
     //#endregion
 
 
-    //#region Temporary C# method call utils
+    //#region API
 
-    static callSync(name, ...args) {
-        if(!Bridge.#CONFIG.METHODS_SYNC.includes(name)) {
-            throw new Error(`Method "${name}" is not in the configured list of sync methods.`);
-        }
+    // TODO Write a Bridge.d.ts file for the public facing API
+    // See if the definitions for BodyStateData and SimState could be auto-generated
 
-        const method = Bridge.#getMethod(name);
-        return method(...args);
+
+    /**
+     * @typedef {{id: number, [key: string]: number}} BodyStateData
+     */
+
+    /**
+     * @typedef {object} SimState
+     * @property {Map<number, BodyStateData>} bodies
+     * @property {number} bodyCount
+     * @property {number} [key] 
+     */
+
+    /** @returns {SimState | undefined} */
+    static get simState() { 
+        if(!this.#simStateReady) return undefined;
+        return this.#simState;
     }
 
-    /*
-        Turn some calls into a promise just so they're put on the task stack and allow other, 
-        more pressing code to run before.
-    */
-    static callAsync(name, ...args) {
-        if(!Bridge.#CONFIG.METHODS_ASYNC.includes(name)) {
-            throw new Error(`Method "${name}" is not in the configured list of async methods.`);
-        }
 
-        const method = Bridge.#getMethod(name);
-        return new Promise((resolve, reject) => {
-                setTimeout(() => {
-                    try {
-                        const result = method(...args);
-                        resolve(result);
-                    } catch (err) {
-                        reject(err);
-                    }
-                }, 0);
-            });
+    /**
+     * Initializes the Bridge. Must be called first!
+     * @returns {Promise<void>}
+     */
+    static async initialize() {
+        const {NAMESPACE, CLASS_NAME, DEBUG_MODE} = Bridge.#CONFIG;
+        if(Bridge.#host.api) throw new Error("Bridge has already been initialized.");
+
+        Bridge.#host.api = await dotnet.create();
+        Bridge.#host.monoConfig = Bridge.#host.api.getConfig();
+        Bridge.#host.exports = await Bridge.#host.api.getAssemblyExports(Bridge.#host.monoConfig.mainAssemblyName);
+        Bridge.#EngineBridge = Bridge.#host.exports[NAMESPACE][CLASS_NAME];
+
+        Bridge.#layoutRecord.sim = Bridge.#getStateLayoutRecord(Bridge.#GetSimStateLayout());
+        Bridge.#layoutRecord.body = Bridge.#getStateLayoutRecord(Bridge.#GetBodyStateLayout());
+
+        Bridge.#setSimStateBufferView();
+        Bridge.#setBodyStateBufferView()
+
+        if(DEBUG_MODE) globalThis.EngineBridge = this;
+    }
+
+
+    /**
+     * @typedef {object} BodyDiffData
+     * @property {Set<number>} created      The ids of newly created bodies
+     * @property {Set<number>} updated      The ids of bodies that were neither created nor destroyed
+     * @property {Set<number>} deleted      The ids of deleted bodies
+     */
+
+    /**
+     * Ticks the engine and refreshes the simState data.
+     * @param {number} timestamp The timestamp from `requestAnimationFrame()`
+     * @returns {BodyDiffData} 
+     * @throws Error if the EngineBridge returns an error message.
+     */
+    static tickEngine(timestamp) {
+        const errorMsg = this.#EngineBridge.Tick(timestamp);
+        if(errorMsg) throw new Error(errorMsg);
+        return this.#refreshSimState();
     }
 
     /**
-     * @param {string} name 
-     * @returns {Function}
+     * 
+     * @param {number} bodyCount 
+     * @returns {void}
      */
-    static #getMethod(name) {
-        const method = this.#EngineBridge[name];
-        if(!method) throw new Error(`Method "${name}" not found in C# class "${Bridge.#CONFIG.CLASS_NAME}"`);
-        return method;
+    static _createTestSim(bodyCount) {
+        return this.#EngineBridge.CreateTestSim(bodyCount);
+    }
+
+    /**
+     * 
+     * @param {string} str 
+     * @returns {void}
+     */
+    static _setTestString(str) {
+        return this.#EngineBridge.SetTestString(str);
+    }
+
+    /**
+     * 
+     * @returns {string}
+     */
+    static _getTestString() {
+        return this.#EngineBridge.GetTestString();
     }
 
     //#endregion
 
+
+    //#region C# Methods - Private 
+
+    /**
+     * 
+     * @returns {number}
+     */
+    static #GetSimStateBufferPtr() {
+        return this.#EngineBridge.GetSimStateBufferPtr();
+    }
+
+    /**
+     * 
+     * @returns {number}
+     */
+    static #GetSimStateBufferSize() {
+        return this.#EngineBridge.GetSimStateBufferSize();
+    }
+
+    /**
+     * 
+     * @returns {string[]}
+     */
+    static #GetSimStateLayout() {
+        return this.#EngineBridge.GetSimStateLayout();
+    }
+
+    /**
+     * 
+     * @returns {string[]}
+     */
+    static #GetBodyStateLayout() {
+        return this.#EngineBridge.GetBodyStateLayout();
+    }
+
+    //#endregion
+
+
+    //#region Buffer Views
+
     static #setSimStateBufferView() {
-        const simStatePtr = this.callSync("GetSimStateBufferPtr");
-        const simStateSize = this.callSync("GetSimStateBufferSize");
+        const simStatePtr = this.#GetSimStateBufferPtr();
+        const simStateSize = this.#GetSimStateBufferSize();
 
-        this.log(`Received SimStateBuffer info: Pointer=${simStatePtr}, Size=${simStateSize} bytes`);
+        this.#log(`Received SimStateBuffer info: Pointer=${simStatePtr}, Size=${simStateSize} bytes`);
 
-        const wasmHeap = this.#api.localHeapViewU8().buffer;
+        const wasmHeap = this.#host.api.localHeapViewU8().buffer;
         const arrayLength = simStateSize / Float64Array.BYTES_PER_ELEMENT;
-        this.#simBufferView = new Float64Array(wasmHeap, simStatePtr, arrayLength);
+        this.#bufferView.sim = new Float64Array(wasmHeap, simStatePtr, arrayLength);
 
         return this;
     }
@@ -148,20 +213,108 @@ export default class Bridge {
      * @returns {this}
      */
     static #setBodyStateBufferView() {
-        if(!this.#simBufferView) throw new Error(`simBufferView not initialized.`);
+        if(!this.#bufferView.sim) throw new Error(`simBufferView not initialized.`);
 
-        const ptr = this.#simBufferView[Bridge.#simStateLayoutRecord["bodyBufferPtr"]];
-        const size = this.#simBufferView[Bridge.#simStateLayoutRecord["bodyBufferSize"]];   
+        const ptr = this.#bufferView.sim[Bridge.#layoutRecord.sim["bodyBufferPtr"]];
+        const size = this.#bufferView.sim[Bridge.#layoutRecord.sim["bodyBufferSize"]];   
 
-        this.log(`Received BodyStateBuffer info: Pointer=${ptr}, Size=${size} bytes`);
+        this.#log(`Received BodyStateBuffer info: Pointer=${ptr}, Size=${size} bytes`);
 
         if(typeof ptr !== "number" || ptr === 0) throw new Error(`Invalid bodyBufferPtr=${ptr}`);
-        if(typeof size !== "number" || size === 0) throw new Error(`Invalid bodyBufferSize=${ptr}`);
+        if(typeof size !== "number" || size === 0) throw new Error(`Invalid bodyBufferSize=${size}`);
 
-        const wasmHeap = this.#api.localHeapViewU8().buffer;
+        const wasmHeap = this.#host.api.localHeapViewU8().buffer;
         const arrayLength = size / Float64Array.BYTES_PER_ELEMENT;
-        this.#bodyStateBufferView = new Float64Array(wasmHeap, ptr, arrayLength);
+        this.#bufferView.body = new Float64Array(wasmHeap, ptr, arrayLength);
 
         return this;
     }
+
+    //#endregion
+
+
+    //#region Shared Memory Reader
+
+    static #simState = {
+        /** @type {Map<number, BodyStateData>} */
+        bodies: new Map()
+    }
+
+    static #simStateReady = false;
+
+    static #readerCache = {
+        isInitialized: false,
+        /** @type {[string, number][]} */
+        simKVCache: [],
+        /** @type {[string, number][]} */
+        bodyKVCache: [],
+        /** @type {number} */
+        bodyStride: undefined,
+        /** @type {number} */
+        idIndex: undefined,
+    };
+
+    static #refreshSimState() {
+        if (!this.#bufferView.sim || !this.#bufferView.body) {
+            console.error("Shared memory buffers not initialized. Cannot get state.");
+            return null;
+        }
+
+        // Ensure reader cache values are properly initialized
+        if(!this.#readerCache.isInitialized) this.#initReader();
+
+        // Read sim buffer data
+        for(const [key, index] of this.#readerCache.simKVCache) {
+            this.#simState[key] = this.#bufferView.sim[index];
+        }
+
+        // Read body buffer data
+        const createdIds = new Set();
+        const updatedIds = new Set();
+        const excessIds = new Set(this.#simState.bodies.keys());    // Get all current keys
+
+        for(let i = 0; i < this.#simState.bodyCount; i++) {
+            const offset = i * this.#readerCache.bodyStride;
+            const id = this.#bufferView.body[offset + this.#readerCache.idIndex];
+            excessIds.delete(id);
+
+            let body = this.#simState.bodies.get(id);
+            if(!body) {
+                body = {};
+                this.#simState.bodies.set(id, body);
+                createdIds.add(id);
+            } else updatedIds.add(id);
+
+            for(const [key, index] of this.#readerCache.bodyKVCache) {
+                body[key] = this.#bufferView.body[offset + index];
+            }
+        }
+
+        // Remove remaining excess bodies 
+        for(const id of excessIds) this.#simState.bodies.delete(id);
+
+        // Allow simState to be read by consumers
+        this.#simStateReady = true;
+
+        return {
+            created: createdIds,
+            deleted: excessIds,
+            updated: updatedIds,
+        }
+    }
+
+    static #initReader() {
+        for(const [key, index] of Object.entries(this.#layoutRecord.sim)) {
+            if(this.#CONFIG.PRIVATE_KEYS.includes(key)) continue;
+            this.#readerCache.simKVCache.push([key, index]);
+        }
+
+        this.#readerCache.bodyKVCache = Object.entries(this.#layoutRecord.body);
+        this.#readerCache.bodyStride = this.#readerCache.bodyKVCache.length;
+        this.#readerCache.idIndex = this.#layoutRecord.body.id;
+
+        this.#readerCache.isInitialized = true;
+    }
+
+    //#endregion
 }

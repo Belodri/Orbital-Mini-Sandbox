@@ -14,6 +14,8 @@ https://learn.microsoft.com/en-us/aspnet/core/client-side/dotnet-interop/wasm-br
     - Shared Memory -> All shared buffer fields standardized to `Float64`; Passing `BodyStateBuffer` pointer within `SimStateBuffer`; Changed BufferLayout to simple string arrays.
 - 14/06/2025 
     - Physics -> Changed float-based Vector2 to custom double-based Vector2D 
+- 17/06/2025
+    - Bridge -> Layout SSOT defined via record
 
 # Day Log
 
@@ -21,3 +23,4 @@ https://learn.microsoft.com/en-us/aspnet/core/client-side/dotnet-interop/wasm-br
 - 12/06/2025 - Reworked Bridge; refined build tools; created basic JS consumer; 1st test of JS <-> C# communication SUCCESSFUL
 - 13/06/2025 - Added dual shared memory buffers and dynamic memory reallocation; moved bridge.js into EngineBridge project;
 - 14/06/2025 - Added dynamic layout aware JavaScript reader; Added custom Vector2D math library; Scaffolded simulation & body models; Defined the data transfer contracts between `PhysicsEngine` and `EngineBridge`
+- 17/06/2025 - Added C# data writer with self-configuring layout; added GC-efficient, self-configuring JavaScript reader with primitive delta reporting; first successful end-to-end data pipeline test

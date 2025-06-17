@@ -2,26 +2,19 @@ import Bridge from '../bridge/bridge.mjs';
 
 async function initialize() {
     await Bridge.initialize();
-    //await test();
+    test();
 }
 
-async function test() {
-    let tickErrText;
-
+function test() {
     console.log("--- Test Run ---");
 
-    tickErrText = await Bridge.callAsync("GetTickErrorText");
-    console.log(`Expect: ""; Result: ${tickErrText}`);
+    console.log("Creating Bodies");
+    Bridge._createTestSim(5);
 
-    Bridge.callSync("Tick");
+    console.log("Run Tick")
+    Bridge.tickEngine();
 
-    tickErrText = await Bridge.callAsync("GetTickErrorText");
-    console.log(`Expect: "TESTING"; Result: ${tickErrText}`);
-
-    Bridge.callSync("Tick");
-
-    tickErrText = await Bridge.callAsync("GetTickErrorText");
-    console.log(`Expect: ""; Result: ${tickErrText}`);
+    console.log(Bridge.simState);
 
     console.log("--- Test Complete ---");
 }

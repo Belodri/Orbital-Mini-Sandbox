@@ -3,30 +3,34 @@ using Physics;
 
 namespace Bridge;
 
-internal class Program
-{
-    private static void Main(string[] args)
-    {
-        
-    }
-}
+internal class Program { private static void Main(string[] args) {} }
 
 public static partial class EngineBridge
 {
-    internal static readonly PhysicsEngine physicsEngine;
-    internal static readonly MemoryBufferHandler memoryBufferHandler; 
+
+    private static readonly PhysicsEngine physicsEngine;
+    private static readonly MemoryBufferHandler memoryBufferHandler;
     private static string testString = "";
 
     static EngineBridge()
     {
         physicsEngine = new PhysicsEngine();
-        memoryBufferHandler = new MemoryBufferHandler(100);
+        memoryBufferHandler = new MemoryBufferHandler();
     }
 
     [JSExport]
-    public static void Tick(double timestamp)
+    public static string? Tick(double timestamp)
     {
-        TickDataDto TickData = physicsEngine.Tick(timestamp);
+        try
+        {
+            TickDataDto tickData = physicsEngine.Tick(timestamp);
+            memoryBufferHandler.WriteTickData(tickData);
+            return null;
+        }
+        catch (Exception e)
+        {
+            return e.Message;
+        }
     }
 
     [JSExport]
@@ -49,10 +53,10 @@ public static partial class EngineBridge
     public static int GetSimStateBufferSize() => memoryBufferHandler.SimStateBufferSizeInBytes;
 
     [JSExport]
-    public static string[] GetSimStateLayout() => MemoryBufferHandler.SimStateLayout;
+    public static string[] GetSimStateLayout() => MemoryBufferHandler.SimStateLayoutArr;
 
     [JSExport]
-    public static string[] GetBodyStateLayout() => MemoryBufferHandler.BodyStateLayout;
+    public static string[] GetBodyStateLayout() => MemoryBufferHandler.BodyStateLayoutArr;
 
     [JSExport]
     public static void SetTestString(string newTestString) => testString = newTestString;
