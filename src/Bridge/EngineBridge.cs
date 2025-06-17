@@ -10,7 +10,6 @@ public static partial class EngineBridge
 
     private static readonly PhysicsEngine physicsEngine;
     private static readonly MemoryBufferHandler memoryBufferHandler;
-    private static string testString = "";
 
     static EngineBridge()
     {
@@ -57,10 +56,4 @@ public static partial class EngineBridge
 
     [JSExport]
     public static string[] GetBodyStateLayout() => MemoryBufferHandler.BodyStateLayoutArr;
-
-    [JSExport]
-    public static void SetTestString(string newTestString) => testString = newTestString;
-
-    [JSExport]
-    public static string GetTestString() => testString;
 }
