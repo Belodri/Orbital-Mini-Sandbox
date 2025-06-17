@@ -3,7 +3,7 @@ import { dotnet as _dotnet } from './_framework/dotnet.js';
 const dotnet = _dotnet;
 
 /**
- * @import { MonoConfig, RuntimeAPI,  } from '../types/dotnet.js'
+ * @import { MonoConfig, RuntimeAPI } from '../types/dotnet.js'
  */
 
 export default class Bridge {
@@ -64,22 +64,7 @@ export default class Bridge {
 
     //#region API
 
-    // TODO Write a Bridge.d.ts file for the public facing API
-    // See if the definitions for BodyStateData and SimState could be auto-generated
-
-
-    /**
-     * @typedef {{id: number, [key: string]: number}} BodyStateData
-     */
-
-    /**
-     * @typedef {object} SimState
-     * @property {Map<number, BodyStateData>} bodies
-     * @property {number} bodyCount
-     * @property {number} [key] 
-     */
-
-    /** @returns {SimState | undefined} */
+    /** @returns {import('../types/bridge.js').SimState | undefined} */
     static get simState() { 
         if(!this.#simStateReady) return undefined;
         return this.#simState;
@@ -108,18 +93,10 @@ export default class Bridge {
         if(DEBUG_MODE) globalThis.EngineBridge = this;
     }
 
-
-    /**
-     * @typedef {object} BodyDiffData
-     * @property {Set<number>} created      The ids of newly created bodies
-     * @property {Set<number>} updated      The ids of bodies that were neither created nor destroyed
-     * @property {Set<number>} deleted      The ids of deleted bodies
-     */
-
     /**
      * Ticks the engine and refreshes the simState data.
      * @param {number} timestamp The timestamp from `requestAnimationFrame()`
-     * @returns {BodyDiffData} 
+     * @returns {import('../types/bridge.js').BodyDiffData} 
      * @throws Error if the EngineBridge returns an error message.
      */
     static tickEngine(timestamp) {
@@ -225,8 +202,9 @@ export default class Bridge {
 
     //#region Shared Memory Reader
 
+    /** @type {import('../types/bridge.js').SimState} */
     static #simState = {
-        /** @type {Map<number, BodyStateData>} */
+        /** @type {Map<number, import('../types/bridge.js').BodyStateData>} */
         bodies: new Map()
     }
 
