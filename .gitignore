@@ -2,3 +2,7 @@
 **/bin
 .vscode/
 dist/
+
+# Ignore symlinked files
+src/WebApp/types/Bridge.d.ts
+src/WebApp/types/LayoutRecords.d.ts
