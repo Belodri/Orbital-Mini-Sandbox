@@ -2,6 +2,10 @@
 
 set -e
 
+# Force Git Bash/MSYS2 to use true Windows symlinks ('nativestrict').
+# This requires either Administrator rights or Developer Mode to be enabled on Windows.
+export MSYS=winsymlinks:nativestrict
+
 PROJECT_FILE="tools/TsTypeGen/TsTypeGen.csproj"
 SOURCE_BRIDGE_TYPE_FILE="src/Bridge/types/Bridge.d.ts"
 SOURCE_LAYOUT_RECORDS_TYPE_FILE="src/Bridge/types/LayoutRecords.d.ts"
