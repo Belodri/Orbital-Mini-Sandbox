@@ -10,10 +10,12 @@ internal record ParsedRecord(string Name, List<ParsedProperty> Properties);
 
 internal static class Program
 {
+    private const string SolutionFileName = "OrbitalMiniSandbox.sln";
+
     // Configure input & output files
-    private const string InputCsFile = "../../src/Bridge/LayoutRecords.cs";
-    private static readonly string[] OutputTsFiles = [
-        "../../src/Bridge/types/LayoutRecords.d.ts",
+    private static readonly string InputFileRelativePath = "src/Bridge/LayoutRecords.cs";
+    private static readonly string[] OutputFileRelativePaths  = [
+        "src/Bridge/types/LayoutRecords.d.ts",
     ];
 
     public static async Task<int> Main()
@@ -22,7 +24,9 @@ internal static class Program
 
         try
         {
-            string csharpContent = await ReadSourceFileAsync();
+            string repoRoot = FindRepoRoot();
+            
+            string csharpContent = await ReadSourceFileAsync(repoRoot);
             List<ParsedRecord> parsedRecords = Parser.ParseSource(csharpContent);
             string tsContent = TsGenerator.Generate(parsedRecords);
 
@@ -32,7 +36,7 @@ internal static class Program
                 return 1;
             }
 
-            var tasks = OutputTsFiles.Select(path => WriteOutputFileAsync(path, tsContent));
+            var tasks = OutputFileRelativePaths.Select(relPath => WriteOutputFileAsync(repoRoot, relPath, tsContent));
             await Task.WhenAll(tasks);
 
             Console.WriteLine("LayoutRecords.d.ts was generated successfully!");
@@ -44,23 +48,43 @@ internal static class Program
             return 0;
         }
     }
-
-    private static async Task<string> ReadSourceFileAsync()
+    
+    private static string FindRepoRoot()
     {
-        var inputFile = Path.GetFullPath(InputCsFile);
-        Console.WriteLine($"Input C# File:  {inputFile}");
+        string currentPath = AppContext.BaseDirectory;
+        DirectoryInfo? directory = new(currentPath);
+
+        // Loop upwards until we find the .sln file or hit the filesystem root.
+        while (directory != null && !File.Exists(Path.Combine(directory.FullName, SolutionFileName)))
+        {
+            directory = directory.Parent;
+        }
+
+        if (directory == null)
+        {
+            throw new DirectoryNotFoundException($"Could not find repository root. Searched upwards for '{SolutionFileName}'.");
+        }
         
+        return directory.FullName;
+    }
+
+    private static async Task<string> ReadSourceFileAsync(string repoRoot)
+    {
+        var inputFile = Path.Combine(repoRoot, InputFileRelativePath);
+        Console.WriteLine($"Input C# File:  {inputFile}");
+
         if (!File.Exists(inputFile))
         {
             throw new FileNotFoundException($"Input file not found at '{inputFile}'");
         }
-        
+
         return await File.ReadAllTextAsync(inputFile);
     }
 
-    private static async Task WriteOutputFileAsync(string path, string content)
+    private static async Task WriteOutputFileAsync(string repoRoot, string relPath, string content)
     {
-        var outputFile = Path.GetFullPath(path);
+
+        var outputFile = Path.Combine(repoRoot, relPath);
         Console.WriteLine($"Target Output TS File: {outputFile}");
 
         Directory.CreateDirectory(Path.GetDirectoryName(outputFile)!);
