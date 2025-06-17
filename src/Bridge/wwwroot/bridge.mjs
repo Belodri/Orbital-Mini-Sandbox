@@ -11,11 +11,6 @@ export default class Bridge {
         DEBUG_MODE: true,
         NAMESPACE: "Bridge",
         CLASS_NAME: "EngineBridge",
-        /** Keys we don't want to expose in the final public simState object. */
-        PRIVATE_KEYS: [
-            "bodyBufferPtr",
-            "bodyBufferSize"
-        ]
     }
 
     static #host = {
@@ -136,23 +131,6 @@ export default class Bridge {
         return this.#EngineBridge.CreateTestSim(bodyCount);
     }
 
-    /**
-     * 
-     * @param {string} str 
-     * @returns {void}
-     */
-    static _setTestString(str) {
-        return this.#EngineBridge.SetTestString(str);
-    }
-
-    /**
-     * 
-     * @returns {string}
-     */
-    static _getTestString() {
-        return this.#EngineBridge.GetTestString();
-    }
-
     //#endregion
 
 
@@ -215,13 +193,13 @@ export default class Bridge {
     static #setBodyStateBufferView() {
         if(!this.#bufferView.sim) throw new Error(`simBufferView not initialized.`);
 
-        const ptr = this.#bufferView.sim[Bridge.#layoutRecord.sim["bodyBufferPtr"]];
-        const size = this.#bufferView.sim[Bridge.#layoutRecord.sim["bodyBufferSize"]];   
+        const ptr = this.#bufferView.sim[Bridge.#layoutRecord.sim["_bodyBufferPtr"]];
+        const size = this.#bufferView.sim[Bridge.#layoutRecord.sim["_bodyBufferSize"]];   
 
         this.#log(`Received BodyStateBuffer info: Pointer=${ptr}, Size=${size} bytes`);
 
-        if(typeof ptr !== "number" || ptr === 0) throw new Error(`Invalid bodyBufferPtr=${ptr}`);
-        if(typeof size !== "number" || size === 0) throw new Error(`Invalid bodyBufferSize=${size}`);
+        if(typeof ptr !== "number" || ptr === 0) throw new Error(`Invalid _bodyBufferPtr=${ptr}`);
+        if(typeof size !== "number" || size === 0) throw new Error(`Invalid _bodyBufferSize=${size}`);
 
         const wasmHeap = this.#host.api.localHeapViewU8().buffer;
         const arrayLength = size / Float64Array.BYTES_PER_ELEMENT;
@@ -305,7 +283,8 @@ export default class Bridge {
 
     static #initReader() {
         for(const [key, index] of Object.entries(this.#layoutRecord.sim)) {
-            if(this.#CONFIG.PRIVATE_KEYS.includes(key)) continue;
+            // Don't expose internal keys in the final public simState object
+            if(key.startsWith("_")) continue;
             this.#readerCache.simKVCache.push([key, index]);
         }
 
