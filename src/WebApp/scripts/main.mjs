@@ -1,26 +1,28 @@
-import Bridge from '../bridge/bridge.mjs';
+import AppShell from './AppShell.mjs';
 
-async function initialize() {
-    await Bridge.initialize();
-    test();
+//#region Fatal Error Handling
+
+/**
+ * Handles fatal errors by logging them, displaying a UI overlay,
+ * and preventing further interaction.
+ * @param {string|Error|PromiseRejectionEvent} errorInfo - The error information.
+ */
+function handleFatalError(errorInfo) {
+    console.error(`Fatal, unrecoverable error:`, errorInfo);
+    const errorElement = document.getElementById('error-fatal')
+        .toggleAttribute("hidden", false);
 }
 
-function test() {
-    console.log("--- Test Run ---");
+window.addEventListener('error', (event) => {
+    handleFatalError(event.error || event.message)
+});
 
-    console.log("Creating Bodies");
-    Bridge._createTestSim(5);
+window.addEventListener('unhandledrejection', (event) => {
+    handleFatalError(event.reason);
+});
 
-    console.log("Run Tick")
-    Bridge.tickEngine();
+//#endregion
 
-    console.log(Bridge.simState);
-
-    console.log("--- Test Complete ---");
-}
-
-try {
-    await initialize();
-} catch(err) {
-    console.error(err);
-}
+window.addEventListener("load", async (event) => {
+    await AppShell.initialize();
+});
