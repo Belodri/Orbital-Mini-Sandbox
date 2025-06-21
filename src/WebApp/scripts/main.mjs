@@ -9,8 +9,8 @@ import AppShell from './AppShell.mjs';
  */
 function handleFatalError(errorInfo) {
     console.error(`Fatal, unrecoverable error:`, errorInfo);
-    const errorElement = document.getElementById('error-fatal')
-        .toggleAttribute("hidden", false);
+    document.getElementById('error-fatal')
+        .classList.add("hidden");
 }
 
 window.addEventListener('error', (event) => {
