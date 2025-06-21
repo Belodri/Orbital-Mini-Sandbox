@@ -44,9 +44,10 @@ cp -r "$BRIDGE_BUILD_OUTPUT_PATH/_framework" "$BRIDGE_DIST_PATH/"
 # NOTE: Replace this with a proper build process later
 # We explicitly copy only the needed files and folders to avoid including
 # development-only files like .d.ts, jsconfig.json, etc.
-echo "Copying WebApp files (HTML, JS)..."
+echo "Copying WebApp files (HTML, JS, CSS)..."
 cp "$WEBAPP_SOURCE_PATH/index.html" "$DIST_PATH/"
 cp -r "$WEBAPP_SOURCE_PATH/scripts" "$DIST_PATH/"
+cp -r "$WEBAPP_SOURCE_PATH/styles" "$DIST_PATH/"
 
 # --- Finished ---
 echo "--- Build successful! ---"
