@@ -23,7 +23,7 @@ export default class AppShell {
         this.log("Initializing Bridge...")
         await this.Bridge.initialize(); 
 
-        globalThis.AppShell = this;
+        if(this.#CONFIG.debugMode) globalThis.AppShell = this;
         console.log("Initialization complete.")
     }
 
