@@ -1,5 +1,6 @@
 // @ts-ignore
 import _Bridge from '../bridge/bridge.mjs';     // created during build
+import Notifications from './components/Notifications.mjs';
 
 export default class AppShell {
     static #CONFIG = {
@@ -10,6 +11,9 @@ export default class AppShell {
 
     /** @type {typeof import("../types/Bridge").default} */
     static Bridge = _Bridge;
+
+    /** @type {Notifications} */
+    static notifications = new Notifications();
 
     //#endregion
 
