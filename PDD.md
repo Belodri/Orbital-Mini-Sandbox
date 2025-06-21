@@ -3,6 +3,10 @@
 
 # Revision History
 
+- **21/06/2025**
+    - Defined `main.mjs` as the lightweight application entry point, responsible for initialization and global fatal error handling.
+    - Added a self-contained `Notifications` class for displaying transient UI messages.
+    - Updated the PDD to reflect revisions
 - **17/06/2025**
     - Extracted definitions for shared memory layout into a separate file `LayoutRecords.cs`
     - Redefined `WebApp` architecture, introducing an `AppDataManager` class for application exclusive data.
@@ -171,15 +175,30 @@ The central PIXI.js component for all rendering.
 - Manages camera logic (zoom, pan, focus tracking)
 - always below all other components
 
-### Classes
+**Notifications**
+A dedicated container area for displaying temporary, non-modal status messages to the user (e.g., "Preset Loaded").
+- Provides a simple `add(message)` API for other components to display information.
+- Manages a message queue to gracefully handle bursts of notification requests.
+- Automatically manages the lifecycle of notification DOM elements, adding them to the view and removing them after a configured duration.
+- Implements a performance-optimized render loop using debouncing and intelligent scheduling to minimize processing and DOM manipulation.
+
+
+### Core Components
+
+`main.mjs`
+- Application entry point & handler of fatal errors.
+- **Responsibilities:**
+    - Serves as the sole script entry point, loaded directly by `index.html`.
+    - Initiates the application by calling `AppShell.initialize()` on window load.
+    - Acts as a global safety net, catching unhandled exceptions and promise rejections.
+    - Displays a static fatal error message to the user if the application encounters an unrecoverable state, preventing a blank or broken page.
 
 `AppShell`
-- **Static** orchestrator for the entire application.
+- Static orchestrator for the entire application.
 - **Responsibilities:**
-    - Instantiates and/or holds references to all core components (Javascript API of `Bridge`, `AppDataManager`, `CanvasView`, all UI components).
+    - Instantiates and/or holds references to all core components (Javascript API of `Bridge`, `AppDataManager`, `CanvasView`, `Notifications`, all other UI components).
     - Manages the creation, destruction, and layering of UI overlays (`BodyConfig`, `BodyDetails`).
-    - Binds global keyboard shortcuts and delegates corresponding actions to the `Bridge` or to other parts of the `WebApp`.
-    
+    - Binds global keyboard shortcuts and delegates corresponding actions.
 
 `AppDataManager`
 - Owner and handler of application level metadata.
