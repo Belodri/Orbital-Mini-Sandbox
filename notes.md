@@ -13,3 +13,5 @@ https://learn.microsoft.com/en-us/aspnet/core/client-side/dotnet-interop/wasm-br
 - 14/06/2025 - Added dynamic layout aware JavaScript reader; Added custom Vector2D math library; Scaffolded simulation & body models; Defined the data transfer contracts between `PhysicsEngine` and `EngineBridge`
 - 16/06/2025 - Added C# data writer with self-configuring layout; added GC-efficient, self-configuring JavaScript reader with primitive delta reporting; first successful end-to-end data pipeline test
 - 17/06/2025 - Refactored memory layout to a C# SSOT; created build tool (TsTypeGen) for automatic TypeScript type generation; completed major PDD update.
+- 20/06/2025 - Began WebApp scaffolding; Added fatal error handling UI & styles to WebApp; Added AppShell class with basic initialization and logging
+- 21/06/2025 - Added and tested Notification class for WebApp; Updated build tools to add WebApp styles; Updated PDD.
