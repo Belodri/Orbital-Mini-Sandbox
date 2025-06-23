@@ -44,7 +44,7 @@ public record BodyStateLayoutRec(
     /// </summary>
     int id,
     /// <summary>
-    /// Disabled bodies are ignored by the simulation. Forward = 1; Backward = 0; 
+    /// Disabled bodies are ignored by the simulation. Enabled = 1; Disabled = 0;
     /// </summary>
     int enabled,
     /// <summary>
