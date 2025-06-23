@@ -36,7 +36,7 @@ internal class MemoryBufferHandler : IDisposable
     //      without hardcoded values.
     //
     //   2. An instance of the record itself (e.g., `SimStateLayout`): A strongly-typed object
-    //      where each property holds its own integer index (e.g., `SimStateLayout.bodyBufferPtr` will be 0).
+    //      where each property holds its own integer index (e.g., `SimStateLayout._bodyBufferPtr` will be 0).
     //      This is used internally by the C# hot path for maximum performance, avoiding dictionary lookups.
     //
     // This is achieved using minimal, AOT-safe reflection that runs only once during static initialization,
@@ -108,7 +108,7 @@ internal class MemoryBufferHandler : IDisposable
         unsafe
         {
             double* pSimState = (double*)_simStateBufferPtr;
-            pSimState[SimStateLayout._bodyBufferPtr] = (double)_bodyStateBufferPtr;
+            pSimState[SimStateLayout._bodyBufferPtr] = _bodyStateBufferPtr;
             pSimState[SimStateLayout._bodyBufferSize] = _bodyStateBufferSizeInBytes;
         }
         
@@ -116,36 +116,36 @@ internal class MemoryBufferHandler : IDisposable
 
     #region Data Writing
 
-    internal void WriteTickData(TickDataDto tickData)
+    internal void WriteTickData(TickData tickData)
     {
         // Resize if needed and ensure that _bodyStateBufferPtr
         // and _bodyStateBufferSizeInBytes are up to date
-        EnsureBodyCapacity(tickData.BodiesStateData.Length);
+        EnsureBodyCapacity(tickData.BodyTickDataArray.Length);
 
         WriteSimState(tickData);
         WriteBodyState(tickData);
     }
 
-    private unsafe void WriteSimState(TickDataDto tickData)
+    private unsafe void WriteSimState(TickData tickData)
     {
         double* pSimState = (double*)_simStateBufferPtr;
 
-        pSimState[SimStateLayout._bodyBufferPtr] = (double)_bodyStateBufferPtr;
+        pSimState[SimStateLayout._bodyBufferPtr] = _bodyStateBufferPtr;
         pSimState[SimStateLayout._bodyBufferSize] = _bodyStateBufferSizeInBytes;
-        pSimState[SimStateLayout.simulationTime] = tickData.SimStateData.SimulationTime;
-        pSimState[SimStateLayout.timeScale] = tickData.SimStateData.TimeScale;
-        pSimState[SimStateLayout.timeIsForward] = Convert.ToDouble(tickData.SimStateData.IsTimeForward);
-        pSimState[SimStateLayout.bodyCount] = tickData.BodiesStateData.Length;
+        pSimState[SimStateLayout.simulationTime] = tickData.SimTickData.SimulationTime;
+        pSimState[SimStateLayout.timeScale] = tickData.SimTickData.TimeScale;
+        pSimState[SimStateLayout.timeIsForward] = Convert.ToDouble(tickData.SimTickData.IsTimeForward);
+        pSimState[SimStateLayout.bodyCount] = tickData.BodyTickDataArray.Length;
     }
 
-    private unsafe void WriteBodyState(TickDataDto tickData)
+    private unsafe void WriteBodyState(TickData tickData)
     {
         double* pBodyState = (double*)_bodyStateBufferPtr;
         int bodyStride = BodyStateLayoutArr.Length;
 
-        for (int i = 0; i < tickData.BodiesStateData.Length; i++)
+        for (int i = 0; i < tickData.BodyTickDataArray.Length; i++)
         {
-            BodyStateData body = tickData.BodiesStateData[i];
+            BodyTickData body = tickData.BodyTickDataArray[i];
             double* pBody = pBodyState + (i * bodyStride);
 
             pBody[BodyStateLayout.id] = body.Id;
@@ -170,7 +170,7 @@ internal class MemoryBufferHandler : IDisposable
         unsafe { newSizeInBytes = BodyStateLayoutArr.Length * sizeof(double) * _bodyCapacity; }
 
         // Reallocate the unmanaged memory block.
-        _bodyStateBufferPtr = Marshal.ReAllocHGlobal(_bodyStateBufferPtr, (nint)newSizeInBytes);
+        _bodyStateBufferPtr = Marshal.ReAllocHGlobal(_bodyStateBufferPtr, newSizeInBytes);
         _bodyStateBufferSizeInBytes = newSizeInBytes;
     }
 
@@ -198,11 +198,9 @@ internal class MemoryBufferHandler : IDisposable
             if (disposing)
             {
                 // Clean up managed resources here, if any.
-                // We don't have any in this class.
             }
 
             // Clean up unmanaged resources.
-            // This is CRUCIAL. We must free the memory we allocated.
             if (_simStateBufferPtr != nint.Zero)
             {
                 Marshal.FreeHGlobal(_simStateBufferPtr);
