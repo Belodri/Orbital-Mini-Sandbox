@@ -27,12 +27,6 @@ export default class Bridge {
         body: undefined,
     }
 
-    /** @type {{ptr: number, size: number}} */
-    static #bodyBufferPtrCache = {
-        ptr: undefined,
-        size: undefined
-    }
-
     /** @type {{sim: Record<string, number>, body: Record<string, number>}} */
     static #layoutRecord = {
         sim: undefined,
@@ -87,8 +81,7 @@ export default class Bridge {
         Bridge.#layoutRecord.sim = Bridge.#getStateLayoutRecord(Bridge.#GetSimStateLayout());
         Bridge.#layoutRecord.body = Bridge.#getStateLayoutRecord(Bridge.#GetBodyStateLayout());
 
-        Bridge.#setSimStateBufferView();
-        Bridge.#setBodyStateBufferView();
+        Bridge.#setBufferViews();
 
         if(DEBUG_MODE) globalThis.EngineBridge = this;
     }
@@ -112,6 +105,46 @@ export default class Bridge {
      */
     static _createTestSim(bodyCount) {
         return this.#EngineBridge.CreateTestSim(bodyCount);
+    }
+
+    /**
+     * Serializes the current state of the physics engine simulation into a JSON string.
+     * @returns {string} A string containing the simulation state in JSON format.
+     */
+    static getPreset() {
+        return this.#EngineBridge.GetPreset();
+    }
+
+    /**
+     * Loads a preset string into the engine and refreshes simState data.
+     * @param {string} jsonPreset A string containing the simulation state in JSON format.
+     * @returns {import('../types/bridge.js').BodyDiffData}
+     * @throws Error if the EngineBridge returns an error message.
+     */
+    static loadPreset(jsonPreset) {
+        if(this.#CONFIG.DEBUG_MODE) {
+            const heapBefore = this.#host.api.localHeapViewU8().buffer;
+            console.log("Heap ArrayBuffer before call:", heapBefore);
+        }
+        
+        const errorMsg = this.#EngineBridge.LoadPreset(jsonPreset);
+        if(errorMsg) throw new Error(errorMsg);
+
+        if(this.#CONFIG.DEBUG_MODE) {
+            const heapAfter = this.#host.api.localHeapViewU8().buffer;
+            console.log("Heap ArrayBuffer after call:", heapAfter);
+            console.log("Did heap change?", heapBefore !== heapAfter); // This will likely be TRUE
+        }
+
+        return this.#refreshSimState();
+    }
+
+    /**
+     * 
+     * @returns {number} Body Id
+     */
+    static createBody() {
+        return this.#EngineBridge.CreateBody();
     }
 
     //#endregion
@@ -151,48 +184,63 @@ export default class Bridge {
         return this.#EngineBridge.GetBodyStateLayout();
     }
 
+    /**
+     * 
+     * @returns {number[]}  simStateBufferPtr, sumStateBufferSize, bodyBufferPtr, bodyBufferSize
+     */
+    static #GetBufferData() {
+        return this.#EngineBridge.GetBufferData();
+    }
+
     //#endregion
 
 
     //#region Buffer Views
 
-    static #setSimStateBufferView() {
-        const simStatePtr = this.#GetSimStateBufferPtr();
-        const simStateSize = this.#GetSimStateBufferSize();
-
-        this.#log(`Received SimStateBuffer info: Pointer=${simStatePtr}, Size=${simStateSize} bytes`);
-
-        const wasmHeap = this.#host.api.localHeapViewU8().buffer;
-        const arrayLength = simStateSize / Float64Array.BYTES_PER_ELEMENT;
-        this.#bufferView.sim = new Float64Array(wasmHeap, simStatePtr, arrayLength);
-
-        return this;
-    }
+    /** @type {{simPtr: number, simSize: number, bodyPtr: number, bodySize: number}} */
+    static #bufferCache = {
+        simPtr: null,
+        simSize: null,
+        bodyPtr: null,
+        bodySize: null,
+    };
 
     /**
-     * Sets the view into the bodyStateBuffer based on the pointers and size in simStateBuffer.
-     * Compares the cached ptr and size to the values in the bufferView.sim and only updates if they're different and updates the cache.
+     * Sets the views into the shared buffers based on the pointers and sizes from the EngineBridge.
+     * Compares the cached pointers and sizes to the values received and only updates them and the cache if they're different.
      * @returns {this}
      */
-    static #setBodyStateBufferView() {
-        if(!this.#bufferView.sim) throw new Error(`simBufferView not initialized.`);
-
-        const ptr = this.#bufferView.sim[Bridge.#layoutRecord.sim["_bodyBufferPtr"]];
-        const size = this.#bufferView.sim[Bridge.#layoutRecord.sim["_bodyBufferSize"]];
-
-        if(this.#bodyBufferPtrCache.ptr === ptr && this.#bodyBufferPtrCache.size === size) {
-            return this;
-        }
-
-        if(typeof ptr !== "number" || ptr === 0) throw new Error(`Invalid _bodyBufferPtr=${ptr}`);
-        if(typeof size !== "number" || size === 0) throw new Error(`Invalid _bodyBufferSize=${size}`);
+    static #setBufferViews() {
+        const bufferData = this.#GetBufferData();
+        // TODO Replace direct access with dynamic layout
+        const newSimPtr = bufferData[0];
+        const newSimSize = bufferData[1];
+        const newBodyPtr = bufferData[2];
+        const newBodySize = bufferData[3];
 
         const wasmHeap = this.#host.api.localHeapViewU8().buffer;
-        const arrayLength = size / Float64Array.BYTES_PER_ELEMENT;
-        this.#bufferView.body = new Float64Array(wasmHeap, ptr, arrayLength);
 
-        this.#bodyBufferPtrCache.ptr = ptr;
-        this.#bodyBufferPtrCache.size = size;
+        if(this.#bufferCache.simPtr !== newSimPtr || this.#bufferCache.simSize !== newSimSize) {
+            if(typeof newSimPtr !== "number" || newSimPtr === 0) throw new Error(`Invalid simBufferPtr=${newSimPtr}`);
+            if(typeof newSimSize !== "number" || newSimSize === 0) throw new Error(`Invalid simBufferSize=${newSimSize}`);
+
+            this.#log(`Updating SimStateBuffer: Pointer=${newSimPtr}, Size=${newSimSize} bytes`);
+
+            this.#bufferView.sim = new Float64Array(wasmHeap, newSimPtr, newSimSize / Float64Array.BYTES_PER_ELEMENT);
+            this.#bufferCache.simPtr = newSimPtr;
+            this.#bufferCache.simSize = newSimSize;
+        }
+
+        if(this.#bufferCache.bodyPtr !== newBodyPtr || this.#bufferCache.bodySize !== newBodySize) {
+            if(typeof newBodyPtr !== "number" || newBodyPtr === 0) throw new Error(`Invalid bodyBufferPtr=${newBodyPtr}`);
+            if(typeof newBodySize !== "number" || newBodySize === 0) throw new Error(`Invalid bodyBufferSize=${newBodySize}`);
+
+            this.#log(`Updating BodyStateBuffer: Pointer=${newBodyPtr}, Size=${newBodySize} bytes`);
+
+            this.#bufferView.body = new Float64Array(wasmHeap, newBodyPtr, newBodySize / Float64Array.BYTES_PER_ELEMENT);
+            this.#bufferCache.bodyPtr = newBodyPtr;
+            this.#bufferCache.bodySize = newBodySize;
+        }
 
         return this;
     }
@@ -228,7 +276,7 @@ export default class Bridge {
             return null;
         }
 
-        this.#setBodyStateBufferView();
+        this.#setBufferViews();
 
         // Ensure reader cache values are properly initialized
         if(!this.#readerCache.isInitialized) this.#initReader();
