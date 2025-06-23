@@ -1,14 +1,19 @@
 <Project Sdk="Microsoft.NET.Sdk.WebAssembly">
-  <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <InvariantGlobalization>true</InvariantGlobalization>
-    <InvariantTimezone>true</InvariantTimezone>
-  </PropertyGroup>
+    <PropertyGroup>
+        <TargetFramework>net9.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <InvariantGlobalization>true</InvariantGlobalization>
+        <InvariantTimezone>true</InvariantTimezone>
+    </PropertyGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\Physics\Physics.csproj" />
-  </ItemGroup>
+    <PropertyGroup Condition="'${Configuration}' == 'Release'">
+        <RunAOTCompilation>true</RunAOTCompilation>
+        <WasmStripILAfterAOT>true</WasmStripILAfterAOT>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Physics\Physics.csproj" />
+    </ItemGroup>
 </Project>
