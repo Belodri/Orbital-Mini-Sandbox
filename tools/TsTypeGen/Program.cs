@@ -145,7 +145,13 @@ internal static class Parser
 
         if (summaryElement == null) return string.Empty;
 
-        return string.Concat(summaryElement.Content.Select(c => c.ToString())).Trim();
+        var textParts = summaryElement.Content
+            .SelectMany(n => n.DescendantTokens())
+            .Where(t => t.IsKind(SyntaxKind.XmlTextLiteralToken))
+            .Select(t => t.ValueText.Trim())
+            .Where(s => !string.IsNullOrWhiteSpace(s));
+
+        return string.Join(" ", textParts);
     }
 }
 
