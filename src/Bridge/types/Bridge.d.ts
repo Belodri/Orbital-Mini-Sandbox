@@ -54,6 +54,26 @@ export default class Bridge {
     static tickEngine(timestamp: number): BodyDiffData;
 
     /**
+     * Serializes the current state of the physics engine simulation into a JSON string.
+     * @returns A string containing the simulation state in JSON format.
+     */
+    static getPreset(): string;
+
+    /**
+     * Loads a preset string into the engine and refreshes simState data.
+     * @param jsonPreset A string containing the simulation state in JSON format.
+     * @returns An object detailing which body IDs were created, updated, or deleted during the tick.
+     * @throws {Error} if the EngineBridge returns an error message.
+     */
+    static loadPreset(jsonPreset: string): BodyDiffData;
+
+    /**
+     * Creates a new (default disabled) body in the simulation.
+     * @returns The ID of the newly created body.
+     */
+    static createBody(): number;
+
+    /**
      * A test method to create a simulation with a specified number of bodies.
      * @param bodyCount The number of bodies to create in the test simulation.
      */
