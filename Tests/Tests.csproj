@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>Library</OutputType>
+        <TargetFramework>net9.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+        <PackageReference Include="Microsoft.Playwright.NUnit" Version="1.53.0" />
+        <PackageReference Include="NUnit3TestAdapter" Version="5.0.0" />
+    </ItemGroup>
+
+    <Target Name="InstallPlaywright" AfterTargets="Build">
+        <Message Text="Installing Playwright browsers..." Importance="high" />
+        <Exec Command="powershell.exe -File bin/$(Configuration)/$(TargetFramework)/playwright.ps1 install" Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
+        <Exec Command="bash bin/$(Configuration)/$(TargetFramework)/playwright.sh install" Condition="!$([MSBuild]::IsOSPlatform('Windows'))" />
+    </Target>
+</Project>
