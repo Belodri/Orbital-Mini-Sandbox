@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Physics;
 
@@ -8,21 +9,24 @@ namespace Bridge;
 internal class MemoryBufferHandler : IDisposable
 {
     // Pointers
-    private nint _simStateBufferPtr;
-    private nint _bodyStateBufferPtr;
+    private nint _simBufferPtr;
+    private nint _bodyBufferPtr;
     // Public Accessors
-    public nint SimStateBufferPtr => _simStateBufferPtr;
-    public nint BodyStateBufferPtr => _bodyStateBufferPtr;
+    public nint SimBufferPtr => _simBufferPtr;
+    public nint BodyBufferPtr => _bodyBufferPtr;
 
     // Sizes in bytes
-    private readonly int _simStateBufferSizeInBytes;
-    private int _bodyStateBufferSizeInBytes;
+    private readonly int _simBufferSizeInBytes;
+    private int _bodyBufferSizeInBytes;
     // Public Accessors
-    public int SimStateBufferSizeInBytes => _simStateBufferSizeInBytes;
-    public int BodyStateBufferSizeInBytes => _bodyStateBufferSizeInBytes;
+    public int SimBufferSizeInBytes => _simBufferSizeInBytes;
+    public int BodyBufferSizeInBytes => _bodyBufferSizeInBytes;
 
     // Capacity in number of bodies
     private int _bodyCapacity;
+
+    // Staging buffer for GC efficient memory writes
+    private double[] _bodiesStagingBuffer;
 
     #region Static Dynamic Layout Creation
 
@@ -96,22 +100,24 @@ internal class MemoryBufferHandler : IDisposable
         // Calculate the required size for the buffers.
         unsafe
         {
-            _simStateBufferSizeInBytes = SimStateLayoutArr.Length * sizeof(double);
-            _bodyStateBufferSizeInBytes = BodyStateLayoutArr.Length * sizeof(double) * _bodyCapacity;
+            _simBufferSizeInBytes = SimStateLayoutArr.Length * sizeof(double);
+            _bodyBufferSizeInBytes = BodyStateLayoutArr.Length * sizeof(double) * _bodyCapacity;
         }
 
         // Allocate the unmanaged memory. Marshal.AllocHGlobal returns an IntPtr, which we store in our nint field.
-        _simStateBufferPtr = Marshal.AllocHGlobal(_simStateBufferSizeInBytes);
-        _bodyStateBufferPtr = Marshal.AllocHGlobal(_bodyStateBufferSizeInBytes);
+        _simBufferPtr = Marshal.AllocHGlobal(_simBufferSizeInBytes);
+        _bodyBufferPtr = Marshal.AllocHGlobal(_bodyBufferSizeInBytes);
 
         // Setup initial bodyBuffer pointers in shared memory
         unsafe
         {
-            double* pSimState = (double*)_simStateBufferPtr;
-            pSimState[SimStateLayout._bodyBufferPtr] = _bodyStateBufferPtr;
-            pSimState[SimStateLayout._bodyBufferSize] = _bodyStateBufferSizeInBytes;
+            double* pSimState = (double*)_simBufferPtr;
+            pSimState[SimStateLayout._bodyBufferPtr] = _bodyBufferPtr;
+            pSimState[SimStateLayout._bodyBufferSize] = _bodyBufferSizeInBytes;
         }
         
+        // Setup the staging buffer with the initial capacity
+        _bodiesStagingBuffer = new double[_bodyCapacity * BodyStateLayoutArr.Length];
     }
 
     #region Data Writing
@@ -128,33 +134,46 @@ internal class MemoryBufferHandler : IDisposable
 
     private unsafe void WriteSimState(TickData tickData)
     {
-        double* pSimState = (double*)_simStateBufferPtr;
+        double* pSimState = (double*)_simBufferPtr;
 
-        pSimState[SimStateLayout._bodyBufferPtr] = _bodyStateBufferPtr;
-        pSimState[SimStateLayout._bodyBufferSize] = _bodyStateBufferSizeInBytes;
+        pSimState[SimStateLayout._bodyBufferPtr] = _bodyBufferPtr;
+        pSimState[SimStateLayout._bodyBufferSize] = _bodyBufferSizeInBytes;
         pSimState[SimStateLayout.simulationTime] = tickData.SimTickData.SimulationTime;
         pSimState[SimStateLayout.timeScale] = tickData.SimTickData.TimeScale;
         pSimState[SimStateLayout.timeIsForward] = Convert.ToDouble(tickData.SimTickData.IsTimeForward);
         pSimState[SimStateLayout.bodyCount] = tickData.BodyTickDataArray.Length;
     }
 
+    
+
     private unsafe void WriteBodyState(TickData tickData)
     {
-        double* pBodyState = (double*)_bodyStateBufferPtr;
+        int bodyCount = tickData.BodyTickDataArray.Length;
+        if (bodyCount == 0) return;
+
         int bodyStride = BodyStateLayoutArr.Length;
+        int totalDoubles = bodyCount * bodyStride;
+
+        // Span to represent only the used portion of the reusable array.
+        var allBodiesData = new Span<double>(_bodiesStagingBuffer, 0, totalDoubles);
 
         for (int i = 0; i < tickData.BodyTickDataArray.Length; i++)
         {
             BodyTickData body = tickData.BodyTickDataArray[i];
-            double* pBody = pBodyState + (i * bodyStride);
+            var bodySlice = allBodiesData.Slice(i * bodyStride, bodyStride);
 
-            pBody[BodyStateLayout.id] = body.Id;
-            pBody[BodyStateLayout.enabled] = Convert.ToDouble(body.Enabled);
-            pBody[BodyStateLayout.mass] = body.Mass;
-            pBody[BodyStateLayout.posX] = body.PosX;
-            pBody[BodyStateLayout.posY] = body.PosY;
-            pBody[BodyStateLayout.velX] = body.VelX;
-            pBody[BodyStateLayout.velY] = body.VelY;
+            bodySlice[BodyStateLayout.id] = body.Id;
+            bodySlice[BodyStateLayout.enabled] = Convert.ToDouble(body.Enabled);
+            bodySlice[BodyStateLayout.mass] = body.Mass;
+            bodySlice[BodyStateLayout.posX] = body.PosX;
+            bodySlice[BodyStateLayout.posY] = body.PosY;
+            bodySlice[BodyStateLayout.velX] = body.VelX;
+            bodySlice[BodyStateLayout.velY] = body.VelY;
+        }
+
+        fixed (double* pSource = allBodiesData)
+        {
+            Unsafe.CopyBlock((double*)_bodyBufferPtr, pSource, (uint)(totalDoubles * sizeof(double)));
         }
     }
 
@@ -166,12 +185,16 @@ internal class MemoryBufferHandler : IDisposable
         while (newCapacity < requiredBodyCount) { newCapacity *= 2; }
         _bodyCapacity = newCapacity;
 
+        int bodyStride = BodyStateLayoutArr.Length;
         int newSizeInBytes;
-        unsafe { newSizeInBytes = BodyStateLayoutArr.Length * sizeof(double) * _bodyCapacity; }
+        unsafe { newSizeInBytes = bodyStride * sizeof(double) * _bodyCapacity; }
 
         // Reallocate the unmanaged memory block.
-        _bodyStateBufferPtr = Marshal.ReAllocHGlobal(_bodyStateBufferPtr, newSizeInBytes);
-        _bodyStateBufferSizeInBytes = newSizeInBytes;
+        _bodyBufferPtr = Marshal.ReAllocHGlobal(_bodyBufferPtr, newSizeInBytes);
+        _bodyBufferSizeInBytes = newSizeInBytes;
+
+        // Resize the staging buffer to match capacity.
+        _bodiesStagingBuffer = new double[_bodyCapacity * bodyStride];
     }
 
     #endregion
@@ -201,16 +224,16 @@ internal class MemoryBufferHandler : IDisposable
             }
 
             // Clean up unmanaged resources.
-            if (_simStateBufferPtr != nint.Zero)
+            if (_simBufferPtr != nint.Zero)
             {
-                Marshal.FreeHGlobal(_simStateBufferPtr);
-                _simStateBufferPtr = nint.Zero;
+                Marshal.FreeHGlobal(_simBufferPtr);
+                _simBufferPtr = nint.Zero;
             }
 
-            if (_bodyStateBufferPtr != nint.Zero)
+            if (_bodyBufferPtr != nint.Zero)
             {
-                Marshal.FreeHGlobal(_bodyStateBufferPtr);
-                _bodyStateBufferPtr = nint.Zero;
+                Marshal.FreeHGlobal(_bodyBufferPtr);
+                _bodyBufferPtr = nint.Zero;
             }
 
             _disposed = true;
