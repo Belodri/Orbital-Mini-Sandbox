@@ -3,16 +3,19 @@
 
 # Revision History
 
+- **25/06/2025**
+    - Added automated integration testing via Playwright.
+    - Updated the PDD to reflect revision.
 - **21/06/2025**
     - Defined `main.mjs` as the lightweight application entry point, responsible for initialization and global fatal error handling.
     - Added a self-contained `Notifications` class for displaying transient UI messages.
-    - Updated the PDD to reflect revisions
+    - Updated the PDD to reflect revisions.
 - **17/06/2025**
-    - Extracted definitions for shared memory layout into a separate file `LayoutRecords.cs`
+    - Extracted definitions for shared memory layout into a separate file `LayoutRecords.cs`.
     - Redefined `WebApp` architecture, introducing an `AppDataManager` class for application exclusive data.
     - Detailed the Bridge's project structure, JS API surface, and tick/error flow.
-    - Added missing `timestamp` argument to `Tick()`
-    - Updated the PDD to reflect revisions
+    - Added missing `timestamp` argument to `Tick()`.
+    - Updated the PDD to reflect revisions.
 - **16/06/2025** 
     - Standardized `Bridge` shared memory layout. 
     - Defined data contracts via a C# record for SSOT.
@@ -27,7 +30,7 @@
 - **12/06/2025** 
     - Added a JavaScript API facade `bridge.mjs` to abstract all direct C# interop calls from the `WebApp`.
 - **11/06/2025** 
-    - Removed Blazor WebAssembly framework in favor of a pure .NET WASM library for the `Bridge` to eliminate unnecessary overhead
+    - Removed Blazor WebAssembly framework in favor of a pure .NET WASM library for the `Bridge` to eliminate unnecessary overhead.
 
 # Technical Requirements & Constraints
 **Core Technology Stack**
@@ -541,7 +544,8 @@ Core workflow when Tick(timestamp) is called on an instance of PhysicsEngine
 
 **Testing Approach**
 - Unit tests for physics calculations and data management
-- Manual testing for UI components and user interactions
+- Automated integration testing via Playwright
+- Additional manual testing for UI components and user interactions
 
 **Timeline:** 40 hours/week development schedule, open-ended duration (learning project; too many known and unknown unknowns to estimate)
 
