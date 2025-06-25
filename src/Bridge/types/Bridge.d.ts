@@ -86,7 +86,7 @@ export default class Bridge {
      * @param values    The new values for the body.
      * @returns True if the body has been updated successfully, false if not found.
      */
-    static deleteBody(id: number, values: { 
+    static updateBody(id: number, values: { 
         enabled: boolean, 
         mass: number, 
         posX: number, 
