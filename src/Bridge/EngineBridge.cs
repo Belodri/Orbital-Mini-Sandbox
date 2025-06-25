@@ -53,19 +53,6 @@ public static partial class EngineBridge
         return physicsEngine.CreateBody();
     }
 
-    /// <summary>
-    /// Exports the memory address (pointer) of the primary simulation state buffer in the WASM memory heap.
-    /// </summary>
-    /// <returns>A 32-bit integer representing the byte offset in the WASM heap.</returns>
-    [JSExport]
-    public static int GetSimStateBufferPtr() => (int)memoryBufferHandler.SimStateBufferPtr;
-
-    /// <summary>
-    /// Exports the total size in bytes of the primary simulation state buffer.
-    /// </summary>
-    [JSExport]
-    public static int GetSimStateBufferSize() => memoryBufferHandler.SimStateBufferSizeInBytes;
-
     [JSExport]
     public static string[] GetSimStateLayout() => MemoryBufferHandler.SimStateLayoutArr;
 
@@ -73,16 +60,13 @@ public static partial class EngineBridge
     public static string[] GetBodyStateLayout() => MemoryBufferHandler.BodyStateLayoutArr;
 
     [JSExport]
-    public static int[] GetBufferData()     //TODO Write a dynamic layout getter for this
+    public static int[] GetSimBufferPtrAndSize()
     {
         return [
-            (int)memoryBufferHandler.SimStateBufferPtr,
-            memoryBufferHandler.SimStateBufferSizeInBytes,
-            (int)memoryBufferHandler.BodyStateBufferPtr,
-            memoryBufferHandler.BodyStateBufferSizeInBytes
+            (int)memoryBufferHandler.SimBufferPtr,
+            memoryBufferHandler.SimBufferSizeInBytes,
         ];
-    } 
-
+    }
 
     /// <summary>
     /// Serializes the current state of the physics simulation into a JSON string.
