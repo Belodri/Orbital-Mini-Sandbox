@@ -35,6 +35,24 @@ internal class CelestialBody(int id, bool enabled, double mass, Vector2D positio
     double VelX => Velocity.X;
     double VelY => Velocity.Y;
 
+    internal bool Update(PresetBodyData updatePreset)
+    {
+        Enabled = updatePreset.Enabled;
+        Mass = updatePreset.Mass;
+
+        if (updatePreset.PosX != PosX || updatePreset.PosY != PosY)
+        {
+            Position = new(updatePreset.PosX, updatePreset.PosY);
+        }
+
+        if (updatePreset.VelX != VelX || updatePreset.VelY != VelY)
+        {
+            Velocity = new(updatePreset.VelX, updatePreset.VelY);
+        }
+
+        return true;
+    }
+
     #region DTOs
 
     internal BodyTickData GetBodyTickData()

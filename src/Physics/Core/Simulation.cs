@@ -61,6 +61,14 @@ internal class Simulation
         return body;
     }
 
+    internal bool DeleteBody(int id) => Bodies.Remove(id);
+
+    internal bool UpdateBody(PresetBodyData updatePreset)
+    {
+        Bodies.TryGetValue(updatePreset.Id, out var body);
+        return body != null && body.Update(updatePreset);
+    }
+
     #region DTOs
 
     internal TickData GetTickData()

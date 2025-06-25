@@ -47,10 +47,11 @@ public class PhysicsEngine
         return simulation.GetTickData();
     }
 
-    public int CreateBody()
-    {
-        return simulation.AddNewBody().Id;
-    }
+    public int CreateBody() => simulation.AddNewBody().Id;
+
+    public bool DeleteBody(int id) => simulation.DeleteBody(id);
+
+    public bool UpdateBody(PresetBodyData updatePreset) => simulation.UpdateBody(updatePreset);
 
     public void CreateTestSim(int bodyCount)
     {
