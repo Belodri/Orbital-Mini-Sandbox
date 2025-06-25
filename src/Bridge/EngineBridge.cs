@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using System.Runtime.InteropServices.JavaScript;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -26,6 +27,8 @@ public static partial class EngineBridge
         memoryBufferHandler = new MemoryBufferHandler();
     }
 
+    #region Bridge-internal methods
+
     [JSExport]
     public static string? Tick(double timestamp)
     {
@@ -42,18 +45,6 @@ public static partial class EngineBridge
     }
 
     [JSExport]
-    public static void CreateTestSim(int bodyCount)
-    {
-        physicsEngine.CreateTestSim(bodyCount);
-    }
-
-    [JSExport]
-    public static int CreateBody()
-    {
-        return physicsEngine.CreateBody();
-    }
-
-    [JSExport]
     public static string[] GetSimStateLayout() => MemoryBufferHandler.SimStateLayoutArr;
 
     [JSExport]
@@ -66,6 +57,29 @@ public static partial class EngineBridge
             (int)memoryBufferHandler.SimBufferPtr,
             memoryBufferHandler.SimBufferSizeInBytes,
         ];
+    }
+
+    #endregion
+
+    #region Publicly exposed methods
+
+    [JSExport]
+    public static void CreateTestSim(int bodyCount)
+    {
+        physicsEngine.CreateTestSim(bodyCount);
+    }
+
+    [JSExport]
+    public static int CreateBody() => physicsEngine.CreateBody();
+
+    [JSExport]
+    public static bool DeleteBody(int id) => physicsEngine.DeleteBody(id);
+
+    [JSExport]
+    public static bool UpdateBody(int id, bool enabled, double mass, double posX, double posY, double velX, double velY)
+    {
+        PresetBodyData updatePreset = new(id, enabled, mass, posX, posY, velX, velY);
+        return physicsEngine.UpdateBody(updatePreset);
     }
 
     /// <summary>
@@ -117,5 +131,7 @@ public static partial class EngineBridge
             return $"Error applying preset: {e.Message}";
         }
     }
+
+    #endregion
 }
 

@@ -126,11 +126,37 @@ export default class Bridge {
     }
 
     /**
-     * 
+     * Creates a new body with default properties.
      * @returns {number} Body Id
      */
     static createBody() {
         return this.#EngineBridge.CreateBody();
+    }
+
+    /**
+     * Deletes an existing body.
+     * @param {number} id Body Id
+     * @returns {boolean} True if the body was deleted, false if it wasn't found.
+     */
+    static deleteBody(id) {
+        return this.#EngineBridge.DeleteBody(id);
+    }
+
+    /**
+     * Updates an existing body.
+     * @param {number} id  Body Id
+     * @param {{
+     *  enabled: boolean,
+     *  mass: number,
+     *  posX: number,
+     *  posY: number,
+     *  velX: number,
+     *  velY: number
+     * }} values        The new values for the body
+     * @returns {boolean} True if the body has been updated successfully, false if not found.
+     */
+    static updateBody(id, { enabled, mass, posX, posY, velX, velY }) {
+        return this.#EngineBridge.updateBody(id, enabled, mass, posX, posY, velX, velY);
     }
 
     //#endregion

@@ -21,7 +21,7 @@ export interface SimState extends SimStateLayout {
 export interface BodyDiffData {
     /** The ids of newly created bodies. */
     created: Set<number>;
-    /** The ids of bodies that were neither created nor destroyed. */
+    /** The ids of bodies that were updated. */
     updated: Set<number>;
     /** The ids of deleted bodies. */
     deleted: Set<number>;
@@ -72,6 +72,28 @@ export default class Bridge {
      * @returns The ID of the newly created body.
      */
     static createBody(): number;
+
+    /**
+     * Deletes an existing body from the simulation.
+     * @param id The id of the body to delete.
+     * @returns True if the body was deleted, false if it wasn't found.
+     */
+    static deleteBody(id: number): boolean;
+
+    /**
+     * Updates an existing body.
+     * @param id        The unique id for the body to update.
+     * @param values    The new values for the body.
+     * @returns True if the body has been updated successfully, false if not found.
+     */
+    static deleteBody(id: number, values: { 
+        enabled: boolean, 
+        mass: number, 
+        posX: number, 
+        posY: number, 
+        velX: number, 
+        velY: number
+    }): boolean;
 
     /**
      * A test method to create a simulation with a specified number of bodies.
