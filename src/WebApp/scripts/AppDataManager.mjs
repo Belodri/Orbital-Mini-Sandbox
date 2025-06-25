@@ -18,8 +18,12 @@ export default class AppDataManager {
      * 
      * @param {number} id 
      */
-    _onBodyCreated(id) {
+    _onCreateBody(id) {
         this.bodyData.set(id, { ...AppDataManager.DEFAULT_BODY_DATA });
+    }
+
+    _onDeleteBody(id) {
+        this.bodyData.delete(id);
     }
 
     getPreset() {

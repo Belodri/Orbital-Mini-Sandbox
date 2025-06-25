@@ -57,10 +57,25 @@ export default class AppShell {
         else this.canvasView.unpause();
     }
 
+    /**
+     * 
+     * @returns {number}
+     */
     static createBody() {
         const id = this.Bridge.createBody();
-        this.appDataManager._onBodyCreated(id);
+        this.appDataManager._onCreateBody(id);
         return id;
+    }
+
+    /**
+     * 
+     * @param {number} id 
+     * @returns {boolean}
+     */
+    static deleteBody(id) {
+        const ret = this.Bridge.deleteBody(id);
+        this.appDataManager._onDeleteBody(id);
+        return ret;
     }
 
     //#endregion
