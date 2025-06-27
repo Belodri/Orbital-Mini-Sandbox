@@ -3,12 +3,14 @@ import AppShell from "./AppShell.mjs";
 /**
  * @typedef {object} BodyMetaData
  * @property {string} name
+ * @property {string} color
  */
 
 export default class AppDataManager {
     /** @type {BodyMetaData} */
     static DEFAULT_BODY_DATA = {
         name: "New Body",
+        color: "white",
     }
 
     /** @type {Map<number, BodyMetaData>} */
@@ -42,7 +44,7 @@ export default class AppDataManager {
      * @returns {void}                       
      */
     loadPreset(presetString, preserveState = true) {
-        AppShell.togglePause(true);
+        AppShell.canvasView.toggleStop(true);
         const prevState = preserveState ? this.getPreset() : "";
 
         try {

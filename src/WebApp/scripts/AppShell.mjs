@@ -35,27 +35,13 @@ export default class AppShell {
         this.appDataManager = new AppDataManager();
 
         this.log("Instantiating CanvasView...");
-        this.canvasView = new CanvasView();
+        this.canvasView = await CanvasView.create();
 
         if(this.#CONFIG.debugMode) globalThis.AppShell = this;
         console.log("Initialization complete.");
     }
 
     //#region Controls
-
-    /**
-     * 
-     * @param {boolean} [force=undefined] 
-     * @returns {void}
-     */
-    static togglePause(force=undefined) {
-        let newState = force === undefined
-            ? !this.canvasView.isPaused
-            : force;
-
-        if(newState) this.canvasView.pause();
-        else this.canvasView.unpause();
-    }
 
     /**
      * 
