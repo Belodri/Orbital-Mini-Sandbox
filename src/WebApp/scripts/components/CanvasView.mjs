@@ -96,6 +96,10 @@ export default class CanvasView {
         }, this, UPDATE_PRIORITY.NORMAL);
     }
 
+    //#endregion
+
+    //#region Render Loop Body Updates
+
     #createBodyToken(id) {
         const bodyToken = new BodyToken(id);
         bodyToken.onCreate();
@@ -116,6 +120,8 @@ export default class CanvasView {
         bodyToken.onUpdate({isPhysics: true, isMeta: false});
         bodyToken.updateGraphics();
     }
+
+    //#endregion
 }
 
 class BodyToken {
@@ -152,8 +158,8 @@ class BodyToken {
 
     onCreate() {
         this.#graphics
-            .circle(this.#physicsData.posX, this.#physicsData.posY, this.radius)
-            .fill({ color: this.#metaData.color });
+            .circle(0, 0, this.radius)
+            .fill(this.#metaData.color);
     }
 
     onDelete() {
@@ -169,7 +175,8 @@ class BodyToken {
      * Called once each render loop. 
      */
     updateGraphics() {
-        
+        this.#graphics.x = this.#physicsData.posX;
+        this.#graphics.y = this.#physicsData.posY;
     }
     
     //#endregion
