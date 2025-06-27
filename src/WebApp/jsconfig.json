@@ -1,9 +1,12 @@
 {
     "compilerOptions": {
         "module": "ES2022",
-        "target": "ES2023",
+        "target": "esnext",
+        "checkJs": true,
+        "moduleResolution": "node"
     },
     "include": [
         "scripts/**/*.mjs",
-    ]
+        "types/**/*",
+    ],
 }
