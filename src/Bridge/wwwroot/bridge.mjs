@@ -58,7 +58,7 @@ export default class Bridge {
 
     //#region API
 
-    /** @returns {import('../types/bridge.js').SimState} */
+    /** @returns {import('../types/Bridge.js').SimState} */
     static get simState() { 
         return this.#simState;
     }
@@ -92,7 +92,7 @@ export default class Bridge {
     /**
      * Ticks the engine and refreshes the simState data.
      * @param {number} timestamp The timestamp from `requestAnimationFrame()`
-     * @returns {import('../types/bridge.js').BodyDiffData} 
+     * @returns {import('../types/Bridge.js').BodyDiffData} 
      * @throws Error if the EngineBridge returns an error message.
      */
     static tickEngine(timestamp) {
@@ -121,7 +121,7 @@ export default class Bridge {
     /**
      * Loads a preset string into the engine and refreshes simState data.
      * @param {string} jsonPreset A string containing the simulation state in JSON format.
-     * @returns {import('../types/bridge.js').BodyDiffData}
+     * @returns {import('../types/Bridge.js').BodyDiffData}
      * @throws Error if the EngineBridge returns an error message.
      */
     static loadPreset(jsonPreset) {
@@ -183,56 +183,38 @@ export default class Bridge {
      * @returns {void}
      */
     static #setBufferViews() {
+        /* -- Sim Buffer -- */
         // Get ptr and size of sim buffer from the C# bridge
-        const simBufferData = this.#EngineBridge.GetSimBufferPtrAndSize();
-        const newSimPtr = simBufferData[0];
-        const newSimSize = simBufferData[1];
-        this.#setSimBufferView(newSimPtr, newSimSize);
+        const [newSimPtr, newSimSize] = this.#EngineBridge.GetSimBufferPtrAndSize();
 
+        // Update sim buffer view only if stale
+        if(this.#bufferCache.simPtr !== newSimPtr || this.#bufferCache.simSize !== newSimSize) {
+            if(typeof newSimPtr !== "number" || newSimPtr === 0) throw new Error(`Invalid simBufferPtr=${newSimPtr}`);
+            if(typeof newSimSize !== "number" || newSimSize === 0) throw new Error(`Invalid simBufferSize=${newSimSize}`);
+
+            this.#log(`Updating SimStateBuffer: Pointer=${newSimPtr}, Size=${newSimSize} bytes`);
+            
+            this.#bufferView.sim = new Float64Array(this.#host.api.localHeapViewU8().buffer, newSimPtr, newSimSize / Float64Array.BYTES_PER_ELEMENT);
+            this.#bufferCache.simPtr = newSimPtr;
+            this.#bufferCache.simSize = newSimSize;
+        }
+
+        /* -- Body Buffer -- */
         // Get ptr and size of body buffer from the sim buffer
         const newBodyPtr = this.#bufferView.sim[this.#layoutRecord.sim._bodyBufferPtr];
         const newBodySize = this.#bufferView.sim[this.#layoutRecord.sim._bodyBufferSize];
-        this.#setBodyBufferView(newBodyPtr, newBodySize);
-    }
 
-    /**
-     * Sets the views into the shared sim buffer.
-     * @param {number} ptr      The byteOffset
-     * @param {number} size     The buffer size in bytes
-     * @returns {void}
-     */
-    static #setSimBufferView(ptr, size) {
-        // Update buffer view only if stale
-        if(this.#bufferCache.simPtr === ptr && this.#bufferCache.simSize === size) return this;
+        // Update body buffer view only if stale
+        if(this.#bufferCache.bodyPtr !== newBodyPtr || this.#bufferCache.bodySize !== newBodySize) {
+            if(typeof newBodyPtr !== "number" || newBodyPtr === 0) throw new Error(`Invalid simBufferPtr=${newBodyPtr}`);
+            if(typeof newBodySize !== "number" || newBodySize === 0) throw new Error(`Invalid simBufferSize=${newBodySize}`);
 
-        if(typeof ptr !== "number" || ptr === 0) throw new Error(`Invalid simBufferPtr=${ptr}`);
-        if(typeof size !== "number" || size === 0) throw new Error(`Invalid simBufferSize=${size}`);
-
-        this.#log(`Updating SimStateBuffer: Pointer=${ptr}, Size=${size} bytes`);
-        
-        this.#bufferView.sim = new Float64Array(this.#host.api.localHeapViewU8().buffer, ptr, size / Float64Array.BYTES_PER_ELEMENT);
-        this.#bufferCache.simPtr = ptr;
-        this.#bufferCache.simSize = size;
-    }
-
-    /**
-     * Sets the views into the shared body buffer.
-     * @param {number} ptr      The byteOffset
-     * @param {number} size     The buffer size in bytes
-     * @returns {void}
-     */
-    static #setBodyBufferView(ptr, size) {
-        // Update buffer view only if stale
-        if(this.#bufferCache.bodyPtr === ptr && this.#bufferCache.bodySize === size) return this;
-
-        if(typeof ptr !== "number" || ptr === 0) throw new Error(`Invalid bodyBufferPtr=${ptr}`);
-        if(typeof size !== "number" || size === 0) throw new Error(`Invalid bodyBufferSize=${size}`);
-
-        this.#log(`Updating BodyStateBuffer: Pointer=${ptr}, Size=${size} bytes`);
-
-        this.#bufferView.body = new Float64Array(this.#host.api.localHeapViewU8().buffer, ptr, size / Float64Array.BYTES_PER_ELEMENT);
-        this.#bufferCache.bodyPtr = ptr;
-        this.#bufferCache.bodySize = size;
+            this.#log(`Updating SimStateBuffer: Pointer=${newBodyPtr}, Size=${newBodySize} bytes`);
+            
+            this.#bufferView.body = new Float64Array(this.#host.api.localHeapViewU8().buffer, newBodyPtr, newBodySize / Float64Array.BYTES_PER_ELEMENT);
+            this.#bufferCache.bodyPtr = newBodyPtr;
+            this.#bufferCache.bodySize = newBodySize;
+        }
     }
 
     //#endregion
@@ -240,9 +222,9 @@ export default class Bridge {
 
     //#region Shared Memory Reader
 
-    /** @type {import('../types/bridge.js').SimState} */
+    /** @type {import('../types/Bridge.js').SimState} */
     static #simState = {
-        /** @type {Map<number, import('../types/bridge.js').BodyStateData>} */
+        /** @type {Map<number, import('../types/Bridge.js').BodyStateData>} */
         bodies: new Map()
     }
 
@@ -256,7 +238,15 @@ export default class Bridge {
         bodyStride: undefined,
         /** @type {number} */
         idIndex: undefined,
+        prevKnownIds: new Set(),
+        knownIds: new Set(),
     };
+
+    static #diffCache = {
+        created: new Set(),
+        updated: new Set(),
+        deleted: new Set(),
+    }
 
     static #refreshSimState() {
         this.#setBufferViews();
@@ -269,43 +259,54 @@ export default class Bridge {
             this.#simState[key] = this.#bufferView.sim[index];
         }
 
-        // Read body buffer data
-        const createdIds = new Set();
-        const updatedIds = new Set();
-        const excessIds = new Set(this.#simState.bodies.keys());    // Get all current keys
+        // Reset diff cache
+        const { created, updated, deleted } = this.#diffCache;
+        created.clear();
+        updated.clear();
+        deleted.clear();
 
+        // Swap roles to avoid reallocation
+        const { knownIds, prevKnownIds } = this.#readerCache;
+        [this.#readerCache.knownIds, this.#readerCache.prevKnownIds] = [prevKnownIds, knownIds];
+        this.#readerCache.knownIds.clear();
+
+        
+        // Read body buffer data
         for(let i = 0; i < this.#simState.bodyCount; i++) {
             const offset = i * this.#readerCache.bodyStride;
             const id = this.#bufferView.body[offset + this.#readerCache.idIndex];
-            excessIds.delete(id);
+
+            knownIds.add(id);
 
             let body = this.#simState.bodies.get(id);
-            let created = false;
+            let wasCreated = false;
             if(!body) {
                 body = {};
                 this.#simState.bodies.set(id, body);
-                createdIds.add(id);
-                created = true;
+                created.add(id);
+                wasCreated = true;
             }; 
             
-            let changed = false;
+            let wasChanged = false;
             for(const [key, index] of this.#readerCache.bodyKVCache) {
-                if(!changed && body[key] !== this.#bufferView.body[offset + index]) {
-                    changed = true;
+                if(!wasChanged && body[key] !== this.#bufferView.body[offset + index]) {
+                    wasChanged = true;
                 }
                 body[key] = this.#bufferView.body[offset + index];
             }
-            if(changed && !created) updatedIds.add(id);
+            if(wasChanged && !wasCreated) updated.add(id);
         }
 
-        // Remove remaining excess bodies 
-        for(const id of excessIds) this.#simState.bodies.delete(id);
-
-        return {
-            created: createdIds,
-            deleted: excessIds,
-            updated: updatedIds,
+        // Handle the actual deletion of bodies that were in the previous 
+        // frame but are missing from the current frame.
+        for(const id of prevKnownIds) {
+            if(!knownIds.has(id)) {
+                this.#simState.bodies.delete(id);
+                deleted.add(id);
+            }
         }
+
+        return this.#diffCache;
     }
 
     static #initReader() {
