@@ -41,7 +41,7 @@ echo "Copying bridge assets to '$BRIDGE_DIST_PATH'..."
 # We copy ONLY the contents of wwwroot, as 'dotnet publish' creates
 # other files that we don't need.
 mkdir "$BRIDGE_DIST_PATH"
-cp "$BRIDGE_BUILD_OUTPUT_PATH/bridge.mjs" "$BRIDGE_DIST_PATH/"
+cp "$BRIDGE_BUILD_OUTPUT_PATH/Bridge.mjs" "$BRIDGE_DIST_PATH/"
 cp -r "$BRIDGE_BUILD_OUTPUT_PATH/_framework" "$BRIDGE_DIST_PATH/"
 
 # --- 4. Build WebApp with Vite ---
