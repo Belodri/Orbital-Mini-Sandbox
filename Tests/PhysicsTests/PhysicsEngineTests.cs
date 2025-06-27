@@ -1,4 +1,5 @@
 using Physics;
+using Physics.Core;
 
 namespace PhysicsTests;
 
@@ -9,26 +10,23 @@ public partial class Tests
     // They ensure a new PhysicsEngine instance `physicsEngine` is created before
     // each test and can safely be accessed and modified within each test method! 
 
-    #region GetPresetData Tests
+    #region Preset Tests
 
-    [Test(Description = "Verifies GetPresetData on a new engine returns a preset with default sim data and an empty body array.")]
+    [Test(Description = "Verifies GetPresetData on a new engine returns a preset with default preset data.")]
     public void GetPresetData_FromInitialState_ReturnsDefaultPresetWithEmptyBodyArray()
     {
-        // Arrange
-        // The physicsEngine is already in its default, initial state thanks to the [SetUp] method.
-
         // Act
         var presetData = physicsEngine.GetPresetData();
+        var defaultPreset = Simulation.DEFAULT_PRESET_DATA;
 
         // Assert
         Assert.Multiple(() =>
         {
-            // Assuming default simulation time is 0.0 and timescale is 1.0.
-            Assert.That(presetData.PresetSimData.SimulationTime, Is.EqualTo(0.0), "Default simulation time should be 0.");
-            Assert.That(presetData.PresetSimData.TimeScale, Is.EqualTo(1.0), "Default time scale should be 1.");
-            Assert.That(presetData.PresetSimData.IsTimeForward, Is.True, "Default time direction should be forward.");
+            Assert.That(presetData.PresetSimData.SimulationTime, Is.EqualTo(defaultPreset.PresetSimData.SimulationTime), $"Default simulation time should be {defaultPreset.PresetSimData.SimulationTime}.");
+            Assert.That(presetData.PresetSimData.TimeScale, Is.EqualTo(defaultPreset.PresetSimData.TimeScale), $"Default time scale should be {defaultPreset.PresetSimData.TimeScale}.");
+            Assert.That(presetData.PresetSimData.IsTimeForward, Is.EqualTo(defaultPreset.PresetSimData.IsTimeForward), $"Default time direction should be {(defaultPreset.PresetSimData.IsTimeForward ? "forwards" : "backwards")}.");
             Assert.That(presetData.PresetBodyDataArray, Is.Not.Null, "Body data array should not be null.");
-            Assert.That(presetData.PresetBodyDataArray, Is.Empty, "Body data array should be empty for a new simulation.");
+            Assert.That(presetData.PresetBodyDataArray, Has.Length.EqualTo(defaultPreset.PresetBodyDataArray.Length), $"Body data array length should be {defaultPreset.PresetBodyDataArray.Length} for a new simulation.");
         });
     }
 
@@ -47,19 +45,13 @@ public partial class Tests
         var actualPreset = physicsEngine.GetPresetData();
 
         // Assert
-        // We compare the properties individually because the top-level PresetData record contains
-        // an array, which requires collection-aware comparison.
         Assert.Multiple(() =>
         {
-            Assert.That(actualPreset.PresetSimData, Is.EqualTo(expectedPreset.PresetSimData), "The simulation data in the preset did not match the expected state.");
-            Assert.That(actualPreset.PresetBodyDataArray, Is.EqualTo(expectedPreset.PresetBodyDataArray), "The body data array in the preset did not match the expected state.");
+            Assert.That(actualPreset.PresetSimData, Is.EqualTo(expectedPreset.PresetSimData), "The simulation data in the preset should match the expected state.");
+            Assert.That(actualPreset.PresetBodyDataArray, Is.EqualTo(expectedPreset.PresetBodyDataArray), "The of bodies in the simulation data should match the expected state.");
         });
     }
 
-    #endregion
-
-
-    #region LoadPreset Tests
 
     [Test(Description = "Confirms that loading a preset overwrites the engine's internal state to match the preset data.")]
     public void LoadPreset_WithValidData_CorrectlyUpdatesInternalState()
@@ -105,7 +97,7 @@ public partial class Tests
             Assert.That(returnedTickData.SimTickData.SimulationTime, Is.EqualTo(inputPreset.PresetSimData.SimulationTime), "Returned TickData has incorrect SimulationTime.");
             Assert.That(returnedTickData.SimTickData.TimeScale, Is.EqualTo(inputPreset.PresetSimData.TimeScale), "Returned TickData has incorrect TimeScale.");
             Assert.That(returnedTickData.SimTickData.IsTimeForward, Is.EqualTo(inputPreset.PresetSimData.IsTimeForward), "Returned TickData has incorrect IsTimeForward.");
-            
+
             // Check that the returned BodyTickDataArray matches the input PresetBodyDataArray
             Assert.That(returnedTickData.BodyTickDataArray, Has.Length.EqualTo(inputPreset.PresetBodyDataArray.Length), "Returned TickData has an incorrect number of bodies.");
 
@@ -148,7 +140,7 @@ public partial class Tests
 
         // Assert
         var finalPreset = physicsEngine.GetPresetData();
-        Assert.That(finalPreset.PresetBodyDataArray, Has.Length.EqualTo(2), "The number of bodies should be 2 after loading the new preset.");
+        Assert.That(finalPreset.PresetBodyDataArray, Has.Length.EqualTo(overwritePreset.PresetBodyDataArray.Length), "The number of bodies should be equal to the new preset after loading.");
         Assert.That(finalPreset.PresetBodyDataArray, Is.EqualTo(overwritePreset.PresetBodyDataArray), "The final body data should match the overwrite preset.");
     }
 
@@ -161,14 +153,11 @@ public partial class Tests
         Assert.That(physicsEngine.GetPresetData().PresetBodyDataArray, Is.Not.Empty, "Precondition failed: Initial simulation should not be empty.");
 
         // 2. Create a preset with an empty body array.
-        var emptyBodyPreset = new PresetData(
-            new PresetSimData(555, 5, false),
-            Array.Empty<PresetBodyData>()
-        );
-        
+        var emptyBodyPreset = new PresetData(new PresetSimData(555, 5, false), []);
+
         // Act
         physicsEngine.LoadPreset(emptyBodyPreset);
-        
+
         // Assert
         var finalPreset = physicsEngine.GetPresetData();
         Assert.Multiple(() =>
@@ -177,6 +166,33 @@ public partial class Tests
             Assert.That(finalPreset.PresetSimData, Is.EqualTo(emptyBodyPreset.PresetSimData), "The simulation data should be updated even when clearing bodies.");
         });
     }
+
+    #endregion
+
+    #region Body Interface Tests
+    
+    /*  Tests to add
+
+        CreateBody()
+        - should return an integer
+        - should increase the number of bodies of the simulation
+        
+        DeleteBody()
+        - should return false if no bodies are in the simulation
+        - should return false if no body with the given id is in the simulation
+        - should return true if a body was deleted
+        - should decrease the number of bodies in the simulation if successful
+        - should not decrease the number of bodies in the simulation if unsuccessful
+
+        UpdateBody() -> add tests once CelestialBody.Update has been properly implemented
+
+        GetBodyTickData() 
+        - should return null if no bodies are in the simulation
+        - should return null if no body with the given id is in the simulation
+        - should return BodyTickData if the body exists in the simulation
+        - returned BodyTickData.Id should equal the given id argument
+        - returned BodyTickData should have default values (other than Id) for a body newly added via CreateBody()
+    */
 
     #endregion
 }
