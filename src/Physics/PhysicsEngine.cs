@@ -26,24 +26,17 @@ public record PresetData(PresetSimData PresetSimData, PresetBodyData[] PresetBod
 
 public class PhysicsEngine
 {
-    internal Simulation simulation = new();
-
+    internal Simulation simulation = new(Simulation.DEFAULT_PRESET_DATA);
 
     #region Public Methods
 
-    public TickData Tick(double timestamp)
-    {
-        return simulation.GetTickData();
-    }
+    public TickData Tick(double deltaTime) => simulation.Tick(deltaTime).GetTickData();
 
-    public PresetData GetPresetData()
-    {
-        return simulation.GetPresetData();
-    }
+    public PresetData GetPresetData() => simulation.GetPresetData();
 
     public TickData LoadPreset(PresetData preset)
     {
-        simulation = Simulation.CreateFromPreset(preset);
+        simulation = new(preset);
         return simulation.GetTickData();
     }
 
@@ -55,15 +48,12 @@ public class PhysicsEngine
 
     public void CreateTestSim(int bodyCount)
     {
-        simulation = Simulation.CreateDefault(bodyCount);
+        Simulation sim = new(Simulation.DEFAULT_PRESET_DATA);
+        for (int i = 0; i < bodyCount; i++) sim.AddNewBody();
+        simulation = sim;
     }
 
-    public BodyTickData? GetBodyTickData(int id)
-    {
-        return simulation.Bodies.TryGetValue(id, out var body)
-            ? body.GetBodyTickData()
-            : null;
-    }
+    public BodyTickData? GetBodyTickData(int id) => simulation.GetBodyTickData(id);
 
     #endregion
 }

@@ -2,68 +2,41 @@ using Physics.Models;
 
 namespace Physics.Bodies;
 
-internal class CelestialBody(int id, bool enabled, double mass, Vector2D position, Vector2D velocity)
+internal class CelestialBody(PresetBodyData presetData)
 {
-    #region Factory Methods
+    internal static readonly PresetBodyData DEFAULT_PRESET_DATA = new(-1, false, 0.0, 0.0, 0.0, 0.0, 0.0);
 
-    internal static CelestialBody CreateFromPreset(PresetBodyData presetBodyData)
-    {
-        Vector2D position = new(presetBodyData.PosX, presetBodyData.PosY);
-        Vector2D velocity = new(presetBodyData.VelX, presetBodyData.VelY);
-        return new(presetBodyData.Id, presetBodyData.Enabled, presetBodyData.Mass, position, velocity);
-    }
+    // Constructor Params
+    internal int Id { get; init; } = presetData.Id >= 0
+        ? presetData.Id
+        : throw new ArgumentOutOfRangeException(nameof(presetData.Id), "Id must be a non-negative integer.");
+    internal bool Enabled { get; set; } = presetData.Enabled;
+    internal double Mass { get; set; } = presetData.Mass;
+    internal Vector2D Position { get; set; } = new(presetData.PosX, presetData.PosY);
+    internal Vector2D Velocity { get; set; } = new(presetData.VelX, presetData.VelY);
 
-    internal static CelestialBody CreateDefault(int id)
-    {
-        Vector2D position = new(0.0, 0.0);
-        Vector2D velocity = new(0.0, 0.0);
-        var enabled = false;    // MUST BE FALSE!!!
-        var mass = 1.0;
-        return new(id, enabled, mass, position, velocity);
-    }
+    #region DTOs
+
+    internal BodyTickData GetBodyTickData() => new(Id, Enabled, Mass, Position.X, Position.Y, Velocity.X, Velocity.Y);
+    internal PresetBodyData GetPresetBodyData() => new(Id, Enabled, Mass, Position.X, Position.Y, Velocity.X, Velocity.Y);
 
     #endregion
 
-    internal int Id { get; init; } = id;
-    internal bool Enabled { get; set; } = enabled;
-    internal double Mass { get; set; } = mass;
-    internal Vector2D Position { get; set; } = position;
-    internal Vector2D Velocity { get; set; } = velocity;
-
-    double PosX => Position.X;
-    double PosY => Position.Y;
-    double VelX => Velocity.X;
-    double VelY => Velocity.Y;
-
-    internal bool Update(PresetBodyData updatePreset)
+    internal bool Update(PresetBodyData updatePreset)   // TODO: Add validation logic for updatePreset and return false without updating if invalid
     {
         Enabled = updatePreset.Enabled;
         Mass = updatePreset.Mass;
 
-        if (updatePreset.PosX != PosX || updatePreset.PosY != PosY)
+        if (updatePreset.PosX != Position.X || updatePreset.PosY != Position.Y)
         {
             Position = new(updatePreset.PosX, updatePreset.PosY);
         }
 
-        if (updatePreset.VelX != VelX || updatePreset.VelY != VelY)
+        if (updatePreset.VelX != Velocity.X || updatePreset.VelY != Velocity.Y)
         {
             Velocity = new(updatePreset.VelX, updatePreset.VelY);
         }
 
         return true;
     }
-
-    #region DTOs
-
-    internal BodyTickData GetBodyTickData()
-    {
-        return new(Id, Enabled, Mass, PosX, PosY, VelX, VelY);
-    }
-
-    internal PresetBodyData GetPresetBodyData()
-    {
-        return new(Id, Enabled, Mass, PosX, PosY, VelX, VelY);
-    }
-
-    #endregion
 }

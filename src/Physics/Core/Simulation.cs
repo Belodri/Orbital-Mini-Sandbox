@@ -2,61 +2,43 @@ using Physics.Bodies;
 
 namespace Physics.Core;
 
-internal class Simulation
+internal class Simulation(PresetData presetData)
 {
-    #region Factory Methods
+    internal static readonly PresetData DEFAULT_PRESET_DATA = new(new PresetSimData(0.0, 1.0, true), []);
 
-    internal static Simulation CreateFromPreset(PresetData presetData)
-    {
-        Simulation sim = new()
-        {
-            TimeScale = presetData.PresetSimData.TimeScale,
-            SimulationTime = presetData.PresetSimData.SimulationTime,
-            IsTimeForward = presetData.PresetSimData.IsTimeForward
-        };
+    // Constructor params
+    internal double SimulationTime { get; set; } = presetData.PresetSimData.SimulationTime;
+    internal double TimeScale { get; set; } = presetData.PresetSimData.TimeScale;
+    internal bool IsTimeForward { get; set; } = presetData.PresetSimData.IsTimeForward;
+    internal Dictionary<int, CelestialBody> Bodies = presetData.PresetBodyDataArray
+        .Select(bd => new CelestialBody(bd))
+        .ToDictionary(b => b.Id);
 
-        foreach (PresetBodyData bodyState in presetData.PresetBodyDataArray)
-        {
-            sim.Bodies.Add(bodyState.Id, CelestialBody.CreateFromPreset(bodyState));
-        }
+    #region DTOs
 
-        return sim;
-    }
+    internal TickData GetTickData() => new(GetSimTickData(), [.. Bodies.Values.Select(b => b.GetBodyTickData())]);
+    internal SimTickData GetSimTickData() => new(SimulationTime, TimeScale, IsTimeForward);
 
-    internal static Simulation CreateDefault(int bodyCount = 5)
-    {
-        Simulation sim = new()
-        {
-            TimeScale = 1.0,
-            SimulationTime = 0.0,
-            IsTimeForward = true
-        };
-
-        for (int i = 0; i < bodyCount; i++) sim.AddNewBody();
-
-        return sim;
-    }
+    internal PresetData GetPresetData() => new(GetPresetSimData(), [.. Bodies.Values.Select(b => b.GetPresetBodyData())]);
+    internal PresetSimData GetPresetSimData() => new(SimulationTime, TimeScale, IsTimeForward);
 
     #endregion
 
-    internal double SimulationTime { get; set; }
-    internal double TimeScale { get; set; }
-    internal bool IsTimeForward { get; set; }
 
-    static readonly Random rnd = new();
+    #region Body Management
 
-    internal Dictionary<int, CelestialBody> Bodies = [];
+    int _nextAvailableId = 0;
 
-    internal CelestialBody AddNewBody()
+    internal CelestialBody AddNewBody(int maxBodies = 10000)
     {
-        int validId = -1;
-        while (validId < 0)
-        {
-            int Id = rnd.Next();
-            if (!Bodies.ContainsKey(Id)) validId = Id;
-        }
+        if (Bodies.Count >= maxBodies) throw new InvalidOperationException($"Cannot exceed maximum number of bodies: {maxBodies}.");
+        while (Bodies.ContainsKey(_nextAvailableId)) _nextAvailableId++;
 
-        var body = CelestialBody.CreateDefault(validId);
+        int validId = _nextAvailableId;
+        _nextAvailableId++;
+
+        var bodyData = CelestialBody.DEFAULT_PRESET_DATA with { Id = validId };
+        var body = new CelestialBody(bodyData);
         Bodies.Add(body.Id, body);
         return body;
     }
@@ -69,33 +51,12 @@ internal class Simulation
         return body != null && body.Update(updatePreset);
     }
 
-    #region DTOs
-
-    internal TickData GetTickData()
-    {
-        return new(
-            GetSimTickData(),
-            [.. Bodies.Values.Select(b => b.GetBodyTickData())]
-        );
-    }
-
-    internal SimTickData GetSimTickData()
-    {
-        return new(SimulationTime, TimeScale, IsTimeForward);
-    }
-
-    internal PresetData GetPresetData()
-    {
-        return new(
-            GetPresetSimData(),
-            [.. Bodies.Values.Select(b => b.GetPresetBodyData())]
-        );
-    }
-
-    internal PresetSimData GetPresetSimData()
-    {
-        return new(SimulationTime, TimeScale, IsTimeForward);
-    }
+    internal BodyTickData? GetBodyTickData(int id) => Bodies.TryGetValue(id, out var body) ? body.GetBodyTickData() : null;
 
     #endregion
+
+    internal Simulation Tick(double deltaTime)
+    {
+        return this;
+    }
 }
