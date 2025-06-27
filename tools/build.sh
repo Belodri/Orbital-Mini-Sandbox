@@ -15,11 +15,15 @@ set -e
 BRIDGE_PROJECT_PATH="src/Bridge/Bridge.csproj"
 WEBAPP_SOURCE_PATH="src/WebApp"
 DIST_PATH="dist"
-BRIDGE_DIST_PATH="dist/bridge"
+BRIDGE_DIST_PATH="$DIST_PATH/bridge"
+SCRIPTS_DIST_PATH="$DIST_PATH/scripts"
 
 # The path where the dotnet build process places its output.
 # This is inside the C# project's bin directory.
 BRIDGE_BUILD_OUTPUT_PATH="src/Bridge/bin/Release/net9.0/publish/wwwroot"
+
+# The path where the Vite build process places its output.
+WEBAPP_BUILD_OUTPUT_PATH="$WEBAPP_SOURCE_PATH/dist"
 
 # --- 1. Clean: Remove the old distribution folder ---
 echo "Cleaning old distribution folder..."
@@ -35,19 +39,25 @@ dotnet publish "$BRIDGE_PROJECT_PATH" -c Release
 # --- 3. Deploy: Copy bridge assets to the distribution folder ---
 echo "Copying bridge assets to '$BRIDGE_DIST_PATH'..."
 # We copy ONLY the contents of wwwroot, as 'dotnet publish' creates
-# other hosting files (e.g., web.config) that we don't need.
+# other files that we don't need.
 mkdir "$BRIDGE_DIST_PATH"
 cp "$BRIDGE_BUILD_OUTPUT_PATH/bridge.mjs" "$BRIDGE_DIST_PATH/"
 cp -r "$BRIDGE_BUILD_OUTPUT_PATH/_framework" "$BRIDGE_DIST_PATH/"
 
-# --- 4. Deploy: Copy WebApp assets to the distribution folder ---
-# NOTE: Replace this with a proper build process later
-# We explicitly copy only the needed files and folders to avoid including
-# development-only files like .d.ts, jsconfig.json, etc.
-echo "Copying WebApp files (HTML, JS, CSS)..."
-cp "$WEBAPP_SOURCE_PATH/index.html" "$DIST_PATH/"
-cp -r "$WEBAPP_SOURCE_PATH/scripts" "$DIST_PATH/"
-cp -r "$WEBAPP_SOURCE_PATH/styles" "$DIST_PATH/"
+# --- 4. Build WebApp with Vite ---
+echo "Building WebApp frontend with Vite..."
+# We change into the WebApp directory to run its package.json scripts.
+# 'npm install' ensures all dependencies are present.
+# 'npm run build' executes the 'vite build' command defined in package.json.
+# Running this in a subshell ( ... ) keeps the main script in the root directory.
+(cd "$WEBAPP_SOURCE_PATH" && npm install && npm run build)
+
+# --- 5. Deploy WebApp assets ---
+echo "Copying WebApp files (HTML, bundled JS, CSS)..."
+# We now copy the entire contents of the WebApp's build output.
+# This works because the C# assets are in `dist/bridge/` and the
+# WebApp assets (index.html, scripts/, styles/) will not conflict.
+cp -r "$WEBAPP_BUILD_OUTPUT_PATH/." "$DIST_PATH/"
 
 # --- Finished ---
 echo "--- Build successful! ---"
