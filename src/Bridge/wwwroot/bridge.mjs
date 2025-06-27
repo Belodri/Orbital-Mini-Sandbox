@@ -65,13 +65,18 @@ export default class Bridge {
 
     /**
      * Initializes the Bridge. Must be called first!
+     * @param {boolean} [debugMode=false]           If true enables debug logging and exposes the `EngineBridge` to the `globalThis`.
+     * @param {boolean} [diagnosticsTracing=false]  If "true", writes diagnostic messages during runtime startup and execution to the browser console.
      * @returns {Promise<void>}
      */
-    static async initialize() {
+    static async initialize(debugMode=false, diagnosticsTracing=false) {
+        Bridge.#CONFIG.DEBUG_MODE = !!debugMode;
         const {NAMESPACE, CLASS_NAME, DEBUG_MODE} = Bridge.#CONFIG;
         if(Bridge.#host.api) throw new Error("Bridge has already been initialized.");
 
-        Bridge.#host.api = await dotnet.create();
+        const builder = dotnet.withDiagnosticTracing(!!diagnosticsTracing);
+
+        Bridge.#host.api = await builder.create();
         Bridge.#host.monoConfig = Bridge.#host.api.getConfig();
         Bridge.#host.exports = await Bridge.#host.api.getAssemblyExports(Bridge.#host.monoConfig.mainAssemblyName);
         Bridge.#EngineBridge = Bridge.#host.exports[NAMESPACE][CLASS_NAME];
