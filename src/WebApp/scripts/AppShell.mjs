@@ -1,5 +1,5 @@
 // @ts-ignore
-import _Bridge from '../bridge/bridge.mjs';     // created during build
+import _Bridge from '../bridge/Bridge.mjs';     // created during build
 import AppDataManager from './AppDataManager.mjs';
 import CanvasView from './components/CanvasView.mjs';
 import Notifications from './components/Notifications.mjs';
