@@ -17,7 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Bridge\Bridge.csproj" />
+    <ProjectReference Include="..\..\src\Physics\Physics.csproj" />
   </ItemGroup>
 
   <ItemGroup>
