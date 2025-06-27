@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# --- Test Runner for Orbital Mini-Sandbox ---
+# --- Integration Test Runner for Orbital Mini-Sandbox ---
 # This script builds the app, serves it locally, runs the Playwright tests,
 # and then cleans up by stopping the server.
 
@@ -9,7 +9,8 @@ set -e
 
 # --- Configuration ---
 DIST_PATH="dist"
-TEST_PROJECT_PATH="Tests/Tests.csproj"
+TEST_PROJECT_PATH="Tests/IntegrationTests/IntegrationTests.csproj"
+TEST_RUNSETTINGS_PATH="Tests/IntegrationTests/IntegrationTests.runsettings"
 PORT=8080 # The port our tests will connect to
 SERVER_URL="http://localhost:$PORT"
 WAIT_TIMEOUT_SECONDS=30 # Max time to wait for the server to start
@@ -50,9 +51,9 @@ done
 echo
 echo "Server is up and running!"
 
-echo "Running Playwright E2E tests against local server..."
+echo "Running Playwright integration tests against local server..."
 # Run the tests. The BaseUrl in the C# test code must match the server port.
-dotnet test "$TEST_PROJECT_PATH" --settings Tests/Tests.runsettings -- TestRunParameters.Parameter\(name=\"BaseUrl\", value=\"$SERVER_URL\"\)
+dotnet test "$TEST_PROJECT_PATH" --settings "$TEST_RUNSETTINGS_PATH" -- TestRunParameters.Parameter\(name=\"BaseUrl\", value=\"$SERVER_URL\"\)
 
 # The 'trap' command will execute on exit, so we don't need a final kill command.
 echo "--- Test run finished successfully! ---"
