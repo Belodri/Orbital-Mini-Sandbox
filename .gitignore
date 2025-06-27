@@ -3,6 +3,7 @@
 .vscode/
 dist/
 node_modules
+.env
 
 # Ignore symlinked files
 src/WebApp/types/Bridge.d.ts
