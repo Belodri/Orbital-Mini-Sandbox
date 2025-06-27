@@ -8,7 +8,10 @@ namespace Bridge;
 
 internal class Program { private static void Main(string[] args) { } }  // Called while initializing dotnet.js; Don't remove!
 
-[JsonSourceGenerationOptions(GenerationMode = JsonSourceGenerationMode.Metadata)]
+[JsonSourceGenerationOptions(
+    WriteIndented = false,
+    GenerationMode = JsonSourceGenerationMode.Metadata,
+    PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 [JsonSerializable(typeof(PresetData))]
 [JsonSerializable(typeof(PresetSimData))]
 [JsonSerializable(typeof(PresetBodyData))]
@@ -93,7 +96,12 @@ public static partial class EngineBridge
     public static string GetPreset()
     {
         PresetData data = physicsEngine.GetPresetData();
-        return JsonSerializer.Serialize(data, PresetJSONSerializerContext.Default.PresetData);
+        return _CreatePresetString(data);
+    }
+
+    internal static string _CreatePresetString(PresetData presetData)
+    {
+        return JsonSerializer.Serialize(presetData, PresetJSONSerializerContext.Default.PresetData);
     }
 
 
@@ -109,13 +117,10 @@ public static partial class EngineBridge
     [JSExport]
     public static string? LoadPreset(string jsonPreset)
     {
+
         try
         {
-            PresetData? data = JsonSerializer.Deserialize(
-                jsonPreset,
-                PresetJSONSerializerContext.Default.PresetData
-            );
-
+            PresetData? data = _ParseJsonPreset(jsonPreset);
             if (data == null) return "Failed to load: Preset data was null or empty.";
 
             TickData tickData = physicsEngine.LoadPreset(data);
@@ -130,6 +135,15 @@ public static partial class EngineBridge
         {
             return $"Error applying preset: {e.Message}";
         }
+    }
+
+    internal static PresetData? _ParseJsonPreset(string jsonPreset)
+    {
+        PresetData? data = JsonSerializer.Deserialize(
+                jsonPreset,
+                PresetJSONSerializerContext.Default.PresetData
+            );
+        return data;
     }
 
     #endregion
