@@ -86,14 +86,14 @@ export default class Bridge {
      * @param values    The new values for the body.
      * @returns True if the body has been updated successfully, false if not found.
      */
-    static updateBody(id: number, values: { 
+    static updateBody(id: number, values: Partial<{ 
         enabled: boolean, 
         mass: number, 
         posX: number, 
         posY: number, 
         velX: number, 
         velY: number
-    }): boolean;
+    }>): boolean;
 
     /**
      * A test method to create a simulation with a specified number of bodies.

@@ -1,6 +1,8 @@
 import { dotnet as _dotnet } from './_framework/dotnet.js';
-/** @type {import('../../Bridge/types/dotnet.js').dotnet} */
+/** @type {import('../types/dotnet.js').dotnet} */
 const dotnet = _dotnet;
+
+/** @import {BodyStateData, SimState, BodyDiffData} from "../types/Bridge.js" */
 
 /**
  * @import { MonoConfig, RuntimeAPI } from '../types/dotnet.js'
@@ -58,7 +60,7 @@ export default class Bridge {
 
     //#region API
 
-    /** @returns {import('../types/Bridge.js').SimState} */
+    /** @returns {SimState} */
     static get simState() { 
         return this.#simState;
     }
@@ -92,7 +94,7 @@ export default class Bridge {
     /**
      * Ticks the engine and refreshes the simState data.
      * @param {number} timestamp The timestamp from `requestAnimationFrame()`
-     * @returns {import('../types/Bridge.js').BodyDiffData} 
+     * @returns {BodyDiffData} 
      * @throws Error if the EngineBridge returns an error message.
      */
     static tickEngine(timestamp) {
@@ -121,7 +123,7 @@ export default class Bridge {
     /**
      * Loads a preset string into the engine and refreshes simState data.
      * @param {string} jsonPreset A string containing the simulation state in JSON format.
-     * @returns {import('../types/Bridge.js').BodyDiffData}
+     * @returns {BodyDiffData}
      * @throws Error if the EngineBridge returns an error message.
      */
     static loadPreset(jsonPreset) {
@@ -150,18 +152,21 @@ export default class Bridge {
     /**
      * Updates an existing body.
      * @param {number} id  Body Id
-     * @param {{
+     * @param {Partial<{
      *  enabled: boolean,
      *  mass: number,
      *  posX: number,
      *  posY: number,
      *  velX: number,
      *  velY: number
-     * }} values        The new values for the body
+     * }>} values        The new values for the body
      * @returns {boolean} True if the body has been updated successfully, false if not found.
      */
-    static updateBody(id, { enabled, mass, posX, posY, velX, velY }) {
-        return this.#EngineBridge.updateBody(id, enabled, mass, posX, posY, velX, velY);
+    static updateBody(id, { enabled, mass, posX, posY, velX, velY }={}) {
+        return this.#EngineBridge.updateBody({
+            ...this.#simState.bodies.get(id),
+            enabled, mass, posX, posY, velX, velY
+        });
     }
 
     //#endregion
@@ -222,9 +227,9 @@ export default class Bridge {
 
     //#region Shared Memory Reader
 
-    /** @type {import('../types/Bridge.js').SimState} */
+    /** @type {SimState} */
     static #simState = {
-        /** @type {Map<number, import('../types/Bridge.js').BodyStateData>} */
+        /** @type {Map<number, BodyStateData>} */
         bodies: new Map()
     }
 
