@@ -18,3 +18,4 @@ https://learn.microsoft.com/en-us/aspnet/core/client-side/dotnet-interop/wasm-br
 - 23/06/2025 - Fixed formatting issues with TsTypeGen tool; Added Preset system; discovered major performance issue on Firefox (not present on Chrome; likely to do with shared memory management) and started investigating solutions
 - 25/06/2025 - Performance issue only caused by opening dev console; Added improved memory write operation regardless; Added update and delete methods for bodies; Added full integration testing via Playwright
 - 26/06/2025 - Added Pixi.js; Added render loop; Added Vite for WebApp build and bundling and updated build tool accordingly.
+- 27/06/2025 - Refactored Bridge and Physics for testability and clarity; Added partial body updates; Added dedicated test projects for Physics and Bridge; Fixed build issues; Integrated BodyTokens in render loop 
