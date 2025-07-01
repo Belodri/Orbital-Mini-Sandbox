@@ -3,14 +3,14 @@ import AppShell from "./AppShell.mjs";
 /**
  * @typedef {object} BodyMetaData
  * @property {string} name
- * @property {string} color
+ * @property {string|number} tint
  */
 
 export default class AppDataManager {
     /** @type {BodyMetaData} */
     static DEFAULT_BODY_DATA = {
         name: "New Body",
-        color: "white",
+        tint: "white",
     }
 
     /** @type {Map<number, BodyMetaData>} */
@@ -28,6 +28,22 @@ export default class AppDataManager {
         this.bodyData.delete(id);
     }
 
+    _onUpdateBody(id, updates={}) {
+        const body = this.bodyData.get(id);
+        if(!body) return false;
+
+        for(const [k, v] of Object.entries(updates)) {
+            if(k in body) body[k] = v;
+        }
+        return true;
+    }
+
+    //#region Preset
+
+    /**
+     * 
+     * @returns {string}
+     */
     getPreset() {
         const data = {
             bodyData: [...this.bodyData.entries()],     // this.bodyData is a Map<number, object>
@@ -44,7 +60,7 @@ export default class AppDataManager {
      * @returns {void}                       
      */
     loadPreset(presetString, preserveState = true) {
-        AppShell.canvasView.toggleStop(true);
+        AppShell.stopLoop();
         const prevState = preserveState ? this.getPreset() : "";
 
         try {
@@ -56,7 +72,6 @@ export default class AppDataManager {
             AppShell.Bridge.loadPreset(simDataStr); // throws if JSON is invalid
 
             // Verify bodyData
-
             if(AppShell.Bridge.simState.bodies.size !== bodyData.size)
                 throw new Error(`Invalid Preset: Mismatch between simulation data and body metadata.`);
 
@@ -64,12 +79,20 @@ export default class AppDataManager {
             const bodyDataKeys = new Set(bodyData.keys());
             if(!simStateKeys.isSubsetOf(bodyDataKeys)) 
                 throw new Error(`Invalid Preset: Mismatch between simulation data and body metadata.`);
-
+            
+            // Set data and queue full rerender
             this.bodyData = bodyData;
+            AppShell.canvasView.queueFullReRender();
+
         } catch(err) {
             AppShell.notifications.add(`Invalid Preset`);
-            if(prevState) return this.loadPreset(prevState, false);
+            if(prevState) {
+                console.error(err.message, err);
+                return this.loadPreset(prevState, false);
+            }
             else throw new Error(`Invalid Preset Error`, {cause: err});
         }
     }
+
+    //#endregion
 }

@@ -4,6 +4,11 @@ import AppDataManager from './AppDataManager.mjs';
 import CanvasView from './components/CanvasView.mjs';
 import Notifications from './components/Notifications.mjs';
 
+/**
+ * @import { BodyStateData } from '../types/Bridge'
+ * @import { BodyMetaData } from './AppDataManager.mjs'
+ */
+
 export default class AppShell {
     static #CONFIG = {
         debugMode: true,
@@ -63,6 +68,31 @@ export default class AppShell {
         this.appDataManager._onDeleteBody(id);
         return ret;
     }
+
+    /**
+     * 
+     * @param {number} id 
+     * @param {Partial<BodyStateData & BodyMetaData>} updates 
+     */
+    static updateBody(id, updates={}) {
+        const bridgeSuccess = this.Bridge.updateBody(id, updates);
+        if(!bridgeSuccess) return false;
+
+        const appDataSuccess = this.appDataManager._onUpdateBody(id, updates);
+        if(!appDataSuccess) throw new Error(`Body id "${id}" in sim data but not in appData.`);
+
+        this.canvasView.queueBodyUpdate(id);
+
+        return true;
+    }
+
+    //#endregion
+
+    //#region Render Loop Control
+
+    static stopLoop() { this.canvasView.toggleStop(true); }
+
+    static startLoop() { this.canvasView.toggleStop(false); }
 
     //#endregion
 
