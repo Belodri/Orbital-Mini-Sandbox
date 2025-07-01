@@ -209,7 +209,11 @@ export default class Bridge {
         const [newSimPtr, newSimSize] = this.#EngineBridge.GetSimBufferPtrAndSize();
 
         // Update sim buffer view only if stale
-        if(this.#bufferCache.simPtr !== newSimPtr || this.#bufferCache.simSize !== newSimSize) {
+        const refreshSimBuffer = this.#bufferView.sim?.buffer?.detached
+            || this.#bufferCache.simPtr !== newSimPtr
+            || this.#bufferCache.simSize !== newSimSize;
+            
+        if(refreshSimBuffer) {
             if(typeof newSimPtr !== "number" || newSimPtr === 0) throw new Error(`Invalid simBufferPtr=${newSimPtr}`);
             if(typeof newSimSize !== "number" || newSimSize === 0) throw new Error(`Invalid simBufferSize=${newSimSize}`);
 
@@ -220,15 +224,20 @@ export default class Bridge {
             this.#bufferCache.simSize = newSimSize;
         }
 
+        
         /* -- Body Buffer -- */
         // Get ptr and size of body buffer from the sim buffer
         const newBodyPtr = this.#bufferView.sim[this.#layoutRecord.sim._bodyBufferPtr];
         const newBodySize = this.#bufferView.sim[this.#layoutRecord.sim._bodyBufferSize];
 
         // Update body buffer view only if stale
-        if(this.#bufferCache.bodyPtr !== newBodyPtr || this.#bufferCache.bodySize !== newBodySize) {
-            if(typeof newBodyPtr !== "number" || newBodyPtr === 0) throw new Error(`Invalid simBufferPtr=${newBodyPtr}`);
-            if(typeof newBodySize !== "number" || newBodySize === 0) throw new Error(`Invalid simBufferSize=${newBodySize}`);
+        const refreshBodyBuffer = this.#bufferView.body?.buffer?.detached
+            || this.#bufferCache.bodyPtr !== newBodyPtr 
+            || this.#bufferCache.bodySize !== newBodySize;
+        
+        if(refreshBodyBuffer) {
+            if(typeof newBodyPtr !== "number" || newBodyPtr === 0) throw new Error(`Invalid bodyBufferPtr=${newBodyPtr}`);
+            if(typeof newBodySize !== "number" || newBodySize === 0) throw new Error(`Invalid bodyBufferSize=${newBodySize}`);
 
             this.#log(`Updating SimStateBuffer: Pointer=${newBodyPtr}, Size=${newBodySize} bytes`);
             
