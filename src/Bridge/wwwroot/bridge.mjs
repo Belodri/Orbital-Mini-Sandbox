@@ -212,7 +212,7 @@ export default class Bridge {
         const refreshSimBuffer = this.#bufferView.sim?.buffer?.detached
             || this.#bufferCache.simPtr !== newSimPtr
             || this.#bufferCache.simSize !== newSimSize;
-            
+
         if(refreshSimBuffer) {
             if(typeof newSimPtr !== "number" || newSimPtr === 0) throw new Error(`Invalid simBufferPtr=${newSimPtr}`);
             if(typeof newSimSize !== "number" || newSimSize === 0) throw new Error(`Invalid simBufferSize=${newSimSize}`);

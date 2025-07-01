@@ -1,4 +1,3 @@
-using System.Linq.Expressions;
 using System.Runtime.InteropServices.JavaScript;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -117,7 +116,6 @@ public static partial class EngineBridge
     [JSExport]
     public static string? LoadPreset(string jsonPreset)
     {
-
         try
         {
             PresetData? data = _ParseJsonPreset(jsonPreset);
@@ -148,4 +146,3 @@ public static partial class EngineBridge
 
     #endregion
 }
-
