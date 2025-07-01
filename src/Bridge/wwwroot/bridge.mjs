@@ -153,7 +153,7 @@ export default class Bridge {
      * Updates an existing body.
      * @param {number} id  Body Id
      * @param {Partial<{
-     *  enabled: boolean,
+     *  enabled: boolean|number,
      *  mass: number,
      *  posX: number,
      *  posY: number,
@@ -165,7 +165,7 @@ export default class Bridge {
     static updateBody(id, { enabled, mass, posX, posY, velX, velY }={}) {
         return this.#EngineBridge.updateBody({
             ...this.#simState.bodies.get(id),
-            enabled, mass, posX, posY, velX, velY
+            enabled: !!enabled, mass, posX, posY, velX, velY
         });
     }
 

@@ -87,11 +87,11 @@ export default class Bridge {
      * @returns True if the body has been updated successfully, false if not found.
      */
     static updateBody(id: number, values: Partial<{ 
-        enabled: boolean, 
-        mass: number, 
-        posX: number, 
-        posY: number, 
-        velX: number, 
+        enabled: boolean|number,
+        mass: number,
+        posX: number,
+        posY: number,
+        velX: number,
         velY: number
     }>): boolean;
 
