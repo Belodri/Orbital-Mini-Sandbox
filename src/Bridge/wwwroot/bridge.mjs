@@ -163,10 +163,26 @@ export default class Bridge {
      * @returns {boolean} True if the body has been updated successfully, false if not found.
      */
     static updateBody(id, { enabled, mass, posX, posY, velX, velY }={}) {
-        return this.#EngineBridge.updateBody({
-            ...this.#simState.bodies.get(id),
-            enabled: !!enabled, mass, posX, posY, velX, velY
-        });
+        const body = this.#simState.bodies.get(id);
+        if(!body) return false;
+
+        // Avoid unnessecary WASM call if possible
+        const isUnchanged = (enabled === undefined || !!enabled === !!body.enabled)
+            && (mass === undefined || mass === body.mass)
+            && (posX === undefined || posX === body.posX)
+            && (posY === undefined || posY === body.posY)
+            && (velX === undefined || velX === body.velX)
+            && (velY === undefined || velY === body.velY);
+        if(isUnchanged) return true;
+
+        return this.#EngineBridge.UpdateBody(id, 
+            !!(enabled ?? body.enabled),     // always coerce into boolean!
+            mass ?? body.mass,
+            posX ?? body.posX,
+            posY ?? body.posY,
+            velX ?? body.velX,
+            velY ?? body.velY
+        );
     }
 
     //#endregion
