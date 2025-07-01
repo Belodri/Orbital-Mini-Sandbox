@@ -1,13 +1,21 @@
-import { Application, Container, Graphics, UPDATE_PRIORITY } from "pixi.js";
+import { Application, Container, CullerPlugin, extensions, Graphics, Sprite, Texture, UPDATE_PRIORITY } from "pixi.js";
 import AppShell from "../AppShell.mjs";
 
+/**
+ * Pixi canvas controller.
+ * Use as a singleton only! The elements and listeners managed by an instance of this class are not destroyed and could cause memory leaks!  
+ */
 export default class CanvasView {
+    //#region PUBLIC
+
     /**
      * 
      * @param {Partial<import("pixi.js").ApplicationOptions>} initArgs 
      * @returns {Promise<CanvasView>}
      */
     static async create(initArgs = {}) {
+        if(CanvasView.#instance) throw new Error("CanvasView has already been created.");
+
         const app = new Application();
         const appArgs = {
             autoStart: false,
@@ -19,26 +27,61 @@ export default class CanvasView {
         };
 
         await app.init(appArgs);
-        return new CanvasView(app);
+        extensions.add(CullerPlugin);
+
+        CanvasView.#instance = new CanvasView(app);
+        return CanvasView.#instance;
     }
 
-    destroy() {
-        this.#app.destroy(true, true);
+    get renderLoopStopped() { return this.#renderLoopStopped; }
+
+    /**
+     * 
+     * @param {boolean} [force=undefined]
+     * @returns {boolean} 
+     */
+    toggleStop(force=undefined) {
+        this.#renderLoopStopped = force === undefined
+            ? !this.#renderLoopStopped
+            : !!force;
+        if(this.#renderLoopStopped) this.#app.stop();
+        else this.#app.start();
+        return this.#renderLoopStopped;
     }
+
+    //#endregion
 
     /**
      * 
      * @param {Application} app 
      */
-    constructor(app) {
+    constructor(app, config={}) {
+        this.#CONFIG = {
+            ...this.#CONFIG,
+            ...config
+        };
+
         this.#app = app;
         document.body.appendChild(this.#app.canvas);
-
-        this.#scene = new Container();
-        this.#app.stage.addChild(this.#scene);
-
+        BodyToken.staticInitBodyToken(this.#app.renderer)
+        this.#initScene();
+        this.#registerEventListeners();
         this.#initRenderLoop();
     }
+
+    /** @type {CanvasView} */
+    static #instance;
+
+    #CONFIG = {
+        ZOOM_MIN: 0.01,
+        ZOOM_MAX: 10000,
+        ZOOM_FACTOR: 0.05,
+        /** @type {number} How many pixels is 1 AU? */
+        PIXELS_PER_AU: 100,
+    }
+
+    /** @type {Application} */
+    #app;
 
     /** @type {Container} */
     #scene;
@@ -53,30 +96,23 @@ export default class CanvasView {
         updated: new Set(),
     }
 
-    /** @type {Application} */
-    #app;
+    /** @type {Set<number>} */
+    #updateBodyTokenQueue = new Set();
 
-    #isStopped = true;
+    #renderLoopStopped = true;
 
-    get isStopped() { return this.#isStopped; }
+    /** Is the scene currently being dragged? */
+    #isSceneDragging = false;
 
-    /**
-     * 
-     * @param {boolean} [force=undefined]
-     * @returns {boolean} 
-     */
-    toggleStop(force=undefined) {
-        this.#isStopped = force === undefined
-            ? !this.#isStopped
-            : !!force;
-        if(this.#isStopped) this.#app.stop();
-        else this.#app.start();
-        return this.#isStopped;
+    #sceneDragPointerPosCache = {x: 0, y:0 };
+
+    #registerEventListeners() {
+        this.#app.canvas.addEventListener("pointerdown", this.#onPointerDown.bind(this));
+        this.#app.canvas.addEventListener("pointerup", this.#onPointerUp.bind(this));
+        this.#app.canvas.addEventListener("pointermove", this.#onPointerMove.bind(this));
+        this.#app.canvas.addEventListener("pointerout", this.#onPointerOut.bind(this));
+        this.#app.canvas.addEventListener("wheel", this.#onWheel.bind(this), { passive: true });
     }
-
-    //#region Render Loop
-
-    get ticker() { return this.#app.ticker; }
 
     #initRenderLoop() {
         this.#app.ticker.add((ticker) => {
@@ -90,94 +126,218 @@ export default class CanvasView {
         }, this, UPDATE_PRIORITY.HIGH);
 
         this.#app.ticker.add((ticker) => {
-            for(const id of this.#tickDiff.created) this.#createBodyToken(id);
-            for(const id of this.#tickDiff.deleted) this.#deleteBodyToken(id);
-            for(const id of this.#tickDiff.updated) this.#updateBodyToken(id);
+            if(this.#fullReRender) {
+                for(const id of this.#bodyTokens.keys()) this.#deleteBodyToken(id);
+                for(const id of AppShell.appDataManager.bodyData.keys()) this.#createBodyToken(id);
+            } else {
+                for(const id of this.#tickDiff.created) this.#createBodyToken(id);
+                for(const id of this.#tickDiff.deleted) this.#deleteBodyToken(id);
+                for(const id of this.#tickDiff.updated) this.#updateBodyToken(id);
+                for(const id of this.#updateBodyTokenQueue) this.#updateBodyToken(id);   //self clearing
+            }
         }, this, UPDATE_PRIORITY.NORMAL);
     }
 
-    //#endregion
+    #fullReRender = false;
 
-    //#region Render Loop Body Updates
+    queueFullReRender() {
+        this.#fullReRender = true;
+    }
+
+    #initScene() {
+        const scene = new Container({
+            cullable: true,
+            cullableChildren: true,
+            isRenderGroup: true,
+        });
+
+        this.#scene = scene;
+        this.#app.stage.addChild(this.#scene);
+    }
+    
+    /**
+     * Manually queue a body's token to be updated on the next frame, 
+     * even if its simulation data hasn't changed.
+     * @param {number} id 
+     */
+    queueBodyUpdate(id) {
+        this.#updateBodyTokenQueue.add(id);
+    }
 
     #createBodyToken(id) {
-        const bodyToken = new BodyToken(id);
-        bodyToken.onCreate();
-        this.#scene.addChild(bodyToken.graphics);
+        const physicsData = AppShell.Bridge.simState.bodies.get(id);
+        const metaData = AppShell.appDataManager.bodyData.get(id);
+        const bodyToken = new BodyToken(physicsData, metaData);
+        this.#scene.addChild(bodyToken.sprite);
         this.#bodyTokens.set(id, bodyToken);
-        bodyToken.updateGraphics();
+        bodyToken.updateSprite(this.#CONFIG.PIXELS_PER_AU);
     }
 
     #deleteBodyToken(id) {
         const bodyToken = this.#bodyTokens.get(id);
-        bodyToken.onDelete();
-        this.#scene.removeChild(bodyToken.graphics);
+        bodyToken.sprite.destroy();
+        this.#scene.removeChild(bodyToken.sprite);
         this.#bodyTokens.delete(id);
     }
 
     #updateBodyToken(id) {
         const bodyToken = this.#bodyTokens.get(id);
-        bodyToken.onUpdate({isPhysics: true, isMeta: false});
-        bodyToken.updateGraphics();
+        bodyToken.updateSprite(this.#CONFIG.PIXELS_PER_AU);
+        this.#updateBodyTokenQueue.delete(id);
+    }
+
+    //#endregion
+
+    
+    //#region Camera Constrols
+
+    /**
+     * Pans the scene to the specified screen corrdinates.
+     * @param {number} x 
+     * @param {number} y
+     * @param {boolean} [isSimCoord=true] If true, x/y are simulation coordinates. If false, they are screen coordinates.
+     * @returns {void} 
+     */
+    _panToPoint(x, y, isSimCoord=true) {
+        const screenCenterX = this.#app.screen.width / 2;
+        const screenCenterY = this.#app.screen.height / 2;
+
+        let targetX, targetY;
+
+        if(isSimCoord) {
+            // Find where this simulation point exists in the scaled PIXI world.
+            const worldX = x * this.#scene.scale.x;
+            const worldY = y * this.#scene.scale.y;
+
+            // To center this point, the scene's top-left corner must be offset
+            // from the screen's center by that point's world coordinates.
+            targetX = screenCenterX - worldX;
+            targetY = screenCenterY - worldY;
+        } else {
+            const deltaX = screenCenterX - x;
+            const deltaY = screenCenterY - y;
+
+            targetX = this.#scene.x + deltaX;
+            targetY = this.#scene.y + deltaY;
+        }
+
+        this.#scene.position.set(targetX, targetY);
+    }
+
+    /**
+     * Pans the scene by a delta.
+     * @param {number} dx 
+     * @param {number} dy 
+     * @returns {void}
+     */
+    #panDelta(dx, dy) {
+        this.#scene.x += dx;
+        this.#scene.y += dy;
+    }
+
+    #onPointerDown(e) {
+        if(e.button === 0) {
+            this.#isSceneDragging = true;
+            this.#sceneDragPointerPosCache.x = e.clientX;
+            this.#sceneDragPointerPosCache.y = e.clientY;
+        }
+    }
+
+    #onPointerUp(e) {
+        if(e.button === 0) this.#isSceneDragging = false;
+    }
+
+    #onPointerMove(e) {
+        if(this.#isSceneDragging) {
+            const deltaX = e.clientX - this.#sceneDragPointerPosCache.x;
+            const deltaY = e.clientY - this.#sceneDragPointerPosCache.y;
+            this.#panDelta(deltaX, deltaY);
+
+            this.#sceneDragPointerPosCache.x = e.clientX;
+            this.#sceneDragPointerPosCache.y = e.clientY;
+        }
+    }
+
+    #onPointerOut(e) {
+        this.#isSceneDragging = false;
+    }
+
+    #onWheel(e) {
+        e.preventDefault();
+
+        const {ZOOM_MAX, ZOOM_MIN, ZOOM_FACTOR} = this.#CONFIG;
+
+        const zoomDirection = e.deltaY > 0 ? -1 : 1;
+        const newScale = this.#scene.scale.x + (zoomDirection * ZOOM_FACTOR);
+        if(newScale < ZOOM_MIN || newScale > ZOOM_MAX) return;
+
+        const mousePos = {x: e.offsetX, y: e.offsetY};
+        const scenePosPreZoom = this.#scene.toLocal(mousePos);
+
+        this.#scene.scale.set(newScale);
+
+        const scenePosPostZoom = this.#scene.toLocal(mousePos);
+
+        this.#scene.x -= (scenePosPostZoom.x - scenePosPreZoom.x) * newScale;
+        this.#scene.y -= (scenePosPostZoom.y - scenePosPreZoom.y) * newScale;
     }
 
     //#endregion
 }
 
 class BodyToken {
-    /** @type {number} */
-    #id;
-
-    #graphics = new Graphics();
-
-    get graphics() { return this.#graphics; }
-
-    constructor(id) {
-        this.#id = id;
-        this.#physicsData = AppShell.Bridge.simState.bodies.get(this.#id);
-        this.#metaData = AppShell.appDataManager.bodyData.get(this.#id);
+    static #CONFIG = {
+        disabledAlpha: 0.5,
+        initRadius: 5,
     }
+
+    /** @type {Texture} */
+    static #bodyTexture;
+
+    static get bodyTexture() { return this.#bodyTexture; };
+
+    /**
+     * @param {import("pixi.js").Renderer} renderer 
+     */
+    static staticInitBodyToken(renderer) {
+        const circle = new Graphics()
+            .circle(0, 0, this.#CONFIG.initRadius)
+            .fill('white');
+
+        this.#bodyTexture = renderer.generateTexture(circle);
+    }
+
+    constructor(physicsData, metaData) {
+        this.#physicsData = physicsData;
+        this.#metaData = metaData;
+    }
+
+    #sprite = new Sprite(BodyToken.bodyTexture);
 
     /** @type {import("../../types/Bridge").BodyStateData} */
     #physicsData;
     /** @type {import("../AppDataManager.mjs").BodyMetaData} */
     #metaData;
 
+    get sprite() { return this.#sprite; }
+
     get radius() {
         // just return a fixed number for now until I figure out the physics
         return 5;
     }
 
-    //#region CRUD Events
-
-    /** Called when the data of the body is updated */
-    onUpdate({isPhysics = true, isMeta = true}={}) {
-        if(isPhysics) this.#physicsData = AppShell.Bridge.simState.bodies.get(this.#id);
-        if(isMeta) this.#metaData = AppShell.appDataManager.bodyData.get(this.#id);
-    }
-
-    onCreate() {
-        this.#graphics
-            .circle(0, 0, this.radius)
-            .fill(this.#metaData.color);
-    }
-
-    onDelete() {
-        this.#graphics.destroy(true);
-    }
-
-    //#endregion
-    
-
-    //#region Rendering
-
     /**
      * Called once each render loop. 
      */
-    updateGraphics() {
-        this.#graphics.x = this.#physicsData.posX;
-        this.#graphics.y = this.#physicsData.posY;
+    updateSprite(sceneScale=100) {
+        this.#sprite.position.set(
+            this.#physicsData.posX * sceneScale, 
+            this.#physicsData.posY * sceneScale
+        );
+
+        this.#sprite.tint = this.#metaData.tint;
+        this.#sprite.alpha = this.#physicsData.enabled ? 1 : BodyToken.#CONFIG.disabledAlpha;
+
+        this.#sprite.scale.set(this.radius / BodyToken.#CONFIG.initRadius);
     }
-    
-    //#endregion
 }
