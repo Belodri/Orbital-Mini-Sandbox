@@ -1,0 +1,19 @@
+{
+    "compilerOptions": {
+        "module": "nodenext",
+        "target": "esnext",
+        "moduleResolution": "nodenext",
+        "checkJs": true,
+        "baseUrl": ".",
+        "paths": {
+            "@webapp/*": ["../../src/WebApp/*"]
+        }
+    },
+    "include": [
+        "./**/*.js",
+        "./types/**/*.d.ts"
+    ],
+    "exclude": [
+        "node_modules"
+    ]
+}

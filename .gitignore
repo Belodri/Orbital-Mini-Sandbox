@@ -8,3 +8,5 @@ node_modules
 # Ignore symlinked files
 src/WebApp/types/Bridge.d.ts
 src/WebApp/types/LayoutRecords.d.ts
+
+**/test-results
