@@ -27,7 +27,7 @@ internal class Simulation(PresetData presetData)
 
     #region Body Management
 
-    int _nextAvailableId = 0;
+    int _nextAvailableId = 1;
 
     internal CelestialBody AddNewBody(int maxBodies = 10000)
     {
