@@ -46,10 +46,16 @@ export default class Bridge {
     static initialize(): Promise<void>;
 
     /**
+     * Sets the maximum interval in which promises are handled, 
+     * in cases where `tickEngine` isn't called regularly.
+     * @param ms The interval time in ms. Cannot be less than 50ms! Default 100ms.
+     */
+    static setMaxPromiseInterval(ms?: number) : void;
+
+    /**
      * Advances the simulation by one step and refreshes the `simState` data.
      * @param timestamp The high-resolution timestamp, typically from `requestAnimationFrame()`.
      * @returns An object detailing which body IDs were created, updated, or deleted during the tick.
-     * @throws {Error} if the simulation engine reports an error.
      */
     static tickEngine(timestamp: number): BodyDiffData;
 
@@ -63,28 +69,27 @@ export default class Bridge {
      * Loads a preset string into the engine and refreshes simState data.
      * @param jsonPreset A string containing the simulation state in JSON format.
      * @returns An object detailing which body IDs were created, updated, or deleted during the tick.
-     * @throws {Error} if the EngineBridge returns an error message.
      */
     static loadPreset(jsonPreset: string): BodyDiffData;
 
     /**
      * Creates a new (default disabled) body in the simulation.
-     * @returns The ID of the newly created body.
+     * @returns Promise that resolves to the id of the created body
      */
-    static createBody(): number;
+    static createBody(): Promise<number>;
 
     /**
      * Deletes an existing body from the simulation.
      * @param id The id of the body to delete.
-     * @returns True if the body was deleted, false if it wasn't found.
+     * @returns Promise that resolves to `true` if the body was deleted, or `false` if it wasn't found.
      */
-    static deleteBody(id: number): boolean;
+    static deleteBody(id: number): Promise<boolean>;
 
     /**
      * Updates an existing body.
      * @param id        The unique id for the body to update.
      * @param values    The new values for the body.
-     * @returns True if the body has been updated successfully, false if not found.
+     * @returns Promise that resolves to `true` if the body has been updated successfully, or `false` if it wasn't found.
      */
     static updateBody(id: number, values: Partial<{ 
         enabled: boolean|number,
@@ -93,11 +98,5 @@ export default class Bridge {
         posY: number,
         velX: number,
         velY: number
-    }>): boolean;
-
-    /**
-     * A test method to create a simulation with a specified number of bodies.
-     * @param bodyCount The number of bodies to create in the test simulation.
-     */
-    static _createTestSim(bodyCount: number): void;
+    }>): Promise<boolean>;
 }
