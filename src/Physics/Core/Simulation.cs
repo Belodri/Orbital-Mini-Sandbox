@@ -45,7 +45,7 @@ internal class Simulation(PresetData presetData)
 
     internal bool DeleteBody(int id) => Bodies.Remove(id);
 
-    internal bool UpdateBody(PresetBodyData updatePreset)
+    internal bool UpdateBody(BodyUpdateData updatePreset)
     {
         Bodies.TryGetValue(updatePreset.Id, out var body);
         return body != null && body.Update(updatePreset);

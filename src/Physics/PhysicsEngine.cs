@@ -23,6 +23,12 @@ public record PresetData(PresetSimData PresetSimData, PresetBodyData[] PresetBod
 
 #endregion
 
+#region Other DTO Records
+
+public record BodyUpdateData(int Id, bool? Enabled, double? Mass, double? PosX, double? PosY, double? VelX, double? VelY);
+
+#endregion
+
 
 public class PhysicsEngine
 {
@@ -40,11 +46,13 @@ public class PhysicsEngine
         return simulation.GetTickData();
     }
 
+    public TickData GetTickData() => simulation.GetTickData();
+
     public int CreateBody() => simulation.AddNewBody().Id;
 
     public bool DeleteBody(int id) => simulation.DeleteBody(id);
 
-    public bool UpdateBody(PresetBodyData updatePreset) => simulation.UpdateBody(updatePreset);
+    public bool UpdateBody(BodyUpdateData updatePreset) => simulation.UpdateBody(updatePreset);
 
     public void CreateTestSim(int bodyCount)
     {

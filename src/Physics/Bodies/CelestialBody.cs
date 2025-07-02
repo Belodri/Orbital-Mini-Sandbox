@@ -22,19 +22,27 @@ internal class CelestialBody(PresetBodyData presetData)
 
     #endregion
 
-    internal bool Update(PresetBodyData updatePreset)   // TODO: Add validation logic for updatePreset and return false without updating if invalid
+    internal bool Update(BodyUpdateData updatePreset)   // TODO: Add validation logic for updatePreset and return false without updating if invalid
     {
-        Enabled = updatePreset.Enabled;
-        Mass = updatePreset.Mass;
+        Enabled = updatePreset.Enabled ?? Enabled;
+        Mass = updatePreset.Mass ?? Mass;
 
-        if (updatePreset.PosX != Position.X || updatePreset.PosY != Position.Y)
+        if ((updatePreset.PosX.HasValue && updatePreset.PosX.Value != Position.X)
+            || (updatePreset.PosY.HasValue && updatePreset.PosY.Value != Position.Y))
         {
-            Position = new(updatePreset.PosX, updatePreset.PosY);
+            Position = new(
+                updatePreset.PosX ?? Position.X,
+                updatePreset.PosY ?? Position.Y
+            );
         }
 
-        if (updatePreset.VelX != Velocity.X || updatePreset.VelY != Velocity.Y)
+        if ((updatePreset.VelX.HasValue && updatePreset.VelX.Value != Velocity.X) 
+            || (updatePreset.VelY.HasValue && updatePreset.VelY.Value != Velocity.Y))
         {
-            Velocity = new(updatePreset.VelX, updatePreset.VelY);
+            Velocity = new(
+                updatePreset.VelX ?? Velocity.X,
+                updatePreset.VelY ?? Velocity.Y
+            );
         }
 
         return true;
