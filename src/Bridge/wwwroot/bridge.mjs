@@ -1,3 +1,4 @@
+// @ts-ignore
 import { dotnet as _dotnet } from './_framework/dotnet.js';
 /** @type {import('../types/dotnet.js').dotnet} */
 const dotnet = _dotnet;
@@ -48,6 +49,7 @@ export default class Bridge {
      * @returns {Record<string, number>}
      */
     static #getStateLayoutRecord(layoutArr) {
+        /** @type {Record<string, number>} */
         const record = {};
         for(let i = 0; i < layoutArr.length; i++) {
             record[layoutArr[i]] = i;
@@ -95,23 +97,48 @@ export default class Bridge {
      * Ticks the engine and refreshes the simState data.
      * @param {number} timestamp The timestamp from `requestAnimationFrame()`
      * @returns {BodyDiffData} 
-     * @throws Error if the EngineBridge returns an error message.
      */
     static tickEngine(timestamp) {
-        const errorMsg = this.#EngineBridge.Tick(timestamp);
-        if(errorMsg) throw new Error(errorMsg);
+        this.#cancelPromiseTimeoutLoop();
+        this.#EngineBridge.Tick(timestamp);
         return this.#refreshSimState();
     }
 
-    /**
-     * 
-     * @param {number} bodyCount 
-     * @returns {void}
-     */
-    static _createTestSim(bodyCount) {
-        return this.#EngineBridge.CreateTestSim(bodyCount);
+
+    static #pausedPromiseInterval = 100;
+
+    static #promiseFlushTimeoutId = null;
+
+    static #startPromiseTimeoutLoop() {
+        if(this.#promiseFlushTimeoutId) return;
+        // TickEngine(0) tells the engine to process the queued commands
+        // which resolves the pending promises.
+        this.#promiseFlushTimeoutId = setTimeout(() => {
+            try {
+                this.tickEngine(0);
+            } finally {
+                this.#promiseFlushTimeoutId = null;
+            }
+        }, this.#pausedPromiseInterval);
     }
 
+    static #cancelPromiseTimeoutLoop() {
+        if(!this.#promiseFlushTimeoutId) return;
+        clearTimeout(this.#promiseFlushTimeoutId);
+        this.#promiseFlushTimeoutId = null;
+    }
+
+    /**
+     * Sets the maximum interval in which promises are handled, 
+     * in cases where `tickEngine` isn't called regularly.
+     * @param {number} [ms=100] The interval time in ms. Cannot be less than 50ms! Default 100ms.
+     * @returns {void}
+     */
+    static setMaxPromiseInterval(ms=100) {
+        if(!Number.isSafeInteger(ms)) throw new Error(`Argument 'ms' must be a positive integer.`);
+        this.#pausedPromiseInterval = Math.max(50, ms); 
+    }
+    
     /**
      * Serializes the current state of the physics engine simulation into a JSON string.
      * @returns {string} A string containing the simulation state in JSON format.
@@ -124,29 +151,30 @@ export default class Bridge {
      * Loads a preset string into the engine and refreshes simState data.
      * @param {string} jsonPreset A string containing the simulation state in JSON format.
      * @returns {BodyDiffData}
-     * @throws Error if the EngineBridge returns an error message.
      */
     static loadPreset(jsonPreset) {
-        const errorMsg = this.#EngineBridge.LoadPreset(jsonPreset);
-        if(errorMsg) throw new Error(errorMsg);
+        this.#EngineBridge.LoadPreset(jsonPreset);
         return this.#refreshSimState();
     }
 
     /**
      * Creates a new body with default properties.
-     * @returns {number} Body Id
+     * @returns {Promise<number>} Resolves to the id of the created body
      */
-    static createBody() {
-        return this.#EngineBridge.CreateBody();
+    static async createBody() {
+        this.#startPromiseTimeoutLoop();
+        return await this.#EngineBridge.CreateBody();
     }
 
     /**
      * Deletes an existing body.
      * @param {number} id Body Id
-     * @returns {boolean} True if the body was deleted, false if it wasn't found.
+     * @returns {Promise<boolean>} Resolves to `true` if the body was deleted, 
+     *                              or `false` if it wasn't found.
      */
-    static deleteBody(id) {
-        return this.#EngineBridge.DeleteBody(id);
+    static async deleteBody(id) {
+        this.#startPromiseTimeoutLoop();
+        return await this.#EngineBridge.DeleteBody(id);
     }
 
     /**
@@ -160,28 +188,18 @@ export default class Bridge {
      *  velX: number,
      *  velY: number
      * }>} values        The new values for the body
-     * @returns {boolean} True if the body has been updated successfully, false if not found.
+     * @returns {Promise<boolean>} Resolves to `true` if the body has been updated successfully, 
+     *                              or `false` if it wasn't found.
      */
-    static updateBody(id, { enabled, mass, posX, posY, velX, velY }={}) {
-        const body = this.#simState.bodies.get(id);
-        if(!body) return false;
-
-        // Avoid unnessecary WASM call if possible
-        const isUnchanged = (enabled === undefined || !!enabled === !!body.enabled)
-            && (mass === undefined || mass === body.mass)
-            && (posX === undefined || posX === body.posX)
-            && (posY === undefined || posY === body.posY)
-            && (velX === undefined || velX === body.velX)
-            && (velY === undefined || velY === body.velY);
-        if(isUnchanged) return true;
-
-        return this.#EngineBridge.UpdateBody(id, 
-            !!(enabled ?? body.enabled),     // always coerce into boolean!
-            mass ?? body.mass,
-            posX ?? body.posX,
-            posY ?? body.posY,
-            velX ?? body.velX,
-            velY ?? body.velY
+    static async updateBody(id, { enabled, mass, posX, posY, velX, velY }={}) {
+        this.#startPromiseTimeoutLoop();
+        return await this.#EngineBridge.UpdateBody(id,
+            (typeof enabled === "number" || typeof enabled === "boolean") ? !!enabled : null, // always coerce number into boolean!
+            typeof mass === "number" ? mass : null,
+            typeof posX === "number" ? posX : null,
+            typeof posY === "number" ? posY : null,
+            typeof velX === "number" ? velX : null,
+            typeof velY === "number" ? velY : null,
         );
     }
 
@@ -209,6 +227,7 @@ export default class Bridge {
         const [newSimPtr, newSimSize] = this.#EngineBridge.GetSimBufferPtrAndSize();
 
         // Update sim buffer view only if stale
+        // @ts-ignore
         const refreshSimBuffer = this.#bufferView.sim?.buffer?.detached
             || this.#bufferCache.simPtr !== newSimPtr
             || this.#bufferCache.simSize !== newSimSize;
@@ -231,6 +250,7 @@ export default class Bridge {
         const newBodySize = this.#bufferView.sim[this.#layoutRecord.sim._bodyBufferSize];
 
         // Update body buffer view only if stale
+        // @ts-ignore
         const refreshBodyBuffer = this.#bufferView.body?.buffer?.detached
             || this.#bufferCache.bodyPtr !== newBodyPtr 
             || this.#bufferCache.bodySize !== newBodySize;
@@ -311,6 +331,7 @@ export default class Bridge {
             let body = this.#simState.bodies.get(id);
             let wasCreated = false;
             if(!body) {
+                // @ts-ignore
                 body = {};
                 this.#simState.bodies.set(id, body);
                 created.add(id);
