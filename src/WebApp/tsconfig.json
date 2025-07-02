@@ -1,0 +1,26 @@
+{
+    "compilerOptions": {
+        "module": "ES2022",
+        "target": "esnext",
+        "checkJs": true,
+        "moduleResolution": "node",
+        "allowJs": true,
+        
+        "skipLibCheck": true,
+
+        "declaration": true,            // Generate .d.ts files from JSDoc.
+        "emitDeclarationOnly": true,    // ONLY generate .d.ts files, no .js output.
+        "outDir": "types/generated",    // Place generated types in their own folder.
+        "rootDir": "scripts",           // Treat 'scripts' as the source root.
+
+        "baseUrl": ".", // Required to enable the 'paths' mapping.
+        "paths": {
+            // Tells TSC where to find the types for the mocked Bridge import.
+            "../bridge/Bridge.mjs": ["./types/Bridge.d.ts"]
+        }
+    },
+    "include": [
+        "scripts/**/*.mjs",
+        "types/**/*",
+    ],
+}

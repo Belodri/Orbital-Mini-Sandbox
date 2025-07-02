@@ -8,13 +8,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 # Run Bridge Tests
-(cd Tests/BridgeTests && dotnet test)
+(cd "$PROJECT_ROOT/Tests/BridgeTests" && dotnet test)
 
 # Run Physics Tests
-(cd Tests/PhysicsTests && dotnet test)
+(cd "$PROJECT_ROOT/Tests/PhysicsTests" && dotnet test)
 
-# Run integration tests
-"$SCRIPT_DIR/testIntegration.sh"
+# Run E2E tests
+"$SCRIPT_DIR/testE2E.sh" --chromium --firefox --webkit
 
 echo "-------------------------"
 echo "--- All tests passed. ---"
