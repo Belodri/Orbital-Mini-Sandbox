@@ -1,3 +1,4 @@
+using NUnit.Framework.Constraints;
 using Physics;
 using Physics.Core;
 
@@ -121,8 +122,8 @@ public partial class Tests
     public void LoadPreset_OnExistingSimulation_OverwritesPreviousState()
     {
         // Arrange
-        // 1. Create an initial state with 5 bodies.
-        physicsEngine.CreateTestSim(5);
+        // Create an initial state with 5 bodies.
+        for (int i = 0; i < 5; i++) physicsEngine.CreateBody();
         var initialBodyCount = physicsEngine.GetPresetData().PresetBodyDataArray.Length;
         Assert.That(initialBodyCount, Is.EqualTo(5), "Precondition failed: Initial simulation should have 5 bodies.");
 
@@ -149,7 +150,7 @@ public partial class Tests
     {
         // Arrange
         // 1. Create an initial state with 5 bodies.
-        physicsEngine.CreateTestSim(5);
+        for (int i = 0; i < 5; i++) physicsEngine.CreateBody();
         Assert.That(physicsEngine.GetPresetData().PresetBodyDataArray, Is.Not.Empty, "Precondition failed: Initial simulation should not be empty.");
 
         // 2. Create a preset with an empty body array.
