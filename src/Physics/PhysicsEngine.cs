@@ -54,13 +54,6 @@ public class PhysicsEngine
 
     public bool UpdateBody(BodyUpdateData updatePreset) => simulation.UpdateBody(updatePreset);
 
-    public void CreateTestSim(int bodyCount)
-    {
-        Simulation sim = new(Simulation.DEFAULT_PRESET_DATA);
-        for (int i = 0; i < bodyCount; i++) sim.AddNewBody();
-        simulation = sim;
-    }
-
     public BodyTickData? GetBodyTickData(int id) => simulation.GetBodyTickData(id);
 
     #endregion
