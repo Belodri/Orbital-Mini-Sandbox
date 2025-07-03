@@ -20,3 +20,4 @@ https://learn.microsoft.com/en-us/aspnet/core/client-side/dotnet-interop/wasm-br
 - 26/06/2025 - Added Pixi.js; Added render loop; Added Vite for WebApp build and bundling and updated build tool accordingly.
 - 27/06/2025 - Refactored Bridge and Physics for testability and clarity; Added partial body updates; Added dedicated test projects for Physics and Bridge; Fixed build issues; Integrated BodyTokens in render loop 
 - 01/07/2025 - Fixed detaching buffer views, preset loading errors, and missing partial body updates implementation; Added and tested full camera controls (zoom and pan);
+- 02/07/2025 - Replaced C# integration tests with JS E2E tests; Refactored build and type generation tools; Updated PDD; Added command queue to Bridge and refactored several methods of the JS API to return promises. THIS BREAKS THE WEBAPP AND TESTS
