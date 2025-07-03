@@ -326,7 +326,7 @@ export default class Bridge {
             const offset = i * this.#readerCache.bodyStride;
             const id = this.#bufferView.body[offset + this.#readerCache.idIndex];
 
-            knownIds.add(id);
+            this.#readerCache.knownIds.add(id);
 
             let body = this.#simState.bodies.get(id);
             let wasCreated = false;
@@ -350,8 +350,8 @@ export default class Bridge {
 
         // Handle the actual deletion of bodies that were in the previous 
         // frame but are missing from the current frame.
-        for(const id of prevKnownIds) {
-            if(!knownIds.has(id)) {
+        for(const id of this.#readerCache.prevKnownIds) {
+            if(!this.#readerCache.knownIds.has(id)) {
                 this.#simState.bodies.delete(id);
                 deleted.add(id);
             }
