@@ -3,6 +3,8 @@
 
 # Revision History
 
+- **03/07/2025**
+    - Removed replaced `Physics.Tick` timestamp argument in favour of accepting a deltaTime argument.
 - **02/07/2025**
     - Decided to allow WASM to marshal C# exceptions to JS.
     - Redesigned `Bridge` to use an Task/Promise-based command queue for select WebApp -> Physics write operations.
@@ -383,7 +385,7 @@ public PresetData GetPresetData(); // takes a snapshot of the current state of t
 public TickData LoadPreset(PresetData preset); // takes a preset data DTO and creates a new Simulation instance from it which replaces the current simulation instance;
 
 // Simulation Time
-public TickDataDto Tick(double timestamp); // ticks the simulation once
+public TickDataDto Tick(double deltaTime); // ticks the simulation once
 
 public void SetSimulationTime(double time); // sets the simulation time 
 
@@ -431,7 +433,7 @@ Physics/
 |   ├── Calculator.cs             # Physics calculations per body per timestep
 │   └── Grid.cs                   # Spatial partitioning (QuadTree)
 ├── Bodies/
-│   ├── CelestialBody.cs          # Individual body state and behavior
+│   └── CelestialBody.cs          # Individual body state and behavior
 └── Models/
     └── Vector2D.cs               # Mathematical primitives
 ```
@@ -462,11 +464,11 @@ Physics/
 	- `grid` - Grid instance
 
 `Timer`
-- Manages the temporal aspects of the simulation including speed, direction, and execution timing. Calculates the delta time for each calculation step.
+- Manages the temporal aspects of the simulation including speed, direction, and execution timing. Calculates the simulation delta time for each calculation step.
 - Responsibilities
 	- Controls simulation execution speed and time direction
 	- Maintains the current simulation time
-	- Calculates delta time for each calculation step
+	- Calculates simulation delta time for each calculation step
 - State Ownership
 	- Current simulation timestamp
 	- Time direction (forward/backward)
