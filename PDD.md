@@ -3,6 +3,10 @@
 
 # Revision History
 
+- **02/07/2025**
+    - Decided to allow WASM to marshal C# exceptions to JS.
+    - Redesigned `Bridge` to use an Task/Promise-based command queue for select WebApp -> Physics write operations.
+    - Updated the PDD to reflect these and other minor revisions and errors.  
 - **25/06/2025**
     - Added automated integration testing via Playwright.
     - Updated the PDD to reflect revision.
@@ -244,6 +248,7 @@ Bridge/
 ├── EngineBridge.cs                 # C# coordinator
 ├── MemoryBufferHandler.cs          # Shared Memory manager
 ├── LayoutRecords.cs                # SSOT for shared memory buffer layout
+├── CommandQueue.cs                 # Manager of Task-based command queue
 ├── wwwroot/
 │   ├── bridge.js                   # JS coordinator
 └── types/
@@ -263,7 +268,7 @@ The single source of truth for the layout of these buffers are the records in `L
 - `Bridge` has exclusive write access to shared buffers
 - `WebApp` has read-only access to shared buffers
 - Buffers are updated synchronously after each `Physics.Tick()`
-- Buffer sizes are pre-allocated based on maximum body count (configurable, default: 1000 bodies)
+- Buffer sizes are pre-allocated based on maximum body count (configurable, default: 10 bodies)
 
 ### API Surface
 The `Bridge` exposes a Javascript API (`bridge.mjs`) to the WebApp. The API's type definitions can be found in `types/Bridge.d.ts`
@@ -277,12 +282,12 @@ static setTimeDirection(isForward: bool): void;
 
 // Preset Management  
 static getPreset(): string;
-static loadPreset(enginePreset: string): void;
+static loadPreset(enginePreset: string): BodyDiffData;
 
 // Body Management
-static createBody(Partial<BodyStateData>): number;
-static updateBody(Partial<BodyStateData>): number;
-static deleteBody(bodyId: number): void;
+static createBody(Partial<BodyStateData>): Promise<number>;
+static updateBody(Partial<BodyStateData>): Promise<boolean>;
+static deleteBody(id: number): Promise<boolean>;
 
 BodyDiffData: {
     created: Set<number>,
@@ -293,7 +298,7 @@ BodyDiffData: {
 
 ### Components
 
-`bridge.mjs`
+`Bridge.mjs`
 - **Static** coordinator that serves as the sole external-facing API surface
 - **Responsibilities:**
     - Abstracts away and hides the implementation details of the C# <-> JavaScript boundry
@@ -308,10 +313,10 @@ BodyDiffData: {
     - Manages the lifecycle of the `PhysicsEngine` instance
     - Translates JavaScript method calls into appropriate `Physics` API calls
     - Coordinates the `MemoryBufferHandler` to update shared memory after physics operations
-    - Implements comprehensive error handling and transforms C# exceptions into JavaScript-consumable error messages
 - **State Ownership:**
     - `PhysicsEngine` instance (composition)
     - `MemoryBufferHandler` instance (composition)
+    - `CommandQueue` instance (composition)
 
 `MemoryBufferHandler.cs`
 - Specialized component responsible for efficient shared memory management
@@ -324,6 +329,17 @@ BodyDiffData: {
     - `SimStateBuffer`: Fixed-size buffer for simulation metadata
     - `BodyStateBuffer`: Dynamic buffer for celestial body data
     - Buffer configuration parameters (max bodies, buffer sizes)
+
+`CommandQueue.cs`
+- Specialized utility class that decouples immediate method calls from their execution by queuing them as commands.
+- **Responsibilities:**
+    - Enqueues PhysicsEngine operations for deferred, batched execution.
+    - Abstracts the creation and lifecycle of Task<T> objects (which become JavaScript Promises) for commands that must return a value.
+    - Manages promise resolution, ensuring tasks are correctly completed with a result or rejected with an exception upon command execution.
+    - Executes all pending commands when processed by the EngineBridge (during a tick).
+    - Allows the queue to be cleared to prevent stale operations after a full state reset (e.g., LoadPreset).
+- **State Ownership:**
+    - A Queue of Action<PhysicsEngine> delegates representing the pending commands.
 
 **Tick Flow:**
 Javascript
@@ -338,16 +354,15 @@ C#
 
 Javascript
 7. `Bridge` 
-    - throws an error if an error string was received
+    - propagates errors marshalled from C# exceptions
     - reads from memory and refreshes the exposed `simState` object
     - returns an simple diff to `WebApp`
 
 ### Error Handling Strategy
 **Exception Translation**
-- All C# exceptions are caught at the `EngineBridge` boundary. Their messages are used to create new JavaScript Error objects, which are then thrown on the JavaScript side, ensuring no raw C# objects leak across the interop boundary.
+- All C# exceptions are propagated to Javascript via WASM native marshalling to JS Error objects.
 - Physics validation errors return descriptive error messages
 - System exceptions return generic error indicators
-- No exceptions propagate to the JavaScript layer
 
 **Graceful Degradation**
 - Invalid operations return error responses but don't crash the simulation
@@ -363,10 +378,9 @@ The physics engine is designed as a double-buffered, completely UI-agnostic, sel
 The PhysicsEngine is accessed by initializing the exposed `PhysicsEngine` class. This class exposes the following methods.
 ```c#
 // Presets
-public string GetPreset(); // takes a snapshot of the current state of the Simulation and transforms it intro a string
+public PresetData GetPresetData(); // takes a snapshot of the current state of the Simulation
 
-public bool LoadPreset(string preset); // takes a preset string and creates a new Simulation instance from it which replaces the current simulation instance; returns true if successful, or false if not
-
+public TickData LoadPreset(PresetData preset); // takes a preset data DTO and creates a new Simulation instance from it which replaces the current simulation instance;
 
 // Simulation Time
 public TickDataDto Tick(double timestamp); // ticks the simulation once
@@ -384,17 +398,27 @@ public record SimStateData(double SimulationTime, double TimeScale, bool IsTimeF
 
 public record TickDataDto(SimStateData SimStateData, BodyStateData[] BodiesStateData);
 
+public record PresetBodyData(int Id, bool Enabled, double Mass, double PosX, double PosY, double VelX, double VelY);
+
+public record PresetSimData(double SimulationTime, double TimeScale, bool IsTimeForward);
+
+public record PresetData(PresetSimData PresetSimData, PresetBodyData[] PresetBodyDataArray);
+
+public record BodyUpdateData(int Id, bool? Enabled, double? Mass, double? PosX, double? PosY, double? VelX, double? VelY);
+
 // Celestial Bodies
 
 public int CreateBody(); // creats a CelestialBody instance and adds it to the simulation; is always initiaized with enabled=false, a unique id, and default values; the unique id is returned.
 
-public void DestroyBody(int id); // destroys an existing CelestialBody by its id;
+public bool DeleteBody(int id); // destroys an existing CelestialBody by its id;
+
+public bool UpdateBody(BodyStateData newData); // updates an existing CelestialBody
 
 public BodyStateData? GetBodyData(int id); // gets the data of an existing CelestialBody instance by its id; If none exists retunrs null instead;
 
 public BodyStateData[] GetBodyDataAll(); // gets the data of all existing CelestialBody instances
 
-public int? UpdateBody(BodyStateData newData); // updates an existing CelestialBody; the unique id is returned. If the given data was invalid, returns null instead; 
+
 ```
 
 ### Project Structure
