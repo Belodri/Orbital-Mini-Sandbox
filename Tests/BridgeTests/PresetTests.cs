@@ -7,7 +7,7 @@ using System.Text.Json;
 namespace BridgeTests;
 
 [TestFixture]
-public class EngineBridgeTests
+public partial class EngineBridgeTests
 {
     #region Tests for _CreatePresetString
 
@@ -22,7 +22,7 @@ public class EngineBridgeTests
         // and have camelCase property names (PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase).
         var expectedJson = "{\"presetSimData\":{\"simulationTime\":123.45,\"timeScale\":1.5,\"isTimeForward\":true},\"presetBodyDataArray\":[{\"id\":1,\"enabled\":true,\"mass\":10,\"posX\":1.1,\"posY\":1.2,\"velX\":1.3,\"velY\":1.4},{\"id\":2,\"enabled\":false,\"mass\":20,\"posX\":2.1,\"posY\":2.2,\"velX\":2.3,\"velY\":2.4}]}";
 
-        var actualJson = EngineBridge._CreatePresetString(presetData);
+        var actualJson = EngineBridge.CreatePresetString(presetData);
         Assert.That(actualJson, Is.EqualTo(expectedJson), "The serialized JSON string did not match the expected format.");
     }
 
@@ -33,7 +33,7 @@ public class EngineBridgeTests
         var presetData = new PresetData(simData, []);
         var expectedJson = "{\"presetSimData\":{\"simulationTime\":50,\"timeScale\":1,\"isTimeForward\":false},\"presetBodyDataArray\":[]}";
 
-        var actualJson = EngineBridge._CreatePresetString(presetData);
+        var actualJson = EngineBridge.CreatePresetString(presetData);
         Assert.That(actualJson, Is.EqualTo(expectedJson), "The JSON for a preset with no bodies should contain an empty array.");
     }
 
@@ -51,7 +51,7 @@ public class EngineBridgeTests
         var expectedBody = new PresetBodyData(101, true, 50.0, -10.0, 10.0, -5.0, 5.0);
         // We don't need the full expectedPresetData object for this approach.
 
-        var actualPresetData = EngineBridge._ParseJsonPreset(jsonPreset);
+        var actualPresetData = EngineBridge.ParseJsonPreset(jsonPreset);
 
         Assert.That(actualPresetData, Is.Not.Null, "Deserialized data should not be null for valid JSON.");
         Assert.Multiple(() =>
@@ -71,7 +71,7 @@ public class EngineBridgeTests
     {
         // This JSON has a trailing comma after the last property.
         var malformedJson = "{\"presetSimData\":{\"simulationTime\":99.9,},\"presetBodyDataArray\":[]}";
-        Assert.Throws<JsonException>(() => EngineBridge._ParseJsonPreset(malformedJson), "Parsing malformed JSON should throw a JsonException.");
+        Assert.Throws<JsonException>(() => EngineBridge.ParseJsonPreset(malformedJson), "Parsing malformed JSON should throw a JsonException.");
     }
 
     [Test(Description = "Ensures _ParseJsonPreset throws a JsonException for JSON with mismatched data types.")]
@@ -79,14 +79,14 @@ public class EngineBridgeTests
     {
         // 'mass' is a string instead of a number.
         var typeMismatchJson = "{\"presetSimData\":{\"simulationTime\":99.9,\"timeScale\":2,\"isTimeForward\":false},\"presetBodyDataArray\":[{\"id\":101,\"enabled\":true,\"mass\":\"fifty\",\"posX\":-10,\"posY\":10,\"velX\":-5,\"velY\":5}]}";
-        Assert.Throws<JsonException>(() => EngineBridge._ParseJsonPreset(typeMismatchJson), "Parsing JSON with type mismatches should throw a JsonException.");
+        Assert.Throws<JsonException>(() => EngineBridge.ParseJsonPreset(typeMismatchJson), "Parsing JSON with type mismatches should throw a JsonException.");
     }
 
     [Test(Description = "Ensures _ParseJsonPreset returns null when the input string is the JSON literal 'null'.")]
     public void ParseJsonPreset_WithJsonNullLiteral_ReturnsNull()
     {
         var jsonPreset = "null";
-        var result = EngineBridge._ParseJsonPreset(jsonPreset);
+        var result = EngineBridge.ParseJsonPreset(jsonPreset);
         Assert.That(result, Is.Null, "Parsing the JSON 'null' literal should result in a null object.");
     }
 
@@ -94,7 +94,7 @@ public class EngineBridgeTests
     public void ParseJsonPreset_WithEmptyString_ThrowsJsonException()
     {
         var emptyString = "";
-        Assert.Throws<JsonException>(() => EngineBridge._ParseJsonPreset(emptyString), "Parsing an empty string should throw a JsonException.");
+        Assert.Throws<JsonException>(() => EngineBridge.ParseJsonPreset(emptyString), "Parsing an empty string should throw a JsonException.");
     }
 
     #endregion
@@ -113,10 +113,10 @@ public class EngineBridgeTests
 
         // Act
         // 1. Serialize the initial object to a JSON string.
-        var jsonString = EngineBridge._CreatePresetString(initialPresetData);
+        var jsonString = EngineBridge.CreatePresetString(initialPresetData);
         
         // 2. Deserialize that same string back into a new object.
-        var finalPresetData = EngineBridge._ParseJsonPreset(jsonString);
+        var finalPresetData = EngineBridge.ParseJsonPreset(jsonString);
 
         // Assert
         Assert.That(finalPresetData, Is.Not.Null, "The deserialized object should not be null after a round trip.");
