@@ -9,4 +9,6 @@ node_modules
 src/WebApp/types/Bridge.d.ts
 src/WebApp/types/LayoutRecords.d.ts
 
+src/WebApp/types/
+
 **/test-results
