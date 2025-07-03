@@ -50,10 +50,10 @@ export default class AppShell {
 
     /**
      * 
-     * @returns {number}
+     * @returns {Promise<number>}
      */
-    static createBody() {
-        const id = this.Bridge.createBody();
+    static async createBody() {
+        const id = await this.Bridge.createBody();
         this.appDataManager._onCreateBody(id);
         return id;
     }
@@ -61,10 +61,10 @@ export default class AppShell {
     /**
      * 
      * @param {number} id 
-     * @returns {boolean}
+     * @returns {Promise<boolean>}
      */
-    static deleteBody(id) {
-        const ret = this.Bridge.deleteBody(id);
+    static async deleteBody(id) {
+        const ret = await this.Bridge.deleteBody(id);
         this.appDataManager._onDeleteBody(id);
         return ret;
     }
@@ -72,14 +72,15 @@ export default class AppShell {
     /**
      * 
      * @param {number} id 
-     * @param {Partial<BodyStateData & BodyMetaData>} updates 
+     * @param {Partial<BodyStateData & BodyMetaData>} updates
+     * @returns {Promise<boolean>}
      */
-    static updateBody(id, updates={}) {
-        const bridgeSuccess = this.Bridge.updateBody(id, updates);
+    static async updateBody(id, updates={}) {
+        const bridgeSuccess = await this.Bridge.updateBody(id, updates);
         if(!bridgeSuccess) return false;
 
         const appDataSuccess = this.appDataManager._onUpdateBody(id, updates);
-        if(!appDataSuccess) throw new Error(`Body id "${id}" in sim data but not in appData.`);
+        if(!appDataSuccess) throw new Error(`Synchronisation error: Body id "${id}" in sim data but not in appData.`);
 
         this.canvasView.queueBodyUpdate(id);
 
