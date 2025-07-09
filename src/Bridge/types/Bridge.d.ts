@@ -99,4 +99,12 @@ export default class Bridge {
         velX: number,
         velY: number
     }>): Promise<boolean>;
+
+    /**
+     * Registers a function to be called every time the simState has been refreshed.
+     * Only one such function can be registered.
+     * @param fn        Receives a `BodyDiffData` object as an argument.
+     * @param thisArg   An object to which the this keyword refers inside the callback function.
+     */
+    static registerOnTickCallback(fn: Function, thisArg: any): void;
 }
