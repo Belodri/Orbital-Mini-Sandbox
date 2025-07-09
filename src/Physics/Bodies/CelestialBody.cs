@@ -12,8 +12,9 @@ internal class CelestialBody(PresetBodyData presetData)
         : throw new ArgumentOutOfRangeException(nameof(presetData.Id), "Id must be a non-negative integer.");
     internal bool Enabled { get; set; } = presetData.Enabled;
     internal double Mass { get; set; } = presetData.Mass;
+    // NOTE: The deterministic offset ensures no two bodies are ever initialized at exactly (0, 0).
     internal Vector2D Position { get; set; } = presetData.PosX == 0 && presetData.PosY == 0
-        ? new(1e-15 * presetData.Id, 1e-15 * presetData.Id)     // ensure that no two bodies are ever initialized in the exact same position
+        ? new(1e-15 * presetData.Id, 1e-15 * presetData.Id)
         : new(presetData.PosX, presetData.PosY);
     internal Vector2D Velocity { get; set; } = new(presetData.VelX, presetData.VelY);
 
