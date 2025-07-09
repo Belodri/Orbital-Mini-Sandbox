@@ -1,11 +1,10 @@
-import AppShell from "./AppShell.mjs";
-
 /**
  * @typedef {object} BodyMetaData
- * @property {string} name
- * @property {string|number} tint
+ * @property {string} name          The display name of the celestial body.
+ * @property {string|number} tint   The color tint applied to the body's sprite (e.g., 'white', 0xff0000).
  */
 
+/** Manages application-level, non-physics related metadata for celestial bodies. */
 export default class AppDataManager {
     /** @type {BodyMetaData} */
     static DEFAULT_BODY_DATA = {
@@ -14,84 +13,104 @@ export default class AppDataManager {
     }
 
     /** @type {Map<number, BodyMetaData>} */
-    bodyData = new Map();
+    #bodyData = new Map();
+
+    /** @returns {Readonly<Map<number, BodyMetaData>>} */
+    get bodyData() { return this.#bodyData; }
+
+    /** @type {Map<number, Partial<BodyMetaData>>} */
+    #queuedBodyUpdates = new Map();
+
+    /** @returns {Readonly<Map<number, Partial<BodyMetaData>>>} */
+    get queuedBodyUpdates() { return this.#queuedBodyUpdates; }
+
+    /** 
+     * Cached Set to reduce GC pressure in `handleQueuedUpdates`.
+     * @type {Set<number>}
+     */
+    #lastUpdatedCache = new Set();
 
     /**
-     * 
+     * Queues updates for a given body's metadata to be executed on the next frame.
+     * If an update for a body is already queued, the new update data will merge with
+     * and override the existing queued data.
      * @param {number} id 
+     * @param {Partial<BodyMetaData>} updates 
+     * @returns {boolean}
      */
-    _onCreateBody(id) {
+    queueBodyDataUpdate(id, updates={}) {
+        if(!this.#bodyData.has(id)) return false;
+
+        const obj = this.#queuedBodyUpdates.get(id) ?? {};
+        this.#queuedBodyUpdates.set(id, {
+            ...obj,
+            ...updates
+        });
+
+        return true;
+    }
+
+    /** 
+     * Initializes a newly created body with default metadata.
+     * Called by the orchestrator in response to the simulation's `create` event.
+     * @param {number} id
+     */
+    onCreateBody(id) {
+        if(this.bodyData.has(id)) return;
         this.bodyData.set(id, { ...AppDataManager.DEFAULT_BODY_DATA });
     }
 
-    _onDeleteBody(id) {
+    /** 
+     * Handles the deletion of a body's metadata.
+     * Called by the orchestrator in response to the simulation's `delete` event.
+     * @param {number} id
+     */
+    onDeleteBody(id) {
+        if(!this.bodyData.has(id)) return;
         this.bodyData.delete(id);
     }
 
-    _onUpdateBody(id, updates={}) {
-        const body = this.bodyData.get(id);
-        if(!body) return false;
+    /**
+     * Handles the execution of queued body metadata updates and returns a Set
+     * containing the IDs of all bodies that were modified.
+     * @returns {Set<number>} 
+     */
+    handleQueuedUpdates() {
+        this.#lastUpdatedCache.clear();
 
-        for(const [k, v] of Object.entries(updates)) {
-            if(k in body) body[k] = v;
+        for(const [id, updateData] of this.#queuedBodyUpdates.entries()) {
+            const body = this.bodyData.get(id);
+            if(!body) continue;
+
+            for(const [k, v] of Object.entries(updateData)) {
+                if(k in body) body[k] = v;
+            }
+
+            this.#lastUpdatedCache.add(id);
+            this.#queuedBodyUpdates.delete(id);
         }
-        return true;
+
+        return this.#lastUpdatedCache;
     }
 
     //#region Preset
 
     /**
-     * 
-     * @returns {string}
+     * Returns an array of key-value pairs of the manager's bodyData store.
+     * @returns {[number, BodyMetaData][]}
      */
-    getPreset() {
-        const data = {
-            bodyData: [...this.bodyData.entries()],     // this.bodyData is a Map<number, object>
-            simDataStr: AppShell.Bridge.getPreset()         // returns a JSON formatted string
-        };
-        return JSON.stringify(data);
+    getPresetData() {
+        return [...this.bodyData.entries()];
     }
 
     /**
-     * Loads a given preset string.
-     * @param {string} presetString 
-     * @param {boolean} [preserveState=true]    Should the current state be preserved and restored in case of an error?
-     *                                          If not, the error is re-thrown.
-     * @returns {void}                       
+     * Loads the parsed bodyData into the manager's bodyData store.
+     * @param {[number, BodyMetaData][]} bodyData 
+     * @returns {void}
      */
-    loadPreset(presetString, preserveState = true) {
-        AppShell.stopLoop();
-        const prevState = preserveState ? this.getPreset() : "";
-
-        try {
-            const {bodyData, simDataStr} = JSON.parse(presetString, (k, v) => {
-                if(k === "bodyData") return new Map(v);
-                else return v;
-            });
-
-            AppShell.Bridge.loadPreset(simDataStr); // throws if JSON is invalid
-
-            // Verify bodyData
-            if(AppShell.Bridge.simState.bodies.size !== bodyData.size)
-                throw new Error(`Invalid Preset: Mismatch between simulation data and body metadata.`);
-
-            const simStateKeys = new Set(AppShell.Bridge.simState.bodies.keys());
-            const bodyDataKeys = new Set(bodyData.keys());
-            if(!simStateKeys.isSubsetOf(bodyDataKeys)) 
-                throw new Error(`Invalid Preset: Mismatch between simulation data and body metadata.`);
-            
-            // Set data and queue full rerender
-            this.bodyData = bodyData;
-            AppShell.canvasView.queueFullReRender();
-
-        } catch(err) {
-            AppShell.notifications.add(`Invalid Preset`);
-            if(prevState) {
-                console.error(err.message, err);
-                return this.loadPreset(prevState, false);
-            }
-            else throw new Error(`Invalid Preset Error`, {cause: err});
-        }
+    loadPresetData(bodyData) {
+        this.#bodyData.clear();
+        for(const [k, v] of bodyData) this.#bodyData.set(k, v);
     }
 
     //#endregion
