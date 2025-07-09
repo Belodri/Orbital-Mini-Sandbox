@@ -5,10 +5,11 @@ import CanvasView from './components/CanvasView.mjs';
 import Notifications from './components/Notifications.mjs';
 
 /**
- * @import { BodyStateData } from '../types/Bridge'
+ * @import { BodyDiffData, BodyStateData } from '../types/Bridge'
  * @import { BodyMetaData } from './AppDataManager.mjs'
  */
 
+/** The central orchestrator for the application. */
 export default class AppShell {
     static #CONFIG = {
         debugMode: true,
@@ -30,82 +31,255 @@ export default class AppShell {
 
     //#endregion
 
+    
+    //#region Initialization
+
+    /**
+     * Initializes all application components in the correct order  
+     * and sets up the necessary event listeners and callbacks.
+     * @returns {Promise<void>}
+     */
     static async initialize() {
         console.log("Begin initialization.");
 
-        this.log("Initializing Bridge...");
-        await this.Bridge.initialize(); 
+        await this.#initBridge();
 
         this.log("Instantiating AppDataManager...");
         this.appDataManager = new AppDataManager();
 
-        this.log("Instantiating CanvasView...");
-        this.canvasView = await CanvasView.create();
+        await this.#initCanvasView();
 
         if(this.#CONFIG.debugMode) globalThis.AppShell = this;
         console.log("Initialization complete.");
     }
 
-    //#region Controls
+    /**
+     * Initializes the simulation Bridge and registers the `#onStateChange`
+     * callback to listen for state updates from the physics engine.
+     */
+    static async #initBridge() {
+        this.log("Initializing Bridge...");
+        await this.Bridge.initialize();
+
+        this.Bridge.registerOnTickCallback(this.#onStateChange, this);
+    }
 
     /**
+     * Initializes the CanvasView, injecting the required data stores and callbacks.
+     * Registers a callback to the 'renderFrameReady' event, which forms
+     * the main application loop for driving the physics engine.
+     */
+    static async #initCanvasView() {
+        this.log("Instantiating CanvasView...");
+        this.canvasView = await CanvasView.create({
+            bodyMetaDataStore: this.appDataManager.bodyData,
+            bodyStateDataStore: this.Bridge.simState.bodies,
+            onError: this.onError
+        });
+
+        this.canvasView.registerCallback("renderFrameReady", (deltaTime) => {
+            if(this.paused) return;
+
+            try {
+                this.Bridge.tickEngine(deltaTime);
+            } catch (err) {
+                this.togglePause(true);
+                console.error(err);
+                this.notifications.add(`Physics Error.`);
+            }
+        });
+    }
+
+    //#endregion
+
+
+    //#region Body Controls
+
+    /**
+     * Requests the creation of a new body in the simulation.
      * 
-     * @returns {Promise<number>}
+     * The promise will resolve after the next simulation tick, once the new body
+     * has been created in the physics engine, its state has been propagated
+     * back to the application, and its corresponding metadata and visual
+     * representation have been initialized.
+     * @returns {Promise<number>}   A promise that resolves with the unique ID of the new body.
      */
     static async createBody() {
-        const id = await this.Bridge.createBody();
-        this.appDataManager._onCreateBody(id);
-        return id;
+        return await this.Bridge.createBody();
     }
 
     /**
+     * Requests the deletion of a body from the simulation.
      * 
-     * @param {number} id 
-     * @returns {Promise<boolean>}
+     * The promise will resolve after the next simulation tick, guaranteeing that
+     * the body has been fully removed from the physics engine, its metadata store,
+     * and the renderer.
+     * 
+     * @param {number} id               The unique ID of the body to delete.
+     * @returns {Promise<boolean>}      A promise that resolves with `true` on success, or `false` if it wasn't found.
      */
     static async deleteBody(id) {
-        const ret = await this.Bridge.deleteBody(id);
-        this.appDataManager._onDeleteBody(id);
-        return ret;
+        return await this.Bridge.deleteBody(id);
     }
 
     /**
+     * Queues an update for a body's physical state and/or metadata.
      * 
-     * @param {number} id 
-     * @param {Partial<BodyStateData & BodyMetaData>} updates
-     * @returns {Promise<boolean>}
+     * This method provides a guarantee of eventual consistency. All updates submitted
+     * within the same event loop cycle are merged, with later calls overriding
+     * earlier ones for the same properties (last-write-wins).
+     * 
+     * The returned promise resolves after the next simulation tick. At that point,
+     * the final, merged state will have been applied in the physics engine, and
+     * all corresponding changes to metadata and the rendered view will be complete,
+     * ensuring the entire application is in a consistent state.
+     * 
+     * @param {number} id                                       The unique ID of the body to update.
+     * @param {Partial<BodyStateData & BodyMetaData>} updates   An object with the properties to change.
+     * @returns {Promise<boolean>}  A promise that resolves with `true` if the update was successfully
+     *                              processed by the Bridge, or `false` if the body ID was invalid at the time of queuing.
      */
     static async updateBody(id, updates={}) {
+        // Try queue the metadata update to happen on the next frame
+        const queued = this.appDataManager.queueBodyDataUpdate(id, updates);
+        if(!queued) return false;        
+
+        // Tell the Bridge to update the body on the next frame.
+        // This promise resolves AFTER the next frame has been rendered!
         const bridgeSuccess = await this.Bridge.updateBody(id, updates);
-        if(!bridgeSuccess) return false;
-
-        const appDataSuccess = this.appDataManager._onUpdateBody(id, updates);
-        if(!appDataSuccess) throw new Error(`Synchronisation error: Body id "${id}" in sim data but not in appData.`);
-
-        this.canvasView.queueBodyUpdate(id);
+        if(!bridgeSuccess) {
+            // Should never happen under normal circumstances.
+            throw new Error(`State Sync Error | Body id=${id} was found in appData but update in engine failed.`);
+        }
 
         return true;
     }
 
     //#endregion
 
-    //#region Render Loop Control
 
-    static stopLoop() { this.canvasView.toggleStop(true); }
+    //#region State Management
 
-    static startLoop() { this.canvasView.toggleStop(false); }
+    /**
+     * The core callback that handles state diffs from the simulation engine.
+     * It is called by the Bridge after every physics tick with a list of all
+     * bodies that were created, deleted, or updated during that tick. This
+     * method then orchestrates the necessary updates across the other app components.
+     * @param {BodyDiffData} bodyDiffData   An object containing sets of created, deleted, and updated body IDs.
+     */
+    static #onStateChange(bodyDiffData) {
+        const {created, deleted, updated} = bodyDiffData;
+
+        // Handle creations
+        for(const id of created) this.appDataManager.onCreateBody(id);
+        this.canvasView.addFrameData("created", created);
+        
+        // Handle deletions
+        for(const id of deleted) this.appDataManager.onDeleteBody(id);
+        this.canvasView.addFrameData("deleted", deleted);
+
+        // Handle updates from the physics engine
+        this.canvasView.addFrameData("updated", updated);
+
+        // Handle updates from the metadata queue
+        const metaDataUpdated = this.appDataManager.handleQueuedUpdates();
+        this.canvasView.addFrameData("updated", metaDataUpdated);
+    }
 
     //#endregion
+
+
+    //#region Pausing
+
+    static #paused = true;
+
+    /**
+     * Gets the current paused state of the simulation.
+     * @returns {boolean} `true` if the simulation is paused, `false` otherwise.
+     */
+    static get paused() { return this.#paused; } 
+
+    /**
+     * Toggles or sets the paused state of the simulation.
+     * @param {boolean} [force]     If provided, sets the paused state directly (`true` for paused, `false` for running).
+     * @returns {boolean} The new paused state.
+     */
+    static togglePause(force=undefined) {
+        this.#paused = force === undefined
+            ? !this.#paused
+            : !!force;
+        return this.#paused;
+    }
+
+    //#endregion
+
+
+    //#region Presets
+
+    /**
+     * Gathers preset data from all relevant components and serializes it into a single JSON string.
+     * @returns {string} A JSON string representing the complete state of the simulation.
+     */
+    static getPreset() {
+        const data = {
+            bodyData: this.appDataManager.getPresetData(),
+            simDataStr: this.Bridge.getPreset()
+        };
+        return JSON.stringify(data);
+    }
+
+    /**
+     * Loads a simulation state from a JSON preset string.
+     * This is a destructive operation that replaces the current simulation state.
+     * @param {string} presetString             The JSON string representing the desired state.
+     * @param {boolean} [preserveState=true]    If `true`, the current state is saved before loading. If loading fails,
+     *                                          the saved state is restored. 
+     *                                          If `false`, a failure will throw an unrecoverable error.
+     * @returns {void}
+     */
+    static loadPreset(presetString, preserveState=true) {
+        const prevState = preserveState ? this.getPreset() : null;
+
+        try {
+            const {bodyData, simDataStr} = JSON.parse(presetString);
+            this.appDataManager.loadPresetData(bodyData);
+            this.Bridge.loadPreset(simDataStr); // throws if JSON is invalid
+        } catch (err) {
+            this.notifications.add(`Invalid Preset`);
+            if(prevState) {
+                console.error(err.message, err);
+                return this.loadPreset(prevState, false);
+            }
+            else throw new Error(`Invalid Preset Error`, {cause: err});
+        }
+    }
+
+    //#endregion
+
 
     //#region Utility
 
     /**
-     * 
-     * @param {string} msg 
-     * @param {any} data
+     * A centralized error handling function. This can be passed as a callback
+     * to other components to standardize error reporting.
+     * @param {Error} err                   The error object.
+     * @param {object} [config]             Additional configuration for handling the error.
+     * @param {string} [config.notifMsg]    A user-friendly message to display as a notification.
+     * @param {boolean} [config.isFatal]    If `true`, the error will be re-thrown, halting execution.
+     */
+    static onError(err, {notifMsg = "", isFatal=false}={}) {
+        console.error(err);
+        if(notifMsg) this.notifications.add(notifMsg);
+        if(isFatal) throw err;
+    }
+
+    /**
+     * While debug mode is enabled, logs messages and optional data to the console.
+     * @param {string} msg  The message to log.
+     * @param {any} [data]  Optional data to log alongside the message.
      * @returns {void}
      */
-    static log(msg, data) {
+    static log(msg, data=undefined) {
         if(this.#CONFIG.debugMode) {
             if(data) console.log(msg, data);
             else console.log(msg);
