@@ -55,9 +55,14 @@ public static partial class EngineBridge
     [JSExport]
     public static void Tick(double timestamp)
     {
+        // Process queued commands
         commandQueue.ProcessAll(physicsEngine);
+        // Let the engine do its calculations
         TickData tickData = physicsEngine.Tick(timestamp);
+        // Write the resulting state into the shared memory
         memoryBufferHandler.WriteTickData(tickData);
+        // Resolve the queued commands
+        commandQueue.ResolveProcessed();
     }
 
     [JSExport]
