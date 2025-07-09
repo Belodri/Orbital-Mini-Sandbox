@@ -101,9 +101,29 @@ export default class Bridge {
     static tickEngine(timestamp) {
         this.#cancelPromiseTimeoutLoop();
         this.#EngineBridge.Tick(timestamp);
-        return this.#refreshSimState();
+        this.#refreshSimState();
+        this.#callOnTickCallback(this.#diffCache);
+        return this.#diffCache;
     }
 
+    /** @type {Function} */
+    static #onTickCallback;
+
+    /**
+     * Registers a function to be called every time the simState has been refreshed.
+     * Only one callback can be registered.
+     * @param {Function} fn     Receives a `BodyDiffData` object as an argument.
+     * @param {any} thisArg     An object to which the this keyword refers inside the callback function.
+     */
+    static registerOnTickCallback(fn, thisArg) {
+        if(this.#onTickCallback) throw new Error("onTickCallback is already set.");
+        this.#onTickCallback = fn.bind(thisArg);
+    }
+
+    static #callOnTickCallback(bodyDiffData) {
+        if(!this.#onTickCallback) return;
+        this.#onTickCallback(bodyDiffData);
+    }
 
     static #pausedPromiseInterval = 100;
 
@@ -163,7 +183,7 @@ export default class Bridge {
      */
     static async createBody() {
         this.#startPromiseTimeoutLoop();
-        return await this.#EngineBridge.CreateBody();
+        return this.#EngineBridge.CreateBody();
     }
 
     /**
@@ -174,7 +194,7 @@ export default class Bridge {
      */
     static async deleteBody(id) {
         this.#startPromiseTimeoutLoop();
-        return await this.#EngineBridge.DeleteBody(id);
+        return this.#EngineBridge.DeleteBody(id);
     }
 
     /**
@@ -193,7 +213,7 @@ export default class Bridge {
      */
     static async updateBody(id, { enabled, mass, posX, posY, velX, velY }={}) {
         this.#startPromiseTimeoutLoop();
-        return await this.#EngineBridge.UpdateBody(id,
+        return this.#EngineBridge.UpdateBody(id,
             (typeof enabled === "number" || typeof enabled === "boolean") ? !!enabled : null, // always coerce number into boolean!
             typeof mass === "number" ? mass : null,
             typeof posX === "number" ? posX : null,
