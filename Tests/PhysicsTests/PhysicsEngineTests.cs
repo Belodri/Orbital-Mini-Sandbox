@@ -1,5 +1,5 @@
-using NUnit.Framework.Constraints;
 using Physics;
+using Physics.Bodies;
 using Physics.Core;
 
 namespace PhysicsTests;
@@ -128,11 +128,15 @@ public partial class Tests
         Assert.That(initialBodyCount, Is.EqualTo(5), "Precondition failed: Initial simulation should have 5 bodies.");
 
         // 2. Create a new, different preset with only 2 bodies.
+
+        var b1 = new CelestialBody(CelestialBody.DEFAULT_PRESET_DATA with { Id = 1 });
+        var b2 = new CelestialBody(CelestialBody.DEFAULT_PRESET_DATA with { Id = 2 });
+
         var overwritePreset = new PresetData(
             new PresetSimData(1000, 1, true),
             [
-                new PresetBodyData(101, true, 1, 0, 0, 0, 0),
-                new PresetBodyData(102, true, 1, 0, 0, 0, 0)
+                b1.GetPresetBodyData(),
+                b2.GetPresetBodyData()
             ]
         );
 
