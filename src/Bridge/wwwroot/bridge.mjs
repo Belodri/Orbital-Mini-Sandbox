@@ -329,6 +329,9 @@ export default class Bridge {
             this.#simState[key] = this.#bufferView.sim[index];
         }
 
+        // Patch bodyCount floating point error in webkit
+        this.#simState.bodyCount = Math.trunc(this.#simState.bodyCount);
+
         // Reset diff cache
         const { created, updated, deleted } = this.#diffCache;
         created.clear();
