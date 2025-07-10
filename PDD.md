@@ -3,6 +3,11 @@
 
 # Revision History
 
+- **09/07/2025**
+    - Added `QuadTreeNode.cs` and `AABB.cs` quad tree components to `Physics` structure.
+    - Redefined `AppShell` as an event-based, reactive, unidirectional orchestrator and preset handler.
+    - Refactored `CanvasView` into a fully decoupled, dumb rendering component.
+    - Refactored `AppDataManager` into a decoupled data manager with queued updates.
 - **03/07/2025**
     - Removed replaced `Physics.Tick` timestamp argument in favour of accepting a deltaTime argument.
 - **02/07/2025**
@@ -208,25 +213,27 @@ A dedicated container area for displaying temporary, non-modal status messages t
     - Instantiates and/or holds references to all core components (Javascript API of `Bridge`, `AppDataManager`, `CanvasView`, `Notifications`, all other UI components).
     - Manages the creation, destruction, and layering of UI overlays (`BodyConfig`, `BodyDetails`).
     - Binds global keyboard shortcuts and delegates corresponding actions.
+    - Orchestrates the command and data flow between `Bridge` and all other components.
+    - **Snapshot Management:**
+        - Calls the `getPreset()` method of the `Bridge` to retrieve the current physics state which it then combines with `AppDataManager`'s preset data to form a complete snapshot string.
+        - To restore a state, it parses the snapshot string, loads the physics portion into the engine via `engineBridge.loadPreset()`, and the metadata portion via `appDataManager.loadPresetData()`.
 
 `AppDataManager`
-- Owner and handler of application level metadata.
+- Owner and handler of application level metadata. Dumb and fully decoupled. 
 - **Responsibilities:**
     - **Data Handling:** 
         - Maintains a `Map<number, object>` which maintains application-level metadata for each celestial body in the simulation.
-    - **Snapshot Management:**
-        - Calls the `getPreset()` method of the `Bridge` to retrieve the current physics state which it then combines with its own application metadata to form a complete snapshot string.
-        - To restore a state, it parses the snapshot string, loads the physics portion into the engine via `engineBridge.loadPreset()`, and updates its own application metadata.
+        - Handles updates to metadata as instructed by `AppShell`, queue-based updates to existing bodies.
 - **State Ownership:**
     - **metaData**: An object containing application-level metadata
+    - **updateQueue**
 
 `CanvasView`
-- Encapsulates all rendering logic using PIXI.js.
+- Encapsulates all rendering logic using PIXI.js. Dumb and fully decoupled. 
 - **Responsibilities:**
     - Initializes the `PIXI.Application` and attaches it to the DOM.
-    - Directly manages the main `requestAnimationFrame` loop.
-    - Consumes the structured data from the `AppDataManager` and `Bridge` JS API.
-    - Renders the simulation by efficiently updating the properties of PIXI.js display objects based on the provided data.
+    - Signals `AppShell` whenever an animation frame is ready.
+    - Renders the simulation by efficiently updating the properties of PIXI.js display objects from injected data as instructed.
     - Manages all camera logic (zoom, pan, focus tracking).
 - **State Ownership:**
     - The `PIXI.Application` instance.
@@ -431,11 +438,13 @@ Physics/
 │   ├── Simulation.cs             # Main simulation coordinator
 │   ├── Timer.cs                  # Time management and simulation speed
 |   ├── Calculator.cs             # Physics calculations per body per timestep
-│   └── Grid.cs                   # Spatial partitioning (QuadTree)
+│   ├── Grid.cs                   # Spatial partitioning (QuadTree)
+|   └── QuadTreeNode.cs           # Utility class for Grid
 ├── Bodies/
 │   └── CelestialBody.cs          # Individual body state and behavior
 └── Models/
-    └── Vector2D.cs               # Mathematical primitives
+    ├── Vector2D.cs               # Mathematical primitives
+    └── AABB.cs                   # Axis-aligned bounding box for Grid
 ```
 ### Classes
 `PhysicsEngine`
