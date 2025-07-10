@@ -44,7 +44,7 @@ internal class CelestialBody
     internal Vector2D Velocity { get => _velocity; private set => _velocity = value; }
 
     #endregion
-    
+
 
     #region DTOs
 

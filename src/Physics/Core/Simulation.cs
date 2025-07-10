@@ -6,7 +6,7 @@ internal class Simulation
 {
     #region Factory
 
-    private static readonly PresetSimData DEFAULT_SIM_DATA= new(0.0, 1.0, true);
+    static readonly PresetSimData DEFAULT_SIM_DATA = new(0.0, 1.0, true);
 
     private Simulation(PresetSimData presetSimData, PresetBodyData[] presetBodyDataArray)
     {
@@ -14,7 +14,8 @@ internal class Simulation
         _timeScale = presetSimData.TimeScale;
         _isTimeForward = presetSimData.IsTimeForward;
 
-        foreach (var bodyPreset in presetBodyDataArray) {
+        foreach (var bodyPreset in presetBodyDataArray)
+        {
             bool added = TryAddBody(bodyPreset);
             if (!added) throw new ArgumentException($"Contains contains more than one body with Id '{bodyPreset.Id}'.", nameof(presetBodyDataArray));
         }
