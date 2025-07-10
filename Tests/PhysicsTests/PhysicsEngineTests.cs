@@ -1,15 +1,18 @@
 using Physics;
 using Physics.Bodies;
-using Physics.Core;
 
 namespace PhysicsTests;
 
 [TestFixture]
-public partial class Tests
+public class PhysicsEngineTests
 {
-    // Default [OneTimeSetUp] and [SetUp] methods are in SetupTests.cs
-    // They ensure a new PhysicsEngine instance `physicsEngine` is created before
-    // each test and can safely be accessed and modified within each test method! 
+    public PhysicsEngine physicsEngine = null!;
+
+    [SetUp]
+    public void BeforeEachTest()
+    {
+        physicsEngine = new();
+    }
 
     [Test(Description = "Verifies a new engine is correctly initialized with with default data.")]
     public void VerifyInitialState()
@@ -145,7 +148,7 @@ public partial class Tests
         var b1Preset = CelestialBody.Create(1).GetPresetBodyData();
         var b2Preset = CelestialBody.Create(2).GetPresetBodyData();
 
-        var overwritePreset = new PresetData( new PresetSimData(1000, 1, true), [b1Preset, b2Preset] );
+        var overwritePreset = new PresetData(new PresetSimData(1000, 1, true), [b1Preset, b2Preset]);
 
         // Act
         physicsEngine.LoadPreset(overwritePreset);
@@ -182,7 +185,7 @@ public partial class Tests
     #endregion
 
     #region Body Interface Tests
-    
+
     /*  Tests to add
 
         CreateBody()
