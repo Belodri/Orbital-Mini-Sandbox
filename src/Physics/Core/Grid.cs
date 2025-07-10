@@ -11,6 +11,9 @@ namespace Physics.Core;
 /// </summary>
 internal class Grid
 {
+    internal static readonly double PADDING_MULT = 0.01;
+    internal static readonly double PADDING_FLAT = 1e-10;
+
     /// <summary>
     /// The root node of the quadtree. This is the entry point for any
     /// operation that needs to traverse the tree, such as the force
@@ -38,7 +41,7 @@ internal class Grid
         Root = null;
 
         if (enabledBodies.Count == 0) return;
-        
+
         Root = new(OuterBounds);
         foreach (var body in enabledBodies) Root.Insert(body);
         Root.CalculateMassDistribution();
@@ -58,7 +61,7 @@ internal class Grid
         double minX = p0.X;
         double minY = p0.Y;
         double maxX = p0.X;
-        double maxY = p0.Y;;
+        double maxY = p0.Y;
 
         for (int i = 1; i < bodies.Count; i++)
         {
@@ -76,7 +79,7 @@ internal class Grid
 
         // Combination of relative and absolute padding to ensure bodies
         // on the exclusive max boundary are inside.
-        double padding = Math.Max(width, height) * 0.01 + 1e-10;
+        double padding = Math.Max(width, height) * PADDING_MULT + PADDING_FLAT;
         Vector2D center = new(minX + halfWidth, minY + halfHeight);
         Vector2D halfDimension = new(halfWidth + padding, halfHeight + padding);
 
