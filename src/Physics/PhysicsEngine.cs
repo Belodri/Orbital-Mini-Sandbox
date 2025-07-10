@@ -25,14 +25,14 @@ public record PresetData(PresetSimData PresetSimData, PresetBodyData[] PresetBod
 
 #region Other DTO Records
 
-public record BodyUpdateData(int Id, bool? Enabled, double? Mass, double? PosX, double? PosY, double? VelX, double? VelY);
+public record BodyDataPartial(int Id, bool? Enabled, double? Mass, double? PosX, double? PosY, double? VelX, double? VelY);
 
 #endregion
 
 
 public class PhysicsEngine
 {
-    internal Simulation simulation = new(Simulation.DEFAULT_PRESET_DATA);
+    internal Simulation simulation = Simulation.Create();
 
     #region Public Methods
 
@@ -42,19 +42,21 @@ public class PhysicsEngine
 
     public TickData LoadPreset(PresetData preset)
     {
-        simulation = new(preset);
+        simulation = Simulation.Create(preset);
         return simulation.GetTickData();
     }
 
     public TickData GetTickData() => simulation.GetTickData();
 
-    public int CreateBody() => simulation.AddNewBody().Id;
+    public int CreateBody() => simulation.CreateBody().Id;
 
     public bool DeleteBody(int id) => simulation.DeleteBody(id);
 
-    public bool UpdateBody(BodyUpdateData updatePreset) => simulation.UpdateBody(updatePreset);
-
-    public BodyTickData? GetBodyTickData(int id) => simulation.GetBodyTickData(id);
+    public bool UpdateBody(BodyDataPartial updatePreset)
+    {
+        var body = simulation.TryGetBody(updatePreset.Id);
+        return body != null && body.Update(updatePreset);
+    }
 
     #endregion
 }
