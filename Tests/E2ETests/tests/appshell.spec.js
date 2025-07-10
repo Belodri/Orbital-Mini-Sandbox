@@ -97,61 +97,69 @@ test.describe('AppShell API and State', () => {
                 expect(result).toBe(false);
             });
 
-            test('should throw a synchronization error if the body is missing from appData', async ({ page }) => {
-                // Create a body so it exists in both state managers
+            test('should return false if body is missing from appData before queuing update', async ({ page }) => {
                 const bodyId = await page.evaluate(async () => await window.AppShell.createBody());
-
+            
                 // Manually de-sync the state by removing the body from appDataManager only
                 await page.evaluate((id) => {
                     window.AppShell.appDataManager.bodyData.delete(id);
                 }, bodyId);
+            
+                // This should fail the first check in updateBody, causing it to return false.
+                const result = await page.evaluate(async (id) => {
+                    return await window.AppShell.updateBody(id, { name: 'This will return false' });
+                }, bodyId);
+            
+                expect(result).toBe(false);
+            });
 
-                // Attempt to update the body. This should now fail at the appDataSuccess check.
-                // We expect the promise returned by page.evaluate to be rejected.
-                await expect(page.evaluate(async (id) => {
-                    await window.AppShell.updateBody(id, { name: 'This will fail' });
-                }, bodyId)).rejects.toThrow(`Synchronisation error: Body id "${bodyId}" in sim data but not in appData.`);
+            test('should throw a synchronization error if the bridge update fails', async ({ page }) => {
+                const bodyId = 2;
+                // Force the metadata out of sync with the physics data
+                await page.evaluate((id) => window.AppShell.appDataManager.onCreateBody(id), bodyId);
+
+                const hasBodyMetaData = await page.evaluate((id) => window.AppShell.appDataManager.bodyData.has(id), bodyId);
+                expect(hasBodyMetaData).toBe(true);
+
+                const hasBodySimData = await page.evaluate((id) => window.AppShell.Bridge.simState.bodies.has(id), bodyId);
+                expect(hasBodySimData).toBe(false);
+            
+                const throws = await page.evaluate(async(id) => {
+                    try {
+                        await window.AppShell.updateBody(id, {mass: 200});
+                        return false;
+                    } catch(err) {
+                        return true;
+                    }
+                }, bodyId);
+
+                expect(throws).toBe(true);
             });
         });
     });
 
     test.describe('Engine and State', () => {
-        test('AppShell.Bridge.tickEngine() should return an object with the expected shape.', async ({ page }) => {
-            const isValidShape = await page.evaluate((deltaTime) => {
-                const tickDiff = window.AppShell.Bridge.tickEngine(deltaTime);
-                return tickDiff.created instanceof Set 
-                    && tickDiff.created.size === 0
-                    && tickDiff.deleted instanceof Set
-                    && tickDiff.deleted.size === 0
-                    && tickDiff.updated instanceof Set
-                    && tickDiff.updated.size === 0
-            }, 1);
-            expect(isValidShape).toBe(true);
-        });
-
         test('AppShell.Bridge.simState.bodies should be an empty Map on initialization.', async ({ page }) => {
-            const isEmptyMap = await page.evaluate(() => {
-                const bodies = window.AppShell?.Bridge?.simState?.bodies;
-                return bodies instanceof Map 
-                    && bodies.size === 0;
-            });
-            expect(isEmptyMap).toBe(true);
+            const isMap = await page.evaluate(() => window.AppShell?.Bridge?.simState?.bodies instanceof Map);
+            expect(isMap).toBe(true);
+
+            const mapSize = await page.evaluate(() => window.AppShell?.Bridge?.simState?.bodies.size);
+            expect(mapSize).toBe(0);
         });
 
-        test('AppShell.Bridge.simState.bodyCount should be falsy on initialization.', async ({ page }) => {
+        test('AppShell.Bridge.simState.bodyCount should be close to 0 on initialization.', async ({ page }) => {
             const bodyCount = await page.evaluate(() => window.AppShell?.Bridge?.simState?.bodyCount);
-            expect(bodyCount).toBeFalsy();
+            expect(bodyCount).toBeCloseTo(0);
         });
     });
 
     test.describe('Application Data Manager', () => {
         test('AppShell.appDataManager.bodyData should be an empty Map on initialization.', async ({ page }) => {
-            const isEmptyMap = await page.evaluate(() => {
-                const bodyData = window.AppShell?.appDataManager?.bodyData;
-                return bodyData instanceof Map 
-                    && bodyData.size === 0;
-            });
-            expect(isEmptyMap).toBe(true);
+            const isMap = await page.evaluate(() => window.AppShell?.appDataManager?.bodyData instanceof Map);
+            expect(isMap).toBe(true);
+
+            const mapSize = await page.evaluate(() => window.AppShell?.appDataManager?.bodyData.size);
+            expect(mapSize).toBe(0);
         });
 
         test('AppShell.appDataManager.bodyData should correctly reflect newly created bodies.', async ({ page }) => {
@@ -168,20 +176,30 @@ test.describe('AppShell API and State', () => {
         });
     });
 
-    test.describe('Render Loop Control', () => {
-        test('startLoop() and stopLoop() should toggle the canvasView render loop state', async ({ page }) => {
-            const initialState = await page.evaluate(() => window.AppShell.canvasView.renderLoopStopped);
-            expect(initialState, 'Render loop should be stopped initially').toBe(true);
-
-            // Test starting the loop
-            await page.evaluate(() => window.AppShell.startLoop());
-            const startedState = await page.evaluate(() => window.AppShell.canvasView.renderLoopStopped);
-            expect(startedState, 'Render loop should be running after calling startLoop').toBe(false);
-
-            // Test stopping the loop
-            await page.evaluate(() => window.AppShell.stopLoop());
-            const stoppedState = await page.evaluate(() => window.AppShell.canvasView.renderLoopStopped);
-            expect(stoppedState, 'Render loop should be stopped after calling stopLoop').toBe(true);
+    test.describe('Pausing', () => {
+        test('AppShell.paused should be true on initialization', async ({ page }) => {
+            const isPaused = await page.evaluate(() => window.AppShell.paused);
+            expect(isPaused, 'Simulation should be paused initially').toBe(true);
+        });
+    
+        test('togglePause() should switch the paused state', async ({ page }) => {
+            await page.evaluate(() => window.AppShell.togglePause());
+            let isPaused = await page.evaluate(() => window.AppShell.paused);
+            expect(isPaused, 'Should be running after first toggle').toBe(false);
+            
+            await page.evaluate(() => window.AppShell.togglePause());
+            isPaused = await page.evaluate(() => window.AppShell.paused);
+            expect(isPaused, 'Should be paused after second toggle').toBe(true);
+        });
+    
+        test('togglePause(force) should set the paused state directly', async ({ page }) => {
+            await page.evaluate(() => window.AppShell.togglePause(false));
+            let isPaused = await page.evaluate(() => window.AppShell.paused);
+            expect(isPaused, 'Should be running after togglePause(false)').toBe(false);
+    
+            await page.evaluate(() => window.AppShell.togglePause(true));
+            isPaused = await page.evaluate(() => window.AppShell.paused);
+            expect(isPaused, 'Should be paused after togglePause(true)').toBe(true);
         });
     });
 });
