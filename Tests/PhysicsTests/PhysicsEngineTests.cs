@@ -11,23 +11,36 @@ public partial class Tests
     // They ensure a new PhysicsEngine instance `physicsEngine` is created before
     // each test and can safely be accessed and modified within each test method! 
 
+    [Test(Description = "Verifies a new engine is correctly initialized with with default data.")]
+    public void VerifyInitialState()
+    {
+        var sim = physicsEngine.simulation;
+        Assert.Multiple(() =>
+        {
+            Assert.That(sim.SimulationTime, Is.EqualTo(0.0));
+            Assert.That(sim.TimeScale, Is.EqualTo(1.0));
+            Assert.That(sim.IsTimeForward, Is.True);
+            Assert.That(sim.Bodies, Is.Empty);
+        });
+    }
+
     #region Preset Tests
 
-    [Test(Description = "Verifies GetPresetData on a new engine returns a preset with default preset data.")]
-    public void GetPresetData_FromInitialState_ReturnsDefaultPresetWithEmptyBodyArray()
+    [Test(Description = "Verifies GetPresetData on a new engine returns a preset that reflects the state of the simulation.")]
+    public void GetPresetData_FromInitialState_ReflectsSimulationState()
     {
         // Act
         var presetData = physicsEngine.GetPresetData();
-        var defaultPreset = Simulation.DEFAULT_PRESET_DATA;
+        var sim = physicsEngine.simulation;
 
         // Assert
         Assert.Multiple(() =>
         {
-            Assert.That(presetData.PresetSimData.SimulationTime, Is.EqualTo(defaultPreset.PresetSimData.SimulationTime), $"Default simulation time should be {defaultPreset.PresetSimData.SimulationTime}.");
-            Assert.That(presetData.PresetSimData.TimeScale, Is.EqualTo(defaultPreset.PresetSimData.TimeScale), $"Default time scale should be {defaultPreset.PresetSimData.TimeScale}.");
-            Assert.That(presetData.PresetSimData.IsTimeForward, Is.EqualTo(defaultPreset.PresetSimData.IsTimeForward), $"Default time direction should be {(defaultPreset.PresetSimData.IsTimeForward ? "forwards" : "backwards")}.");
+            Assert.That(presetData.PresetSimData.SimulationTime, Is.EqualTo(sim.SimulationTime), $"Default simulation time should be {sim.SimulationTime}.");
+            Assert.That(presetData.PresetSimData.TimeScale, Is.EqualTo(sim.TimeScale), $"Default time scale should be {sim.TimeScale}.");
+            Assert.That(presetData.PresetSimData.IsTimeForward, Is.EqualTo(sim.IsTimeForward), $"Default time direction should be {(sim.IsTimeForward ? "forwards" : "backwards")}.");
             Assert.That(presetData.PresetBodyDataArray, Is.Not.Null, "Body data array should not be null.");
-            Assert.That(presetData.PresetBodyDataArray, Has.Length.EqualTo(defaultPreset.PresetBodyDataArray.Length), $"Body data array length should be {defaultPreset.PresetBodyDataArray.Length} for a new simulation.");
+            Assert.That(presetData.PresetBodyDataArray, Has.Length.EqualTo(sim.Bodies.Count), $"Body data array length should be {sim.Bodies.Count} for a new simulation.");
         });
     }
 
@@ -129,16 +142,10 @@ public partial class Tests
 
         // 2. Create a new, different preset with only 2 bodies.
 
-        var b1 = new CelestialBody(CelestialBody.DEFAULT_PRESET_DATA with { Id = 1 });
-        var b2 = new CelestialBody(CelestialBody.DEFAULT_PRESET_DATA with { Id = 2 });
+        var b1Preset = CelestialBody.Create(1).GetPresetBodyData();
+        var b2Preset = CelestialBody.Create(2).GetPresetBodyData();
 
-        var overwritePreset = new PresetData(
-            new PresetSimData(1000, 1, true),
-            [
-                b1.GetPresetBodyData(),
-                b2.GetPresetBodyData()
-            ]
-        );
+        var overwritePreset = new PresetData( new PresetSimData(1000, 1, true), [b1Preset, b2Preset] );
 
         // Act
         physicsEngine.LoadPreset(overwritePreset);
