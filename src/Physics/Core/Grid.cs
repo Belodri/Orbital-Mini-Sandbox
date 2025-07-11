@@ -44,7 +44,7 @@ internal class Grid
 
         Root = new(OuterBounds);
         foreach (var body in enabledBodies) Root.Insert(body);
-        Root.CalculateMassDistribution();
+        Root.Evaluate();
     }
 
     /// <summary>

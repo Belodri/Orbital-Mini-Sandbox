@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Physics.Bodies;
 using Physics.Models;
 
@@ -15,9 +16,18 @@ namespace Physics.Core;
 ///         <description>Contains four child nodes</description>
 ///     </item>
 /// </list>
+/// Once the node has been evaluated, any further attempts to modify it will throw an exception.
 /// </summary>
-internal class QuadTreeNode(AABB boundary, int depth = 0)
+internal class QuadTreeNode
 {
+    internal QuadTreeNode(AABB boundary) : this(boundary, 0) {}
+
+    private QuadTreeNode(AABB boundary, int depth)
+    {
+        Boundary = boundary;
+        _depth = depth;
+    }
+
     #region Fields
 
     /// <summary>
@@ -29,36 +39,43 @@ internal class QuadTreeNode(AABB boundary, int depth = 0)
     /// <summary>
     /// The current depth of this node in the tree.
     /// </summary>
-    readonly int _depth = depth;
+    private readonly int _depth = 0;
 
     /// <summary>
     /// Tracks how many bodies are in this node and all of its children.
     /// </summary>
-    internal int Count = 0;
+    internal int Count { get; private set; } = 0;
+
+    /// <summary>
+    /// Tracks if the node has been evaluated and is locked from further modification.
+    /// </summary>
+    internal bool IsEvaluated { get; private set; } = false;
+
+    internal int? BodyId => _body?.Id;
 
     /// <summary>
     /// The memory-optimized storage for a single body. This is used for the vast
     /// majority of external nodes and avoids the overhead of a List allocation.
     /// It is null if the node is internal, crowded, or empty.
     /// </summary>
-    CelestialBody? _body;
+    private CelestialBody? _body;
 
     /// <summary>
     /// The storage for a "crowded" node. Is only allocated and used if a node
     /// is at MAX_DEPTH, ensuring the happy path has zero list overhead.
     /// </summary>
-    List<CelestialBody>? _crowdedBodies;
+    private List<CelestialBody>? _crowdedBodies;
 
     // Child nodes are nullable, as they only exist after subdivision.
-    QuadTreeNode? _nwChild;
-    QuadTreeNode? _neChild;
-    QuadTreeNode? _swChild;
-    QuadTreeNode? _seChild;
+    private QuadTreeNode? _nwChild;
+    private QuadTreeNode? _neChild;
+    private QuadTreeNode? _swChild;
+    private QuadTreeNode? _seChild;
 
     /// <summary>
     /// The rectangular boundary that this node represents in the simulation space.
     /// </summary>
-    internal AABB Boundary { get; } = boundary;
+    internal AABB Boundary { get; init; }
 
     /// <summary>
     /// A flag indicating whether this node is a external or an internal node.
@@ -68,7 +85,7 @@ internal class QuadTreeNode(AABB boundary, int depth = 0)
     /// <summary>
     /// A flag to determine if a node is crowded or not.
     /// </summary>
-    bool IsCrowded { get => _depth >= MAX_DEPTH; }
+    internal bool IsCrowded => _depth >= MAX_DEPTH;
 
     /// <summary>
     /// The combined total mass of the node (either its body or of all of its children, if any).
@@ -83,15 +100,27 @@ internal class QuadTreeNode(AABB boundary, int depth = 0)
 
     #endregion
 
+    // TODO Consider adding a readonly getter for the contained body/bodies
+
     #region Insert
 
     /// <summary>
     /// Inserts a celestial body into the QuadTree starting from this node.
+    /// Attempting to insert a body after the node has been evaluated will throw an exception!
     /// </summary>
     /// <param name="newBody">The celestial body to insert.</param>
     /// <returns>True if the body was successfully inserted into this node or one of its
     /// children; false if the body is outside this node's boundary.</returns>
     internal bool Insert(CelestialBody newBody)
+    {
+        if (IsEvaluated) throw new InvalidOperationException("The QuadTreeNode has been evaluated and cannot be modified.");
+        return InsertWorker(newBody);
+    }
+
+    /// <summary>
+    /// Private worker that skips the redundant public-facing safety check. 
+    /// </summary>
+    private bool InsertWorker(CelestialBody newBody)
     {
         // Primary escape condition for recursion.
         if (!Boundary.Contains(newBody)) return false;
@@ -126,7 +155,7 @@ internal class QuadTreeNode(AABB boundary, int depth = 0)
     /// <summary>
     /// Insert helper method to subdivide this node into four new child nodes.
     /// </summary>
-    void Subdivide()
+    private void Subdivide()
     {
         var center = Boundary.Center;
         var newHalfDim = Boundary.HalfDimension / 2.0;
@@ -145,18 +174,18 @@ internal class QuadTreeNode(AABB boundary, int depth = 0)
     /// <summary>
     /// Insert helper method to pass a body down to the correct child node.
     /// </summary>
-    bool DistributeToChild(CelestialBody body)
+    private bool DistributeToChild(CelestialBody body)
     {
-        // Attempt to insert into each child. The 'Insert' method's boundary check
+        // Attempt to insert into each child. The 'InsertWorker' method's boundary check
         // will ensure only one of them succeeds.
-        if (_nwChild!.Insert(body)) return true;
-        if (_neChild!.Insert(body)) return true;
-        if (_swChild!.Insert(body)) return true;
-        if (_seChild!.Insert(body)) return true;
+        if (_nwChild!.InsertWorker(body)) return true;
+        if (_neChild!.InsertWorker(body)) return true;
+        if (_swChild!.InsertWorker(body)) return true;
+        if (_seChild!.InsertWorker(body)) return true;
 
         // This part should theoretically not be reached if the AABB.Contains logic is correct
         // and covers the entire parent boundary without gaps or overlaps.
-        throw new InvalidOperationException("Failed to distribute body to any child node. This indicates a boundary logic error.");
+        throw new UnreachableException("Failed to distribute body to any child node. This indicates a boundary logic error.");
     }
 
     #endregion
@@ -166,9 +195,21 @@ internal class QuadTreeNode(AABB boundary, int depth = 0)
     /// <summary>
     /// Does a recursive, bottom-up calculation of the total mass and the center of mass of this node.
     /// Must only be called on the root node after all bodies have been inserted into the tree.
+    /// Once called, locks the node so any further attempts to modify it will throw an exception.
     /// </summary>
-    internal void CalculateMassDistribution()
+    internal void Evaluate()
     {
+        if (IsEvaluated) throw new InvalidOperationException("The QuadTreeNode has been evaluated and cannot be modified.");
+        EvaluateWorker();
+    }
+
+    /// <summary>
+    /// Private worker that skips the redundant public-facing safety check. 
+    /// </summary>
+    void EvaluateWorker()
+    {
+        IsEvaluated = true;
+
         if (IsCrowded) CalcMassDistCrowded();
         else if (IsExternal) CalcMassDistSimple();
         else CalcMassDistInternal();
@@ -177,12 +218,12 @@ internal class QuadTreeNode(AABB boundary, int depth = 0)
     /// <summary>
     /// Calculation helper for a simple external node, which contains at most one body.
     /// </summary>
-    void CalcMassDistSimple()
+    private void CalcMassDistSimple()
     {
         if (_body == null) return;  // If no body is contained within, the TotalMass remains 0.
         TotalMass = _body.Mass;
 
-        if (TotalMass <= 0) return; // If TotalMass is 0, CenterOfMass remains at its initial (0,0) position.
+        if (TotalMass == 0) return; // If TotalMass is 0, CenterOfMass remains at its initial (0,0) position.
         CenterOfMass = _body.Position;
     }
 
@@ -190,7 +231,7 @@ internal class QuadTreeNode(AABB boundary, int depth = 0)
     /// Calculation helper for a "crowded" external node, which is at the maximum
     /// depth and may contain multiple bodies.
     /// </summary>
-    void CalcMassDistCrowded()
+    private void CalcMassDistCrowded()
     {
         if (_crowdedBodies == null) return;
 
@@ -201,7 +242,7 @@ internal class QuadTreeNode(AABB boundary, int depth = 0)
             weightedPositionSum += body.Position * body.Mass;
         }
 
-        if (TotalMass <= 0) return;
+        if (TotalMass == 0) return;
         CenterOfMass = weightedPositionSum / TotalMass;
     }
 
@@ -209,21 +250,21 @@ internal class QuadTreeNode(AABB boundary, int depth = 0)
     /// Calculation helper method to calculate the total mass and center of mass
     /// of an internal node.
     /// </summary>
-    void CalcMassDistInternal()
+    private void CalcMassDistInternal()
     {
         // Recursively call this method on all children first. This ensures
         // their mass properties are calculated before we use them.
-        _nwChild!.CalculateMassDistribution();
-        _neChild!.CalculateMassDistribution();
-        _swChild!.CalculateMassDistribution();
-        _seChild!.CalculateMassDistribution();
+        _nwChild!.EvaluateWorker();
+        _neChild!.EvaluateWorker();
+        _swChild!.EvaluateWorker();
+        _seChild!.EvaluateWorker();
 
         TotalMass = _nwChild.TotalMass
             + _neChild.TotalMass
             + _swChild.TotalMass
             + _seChild.TotalMass;
 
-        if (TotalMass <= 0) return; // If TotalMass is 0, CenterOfMass remains at its initial (0,0) position.
+        if (TotalMass == 0) return; // If TotalMass is 0, CenterOfMass remains at its initial (0,0) position.
 
         // Each child's CenterOfMass is treated as a single point-mass.
         // We calculate the weighted sum of their centers of mass.
