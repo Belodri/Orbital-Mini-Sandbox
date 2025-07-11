@@ -127,6 +127,31 @@ internal class Simulation
             
         */
 
+        /*  CALCULATOR
+
+            Consider making Calculator a state machine with 3 phases.
+            
+            bool isEvaluated = false;
+            bool isReset = true;
+
+            1. Setup(Grid, EnabledBodies, SimTimeDelta):
+                - Throws if (isEvaluated || !isReset)
+                - Takes readonly arguments shared by all body calculations of that tick.
+                - Sets isReset = false
+            2. Evaluate():
+                - Throws if (isEvaluated || isReset)
+                - Iterates over the EnabledBodies and creates a BodyDataPartial DTO for each 
+                    that contain the updates to that body.
+                - Sets isEvaluated = true
+            3. ClaimResults():
+                - Throws if (!isEvaluated || isReset)
+                - Clears the list in which those update DTOs were stored
+                - Sets isEvaluated = false;
+                - Sets isReset = true;
+                - Returns all the BodyDataPartial DTOs that were evaluated in the previous step
+
+        */
+
         // Update the simulation time by adding delta of this tick.
         Timer.UpdateSimTime(simTimeDelta);
 
