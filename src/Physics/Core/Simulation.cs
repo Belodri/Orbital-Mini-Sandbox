@@ -4,59 +4,41 @@ namespace Physics.Core;
 
 internal class Simulation
 {
-    #region Factory
+    #region Constructors
 
-    static readonly PresetSimData DEFAULT_SIM_DATA = new(0.0, 1.0, true);
+    internal Simulation() : this(DEFAULT_DATA) { }
 
-    private Simulation(PresetSimData presetSimData, PresetBodyData[] presetBodyDataArray)
+    internal Simulation(SimulationData data)
     {
-        _simulationTime = presetSimData.SimulationTime;
-        _timeScale = presetSimData.TimeScale;
-        _isTimeForward = presetSimData.IsTimeForward;
+        Timer = new(data.TimerData);
 
-        foreach (var bodyPreset in presetBodyDataArray)
+        foreach (var bodyData in data.BodyDataArray)
         {
-            bool added = TryAddBody(bodyPreset);
-            if (!added) throw new ArgumentException($"Contains contains more than one body with Id '{bodyPreset.Id}'.", nameof(presetBodyDataArray));
+            bool added = TryAddBody(bodyData);
+            if (!added) throw new ArgumentException($"Contains contains more than one body with Id '{bodyData.Id}'.", nameof(data));
         }
     }
 
-    internal static Simulation Create(PresetData presetData)
-        => new(presetData.PresetSimData, presetData.PresetBodyDataArray);
+    #endregion
 
-    internal static Simulation Create(PresetSimData presetSimData, PresetBodyData[] presetBodyDataArray)
-        => new(presetSimData, presetBodyDataArray);
 
-    internal static Simulation Create()
-        => new(DEFAULT_SIM_DATA, []);
+    #region Consts & Config
+
+    internal static readonly SimulationData DEFAULT_DATA = new(Timer.DEFAULT_DATA, []);
 
     #endregion
 
 
     #region Fields & Properties
 
-    double _simulationTime;
-    double _timeScale;
-    bool _isTimeForward;
     readonly Dictionary<int, CelestialBody> _bodies = [];
     readonly List<CelestialBody> _enabledBodies = [];
 
-    internal double SimulationTime { get => _simulationTime; private set => _simulationTime = value; }
-    internal double TimeScale { get => _timeScale; private set => _timeScale = value; }
-    internal bool IsTimeForward { get => _isTimeForward; private set => _isTimeForward = value; }
+    internal readonly Timer Timer;
+    internal readonly Grid Grid = new();
+
     internal IReadOnlyDictionary<int, CelestialBody> Bodies => _bodies;
     internal IReadOnlyList<CelestialBody> EnabledBodies => _enabledBodies;
-
-    #endregion
-
-
-    #region DTOs
-
-    internal TickData GetTickData() => new(GetSimTickData(), [.. Bodies.Values.Select(b => b.GetBodyTickData())]);
-    internal SimTickData GetSimTickData() => new(SimulationTime, TimeScale, IsTimeForward);
-
-    internal PresetData GetPresetData() => new(GetPresetSimData(), [.. Bodies.Values.Select(b => b.GetPresetBodyData())]);
-    internal PresetSimData GetPresetSimData() => new(SimulationTime, TimeScale, IsTimeForward);
 
     #endregion
 
@@ -68,20 +50,17 @@ internal class Simulation
     internal CelestialBody CreateBody(int maxBodies = 10000)
     {
         if (_bodies.Count >= maxBodies) throw new InvalidOperationException($"Cannot exceed maximum number of bodies: {maxBodies}.");
+
         while (_bodies.ContainsKey(_nextAvailableId)) _nextAvailableId++;
-
-        int validId = _nextAvailableId;
+        var body = AddBody(new(_nextAvailableId));
         _nextAvailableId++;
-
-        var body = CelestialBody.Create(validId);
-        AddBody(body);
         return body;
     }
 
-    internal bool TryAddBody(PresetBodyData bodyData)
+    internal bool TryAddBody(BodyData bodyData)
     {
         if (_bodies.ContainsKey(bodyData.Id)) return false;
-        AddBody(CelestialBody.Create(bodyData));
+        AddBody(new(bodyData));
         return true;
     }
 
@@ -114,17 +93,43 @@ internal class Simulation
         else if (delta.Enabled == false) _enabledBodies.Remove(body);
     }
 
-    private void AddBody(CelestialBody body)
+    private CelestialBody AddBody(CelestialBody body)
     {
         _bodies.Add(body.Id, body);
         if (body.Enabled) _enabledBodies.Add(body);
         body.Updated += OnBodyUpdated;
+        return body;
     }
 
     #endregion
 
+    // WORK IN PROGRESS
     internal Simulation Tick(double deltaTime)
     {
+        // Calculate the simulation time that has passed since the last tick.
+        double simTimeDelta = Timer.GetSimDeltaTime(deltaTime);
+
+        // Rebuild the QuadTree
+        Grid.Rebuild(EnabledBodies);
+
+        /*  NEXT STEPS / NOTES
+
+            Implement some kind of dual buffer for bodies to avoid race conditions during calculations.
+            readonly Dictionary<int, CelestialBody> _bodiesReadBuffer = [];
+            readonly Dictionary<int, CelestialBody> _bodiesWriteBuffer = [];
+
+            Alternatively, consider not updating the bodies directly during calculations but rather storing 
+            a BodyDataPartial DTO with the new values and updating all bodies in one go after all calculations 
+            are completed.
+            This should avoid the need for a dual buffer alltogether!
+
+            - rebuild grid from currentBodies
+            
+        */
+
+        // Update the simulation time by adding delta of this tick.
+        Timer.UpdateSimTime(simTimeDelta);
+
         return this;
     }
 }

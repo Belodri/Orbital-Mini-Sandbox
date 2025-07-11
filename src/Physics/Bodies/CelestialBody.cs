@@ -4,28 +4,37 @@ namespace Physics.Bodies;
 
 internal class CelestialBody
 {
-    #region Factory
+    #region Constructors
 
-    static readonly PresetBodyData DEFAULT_PRESET_DATA = new(-1, false, 0.0, 0.0, 0.0, 0.0, 0.0);
+    internal CelestialBody(int id) : this(CreateInitialData(id)) {}
 
-    private CelestialBody(PresetBodyData presetData)
+    internal CelestialBody(BodyData data)
     {
-        if (presetData.Id <= 0) throw new ArgumentOutOfRangeException(nameof(presetData), "Id must be greater than 0.");
-        Id = presetData.Id;
-        _enabled = presetData.Enabled;
-        _mass = presetData.Mass;
-        _position = new(presetData.PosX, presetData.PosY);
-        _velocity = new(presetData.VelX, presetData.VelY);
+        if (data.Id <= 0) throw new ArgumentOutOfRangeException(nameof(data), "Id must be greater than 0.");
+        Id = data.Id;
+        _enabled = data.Enabled;
+        _mass = data.Mass;
+        _position = data.Position;
+        _velocity = data.Velocity;
     }
 
-    internal static CelestialBody Create(int id)
+    private static BodyData CreateInitialData(int id)
     {
-        // NOTE: The deterministic offset ensures no two bodies are ever initialized at exactly (0, 0).
-        var presetData = DEFAULT_PRESET_DATA with { Id = id, PosX = 1e-15 * id, PosY = 1e-15 * id };
-        return new(presetData);
+        var offset = id * INITIALIZATION_POSITION_OFFSET;
+        return DEFAULT_DATA with { Id = id, Position = new(offset, offset) };
     }
 
-    internal static CelestialBody Create(PresetBodyData presetData) => new(presetData);
+    #endregion
+
+
+    #region Consts & Config
+
+    internal static readonly BodyData DEFAULT_DATA = new(0, false, 0.0, new(0, 0), new(0, 0));
+
+    /// <summary>
+    /// This deterministic offset ensures no two bodies are ever initialized at exactly (0, 0).
+    /// </summary>
+    internal const double INITIALIZATION_POSITION_OFFSET = 1e-10;
 
     #endregion
 
@@ -42,14 +51,6 @@ internal class CelestialBody
     internal double Mass { get => _mass; private set => _mass = value; }
     internal Vector2D Position { get => _position; private set => _position = value; }
     internal Vector2D Velocity { get => _velocity; private set => _velocity = value; }
-
-    #endregion
-
-
-    #region DTOs
-
-    internal BodyTickData GetBodyTickData() => new(Id, Enabled, Mass, Position.X, Position.Y, Velocity.X, Velocity.Y);
-    internal PresetBodyData GetPresetBodyData() => new(Id, Enabled, Mass, Position.X, Position.Y, Velocity.X, Velocity.Y);
 
     #endregion
 
