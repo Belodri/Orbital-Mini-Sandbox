@@ -32,18 +32,18 @@ internal class QuadTreeNodeTests
     // A simplified helper for tests where enabled status and velocity are not relevant.
     private static CelestialBody CreateBody(int id, double mass, double posX, double posY)
     {
-        PresetBodyData preset = new(id, true, mass, posX, posY, 0, 0);
+        BodyData preset = new(id, true, mass, new(posX, posY), Vector2D.Zero);
         return CreateBody(preset);
     }
 
-    static CelestialBody CreateBody(PresetBodyData preset)
+    static CelestialBody CreateBody(BodyData preset)
     {
-        return CelestialBody.Create(preset);
+        return new(preset);
     }
 
     static CelestialBody CreateBody(int Id, bool Enabled, double Mass, double PosX, double PosY, double VelX, double VelY)
     {
-        PresetBodyData preset = new(Id, Enabled, Mass, PosX, PosY, VelX, VelY);
+        BodyData preset = new(Id, Enabled, Mass, new(PosX, PosY), new(VelX, VelY));
         return CreateBody(preset);
     }
 

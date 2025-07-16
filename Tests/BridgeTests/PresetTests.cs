@@ -14,13 +14,13 @@ public partial class EngineBridgeTests
     [Test(Description = "Ensures _CreatePresetString serializes a PresetData object with multiple bodies into the correct compact, camelCase JSON string.")]
     public void CreatePresetString_WithMultipleBodies_ReturnsCorrectJson()
     {
-        var simData = new PresetSimData(123.45, 1.5, true);
+        var simData = new PresetSimData(123.45, 1.5, true, 6000000);
         var body1 = new PresetBodyData(1, true, 10.0, 1.1, 1.2, 1.3, 1.4);
         var body2 = new PresetBodyData(2, false, 20.0, 2.1, 2.2, 2.3, 2.4);
         var presetData = new PresetData(simData, [body1, body2]);
         // Note: The expected JSON must be a single line (WriteIndented = false)
         // and have camelCase property names (PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase).
-        var expectedJson = "{\"presetSimData\":{\"simulationTime\":123.45,\"timeScale\":1.5,\"isTimeForward\":true},\"presetBodyDataArray\":[{\"id\":1,\"enabled\":true,\"mass\":10,\"posX\":1.1,\"posY\":1.2,\"velX\":1.3,\"velY\":1.4},{\"id\":2,\"enabled\":false,\"mass\":20,\"posX\":2.1,\"posY\":2.2,\"velX\":2.3,\"velY\":2.4}]}";
+        var expectedJson = "{\"presetSimData\":{\"simulationTime\":123.45,\"timeScale\":1.5,\"isTimeForward\":true,\"timeConversionFactor\":6000000},\"presetBodyDataArray\":[{\"id\":1,\"enabled\":true,\"mass\":10,\"posX\":1.1,\"posY\":1.2,\"velX\":1.3,\"velY\":1.4},{\"id\":2,\"enabled\":false,\"mass\":20,\"posX\":2.1,\"posY\":2.2,\"velX\":2.3,\"velY\":2.4}]}";
 
         var actualJson = EngineBridge.CreatePresetString(presetData);
         Assert.That(actualJson, Is.EqualTo(expectedJson), "The serialized JSON string did not match the expected format.");
@@ -29,9 +29,9 @@ public partial class EngineBridgeTests
     [Test(Description = "Ensures _CreatePresetString correctly serializes a PresetData object that contains an empty array of bodies.")]
     public void CreatePresetString_WithNoBodies_ReturnsJsonWithEmptyArray()
     {
-        var simData = new PresetSimData(50.0, 1.0, false);
+        var simData = new PresetSimData(50.0, 1.0, false, 6000000);
         var presetData = new PresetData(simData, []);
-        var expectedJson = "{\"presetSimData\":{\"simulationTime\":50,\"timeScale\":1,\"isTimeForward\":false},\"presetBodyDataArray\":[]}";
+        var expectedJson = "{\"presetSimData\":{\"simulationTime\":50,\"timeScale\":1,\"isTimeForward\":false,\"timeConversionFactor\":6000000},\"presetBodyDataArray\":[]}";
 
         var actualJson = EngineBridge.CreatePresetString(presetData);
         Assert.That(actualJson, Is.EqualTo(expectedJson), "The JSON for a preset with no bodies should contain an empty array.");
@@ -45,9 +45,9 @@ public partial class EngineBridgeTests
     public void ParseJsonPreset_WithValidJson_ReturnsCorrectPresetDataObject()
     {
         // Arrange
-        var jsonPreset = "{\"presetSimData\":{\"simulationTime\":99.9,\"timeScale\":2,\"isTimeForward\":false},\"presetBodyDataArray\":[{\"id\":101,\"enabled\":true,\"mass\":50,\"posX\":-10,\"posY\":10,\"velX\":-5,\"velY\":5}]}";
+        var jsonPreset = "{\"presetSimData\":{\"simulationTime\":99.9,\"timeScale\":2,\"timeConversionFactor\":6000000,\"isTimeForward\":false},\"presetBodyDataArray\":[{\"id\":101,\"enabled\":true,\"mass\":50,\"posX\":-10,\"posY\":10,\"velX\":-5,\"velY\":5}]}";
 
-        var expectedSimData = new PresetSimData(99.9, 2.0, false);
+        var expectedSimData = new PresetSimData(99.9, 2.0, false, 6000000);
         var expectedBody = new PresetBodyData(101, true, 50.0, -10.0, 10.0, -5.0, 5.0);
         // We don't need the full expectedPresetData object for this approach.
 
@@ -106,7 +106,7 @@ public partial class EngineBridgeTests
     {
         // Arrange
         // Create a reasonably complex object to ensure all properties are handled.
-        var initialSimData = new PresetSimData(42.42, 0.5, false);
+        var initialSimData = new PresetSimData(42.42, 0.5, false, 6000000);
         var initialBody1 = new PresetBodyData(1, true, 10.0, 100.5, -50.2, 5.5, -2.1);
         var initialBody2 = new PresetBodyData(99, false, 999.9, 0, 0, 0, 0);
         var initialPresetData = new PresetData(initialSimData, [initialBody1, initialBody2]);

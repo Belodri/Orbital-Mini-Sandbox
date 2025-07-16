@@ -14,7 +14,7 @@ internal class GridTests
 
     CelestialBody AddBody(PresetBodyData preset)
     {
-        var body = CelestialBody.Create(preset);
+        var body = new CelestialBody(preset.ToBodyData());
         bodies.Add(body);
         return body;
     }
