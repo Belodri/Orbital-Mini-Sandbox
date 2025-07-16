@@ -3,6 +3,8 @@
 
 # Revision History
 
+- **16/07/2025**
+    - Simplified and optimized Tick workflow by eliminating the need for double buffering.
 - **09/07/2025**
     - Added `QuadTreeNode.cs` and `AABB.cs` quad tree components to `Physics` structure.
     - Redefined `AppShell` as an event-based, reactive, unidirectional orchestrator and preset handler.
@@ -468,8 +470,7 @@ Physics/
 - State Ownership
 	- `timer` - Timer instance
 	- `bodies` - Collection of CelestialBody instances
-	- `prevBodies` - Collection of outdated CelestialBody instances for double-buffering
-	- `calculator` - Calculator instance; not persistent
+	- `calculator` - Calculator instance
 	- `grid` - Grid instance
 
 `Timer`
@@ -484,15 +485,11 @@ Physics/
 	- Simulation speed multiplier
 
 `Calculator`
-- Performs the core physics calculations for each simulation timestep. Handles all gravitational force computations and mutates celestial bodies. Optimized for performance as it executes during every simulation tick.
+- Performs the core physics calculations for each simulation timestep. Handles all gravitational force computations and calculates updates for celestial bodies. Optimized for performance as it executes during every simulation tick.
 - Responsibilities
 	- Calculates gravitational forces between celestial bodies
-	- Mutates celestial bodies updated velocities and positions based on physics calculations
+	- Creates update DTOs for celestial bodies with new velocities and positions based on physics calculations
 	- Utilizes spatial partitioning for efficient proximity queries
-- State Ownership
-	- readonly grid
-	- readonly deltaTime
-	- readonly prevBodies
 
 `Grid`
 - Provides spatial partitioning functionality through QuadTree implementation to optimize gravitational force calculations. Reduces computational complexity from O(n²) to more efficient spatial queries.
@@ -510,27 +507,24 @@ Physics/
 	- Maintains all physical properties of a celestial body
 	- Provides getters for computed properties derived from its own state
 - State Ownership
-	- number Id (readonly)
+	- int Id (readonly)
 	- Vector2D Position (x, y)
 	- Vector2D Velocity (x, y)
 	- double Mass
 	- bool Enabled
 
 ### PhysicsEngine.Tick() workflow
-Core workflow when Tick(timestamp) is called on an instance of PhysicsEngine
+Core workflow when Tick(deltaTime) is called on an instance of PhysicsEngine
 1. `PhysicsEngine` Enables syncLock (also prevents further PhysicsEngine.Tick() calls)
-2. `PhysicsEngine` Calls simulation.Tick(timestamp)
-3. `Simulation` Gets double deltaTime = timer.GetDeltaTime(timestamp)
-4. `Timer` Calculates deltaTime from timestamp, simulationTime, timeScale, and timeDirection and returns the result
-5. `Simulation` calls grid.rebuild(bodies)
-6. `Simulation` creates a tempBodiesRef variable and assigns it a reference to bodies  
-7. `Simulation` sets bodies = prevBodies  
-8. `Simulation` sets prevBodies = tempBodiesRef
-9. `Simulation` creates calculator = new Calculator(deltaTime, grid, prevBodies); arguments are readonly;
-10. `Simulation` loops over bodies, filters out disabled ones, calls calculator.evaluate(body) for each; can be parallelized safely
-11. `Calculator` calculates the changes to the given body and mutates it
-12. `Simulation` calls timer.updateTime(deltaTime) which updates the simulationTime and thus advances the tick
-13. `PhysicsEngine` Disables syncLock
+2. `PhysicsEngine` Calls simulation.Tick(deltaTime)
+3. `Simulation` Gets double simTimeDelta = Timer.GetSimTimeDelta(deltaTime)
+4. `Timer` Calculates simTimeDelta from deltaTime, simulationTime, timeScale, and timeDirection and returns the result
+5. `Simulation` Calls Timer.UpdateSimTime(simTimeDelta) to update the simulation time; This is safe as only simTimeDelta is used for the rest of the tick calculations
+6. `Simulation` calls grid.rebuild(enabledBodies)
+7. `Simulation` loops over enabled bodies,calls Calculator.EvaluateBody(body, simTimeDelta, Grid.Root) for each; stores the update DTOs for each body in a cache; can be parallelized safely
+8. `Calculator` calculates the changes to the given body and returns a DTO with update data
+9. `Simulation` Updates the bodies with the update data DTOs
+10. `PhysicsEngine` Disables syncLock
 
 ---
 
