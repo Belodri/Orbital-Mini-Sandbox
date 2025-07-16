@@ -15,6 +15,10 @@ export interface SimStateLayout {
      */
     readonly timeIsForward: number;
     /**
+     * Determines how many ms in Simulation time is 1ms in real time, assuming TimeScale = 1.
+     */
+    readonly timeConversionFactor: number;
+    /**
      * The total number of bodies in the simulation, including disabled ones.
      */
     readonly bodyCount: number;

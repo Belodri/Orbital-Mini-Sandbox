@@ -142,6 +142,7 @@ internal class MemoryBufferHandler : IDisposable
         pSimState[SimStateLayout.timeScale] = tickData.SimTickData.TimeScale;
         pSimState[SimStateLayout.timeIsForward] = Convert.ToDouble(tickData.SimTickData.IsTimeForward);
         pSimState[SimStateLayout.bodyCount] = tickData.BodyTickDataArray.Length;
+        pSimState[SimStateLayout.timeConversionFactor] = tickData.SimTickData.TimeConversionFactor;
     }
 
     

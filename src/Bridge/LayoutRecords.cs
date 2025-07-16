@@ -33,6 +33,10 @@ public record SimStateLayoutRec(
     /// </summary>
     int timeIsForward,
     /// <summary>
+    /// Determines how many ms in Simulation time is 1ms in real time, assuming TimeScale = 1.
+    /// </summary>
+    int timeConversionFactor,
+    /// <summary>
     /// The total number of bodies in the simulation, including disabled ones.
     /// </summary>
     int bodyCount
