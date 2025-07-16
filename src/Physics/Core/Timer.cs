@@ -54,7 +54,7 @@ internal class Timer
 
     #endregion
 
-    internal double GetSimDeltaTime(double realDeltaTimeMs)
+    internal double GetSimTimeDelta(double realDeltaTimeMs)
     {
         return Math.Abs(realDeltaTimeMs)    // IsTimeForward alone controls time direction.
             * TimeConversionFactor

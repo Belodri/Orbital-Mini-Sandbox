@@ -115,7 +115,7 @@ internal class Simulation
     internal void Tick(double deltaTime)
     {
         // Calculate the simulation time that has passed since the last tick.
-        double simTimeDelta = Timer.GetSimDeltaTime(deltaTime);
+        double simTimeDelta = Timer.GetSimTimeDelta(deltaTime);
 
         // Update the simulation time by adding delta of this tick.
         // This is safe because only simTimeDelta is used for the rest of the tick calculation.
