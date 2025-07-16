@@ -37,6 +37,10 @@ internal record TimerDataPartial(double SimulationTime, double TimeScale, bool I
 
 internal record SimulationData(TimerData TimerData, BodyData[] BodyDataArray);
 
+internal record BodyTickUpdateDTO(CelestialBody Body, BodyDataPartial UpdateData);
+
+internal record CalculatorData(double Theta, double GravitationalConstant, double SofteningFactor);
+
 #endregion
 
 
@@ -49,7 +53,7 @@ public class PhysicsEngine
     #endregion
 
 
-   #region Tick
+    #region Tick
 
     public TickData Tick(double deltaTime)
     {
