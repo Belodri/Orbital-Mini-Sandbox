@@ -36,6 +36,7 @@ internal class Simulation
 
     internal readonly Timer Timer;
     internal readonly Grid Grid = new();
+    internal readonly Calculator Calculator = new();
 
     internal IReadOnlyDictionary<int, CelestialBody> Bodies => _bodies;
     internal IReadOnlyList<CelestialBody> EnabledBodies => _enabledBodies;
@@ -103,58 +104,42 @@ internal class Simulation
 
     #endregion
 
-    // WORK IN PROGRESS
-    internal Simulation Tick(double deltaTime)
+
+    #region Tick Management
+
+    /// <summary>
+    /// A list of DTOs that contain the data used to update the Bodies to the next state.  
+    /// </summary>
+    private readonly List<BodyTickUpdateDTO> _tickBodyUpdatesCache = [];
+
+    internal void Tick(double deltaTime)
     {
         // Calculate the simulation time that has passed since the last tick.
         double simTimeDelta = Timer.GetSimDeltaTime(deltaTime);
 
+        // Update the simulation time by adding delta of this tick.
+        // This is safe because only simTimeDelta is used for the rest of the tick calculation.
+        Timer.UpdateSimTime(simTimeDelta);
+
         // Rebuild the QuadTree
         Grid.Rebuild(EnabledBodies);
 
-        /*  NEXT STEPS / NOTES
+        // If the grid root is null, we cannot update any bodies so we can just return early.
+        if (Grid.Root == null) return;
 
-            Implement some kind of dual buffer for bodies to avoid race conditions during calculations.
-            readonly Dictionary<int, CelestialBody> _bodiesReadBuffer = [];
-            readonly Dictionary<int, CelestialBody> _bodiesWriteBuffer = [];
+        // Clear the updates cache
+        _tickBodyUpdatesCache.Clear();
 
-            Alternatively, consider not updating the bodies directly during calculations but rather storing 
-            a BodyDataPartial DTO with the new values and updating all bodies in one go after all calculations 
-            are completed.
-            This should avoid the need for a dual buffer alltogether!
+        // Calculate the body updates to be performed
+        foreach (var body in EnabledBodies)
+        {
+            var updateData = Calculator.EvaluateBody(body, simTimeDelta, Grid.Root);
+            if (updateData != null) _tickBodyUpdatesCache.Add(new(body, updateData));
+        }
 
-            - rebuild grid from currentBodies
-            
-        */
-
-        /*  CALCULATOR
-
-            Consider making Calculator a state machine with 3 phases.
-            
-            bool isEvaluated = false;
-            bool isReset = true;
-
-            1. Setup(Grid, EnabledBodies, SimTimeDelta):
-                - Throws if (isEvaluated || !isReset)
-                - Takes readonly arguments shared by all body calculations of that tick.
-                - Sets isReset = false
-            2. Evaluate():
-                - Throws if (isEvaluated || isReset)
-                - Iterates over the EnabledBodies and creates a BodyDataPartial DTO for each 
-                    that contain the updates to that body.
-                - Sets isEvaluated = true
-            3. ClaimResults():
-                - Throws if (!isEvaluated || isReset)
-                - Clears the list in which those update DTOs were stored
-                - Sets isEvaluated = false;
-                - Sets isReset = true;
-                - Returns all the BodyDataPartial DTOs that were evaluated in the previous step
-
-        */
-
-        // Update the simulation time by adding delta of this tick.
-        Timer.UpdateSimTime(simTimeDelta);
-
-        return this;
+        // Perform the body updates
+        foreach (var dto in _tickBodyUpdatesCache) dto.Body.Update(dto.UpdateData);
     }
+
+    #endregion
 }
