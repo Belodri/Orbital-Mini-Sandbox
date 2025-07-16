@@ -87,9 +87,9 @@ internal class QuadTreeNode
     private QuadTreeNode? _seChild;
 
     /// <summary>
-    /// Private iterator to safely access the existing child nodes.
+    /// Iterator to safely access the existing child nodes.
     /// </summary>
-    private IEnumerable<QuadTreeNode> Children
+    internal IEnumerable<QuadTreeNode> Children
     {
         get
         {
@@ -207,7 +207,7 @@ internal class QuadTreeNode
     private void DistributeToChild(CelestialBody body)
     {
         Debug.Assert(!IsExternal, "DistributeToChild should only be called on internal nodes.");
-        
+
         var center = Boundary.Center;
         var pos = body.Position;
 
