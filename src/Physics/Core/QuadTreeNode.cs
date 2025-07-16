@@ -51,7 +51,21 @@ internal class QuadTreeNode
     /// </summary>
     internal bool IsEvaluated { get; private set; } = false;
 
-    internal int? BodyId => _body?.Id;
+    /// <summary>
+    /// Consumer-facing iterator to access the bodies contained directly within this node.
+    /// If the node is an internal node, the enumeration is empty. 
+    /// </summary>
+    internal IEnumerable<CelestialBody> Bodies
+    {
+        get
+        {
+            if (_body != null) yield return _body;
+            else if (_crowdedBodies != null)
+            {
+                foreach (var body in _crowdedBodies) yield return body;
+            }
+        }
+    }
 
     /// <summary>
     /// The memory-optimized storage for a single body. This is used for the vast
@@ -71,6 +85,20 @@ internal class QuadTreeNode
     private QuadTreeNode? _neChild;
     private QuadTreeNode? _swChild;
     private QuadTreeNode? _seChild;
+
+    /// <summary>
+    /// Private iterator to safely access the existing child nodes.
+    /// </summary>
+    private IEnumerable<QuadTreeNode> Children
+    {
+        get
+        {
+            if (_nwChild != null) yield return _nwChild;
+            if (_neChild != null) yield return _neChild;
+            if (_swChild != null) yield return _swChild;
+            if (_seChild != null) yield return _seChild;
+        }
+    }
 
     /// <summary>
     /// The rectangular boundary that this node represents in the simulation space.
@@ -100,7 +128,6 @@ internal class QuadTreeNode
 
     #endregion
 
-    // TODO Consider adding a readonly getter for the contained body/bodies
 
     #region Insert
 
@@ -114,16 +141,19 @@ internal class QuadTreeNode
     internal bool Insert(CelestialBody newBody)
     {
         if (IsEvaluated) throw new InvalidOperationException("The QuadTreeNode has been evaluated and cannot be modified.");
-        return InsertWorker(newBody);
+
+        if (!Boundary.Contains(newBody)) return false;
+
+        InsertWorker(newBody);
+        return true;
     }
 
     /// <summary>
     /// Private worker that skips the redundant public-facing safety check. 
     /// </summary>
-    private bool InsertWorker(CelestialBody newBody)
+    private void InsertWorker(CelestialBody newBody)
     {
-        // Primary escape condition for recursion.
-        if (!Boundary.Contains(newBody)) return false;
+        Debug.Assert(Boundary.Contains(newBody), "InsertWorker was called on a node that does not contain the body. Check DistributeToChild logic.");
 
         Count++;
 
@@ -131,7 +161,7 @@ internal class QuadTreeNode
         {
             _crowdedBodies ??= [];
             _crowdedBodies.Add(newBody);
-            return true;
+            return;
         }
 
         if (IsExternal)
@@ -139,7 +169,7 @@ internal class QuadTreeNode
             if (_body == null)
             {
                 _body = newBody;
-                return true;
+                return;
             }
 
             IsExternal = false;
@@ -149,7 +179,7 @@ internal class QuadTreeNode
         }
 
         // Insert the new body into the correct child node.
-        return DistributeToChild(newBody);
+        DistributeToChild(newBody);
     }
 
     /// <summary>
@@ -174,18 +204,23 @@ internal class QuadTreeNode
     /// <summary>
     /// Insert helper method to pass a body down to the correct child node.
     /// </summary>
-    private bool DistributeToChild(CelestialBody body)
+    private void DistributeToChild(CelestialBody body)
     {
-        // Attempt to insert into each child. The 'InsertWorker' method's boundary check
-        // will ensure only one of them succeeds.
-        if (_nwChild!.InsertWorker(body)) return true;
-        if (_neChild!.InsertWorker(body)) return true;
-        if (_swChild!.InsertWorker(body)) return true;
-        if (_seChild!.InsertWorker(body)) return true;
+        Debug.Assert(!IsExternal, "DistributeToChild should only be called on internal nodes.");
+        
+        var center = Boundary.Center;
+        var pos = body.Position;
 
-        // This part should theoretically not be reached if the AABB.Contains logic is correct
-        // and covers the entire parent boundary without gaps or overlaps.
-        throw new UnreachableException("Failed to distribute body to any child node. This indicates a boundary logic error.");
+        if (pos.X < center.X)
+        {
+            if (pos.Y < center.Y) _swChild!.InsertWorker(body);
+            else _nwChild!.InsertWorker(body);
+        }
+        else
+        {
+            if (pos.Y < center.Y) _seChild!.InsertWorker(body);
+            else _neChild!.InsertWorker(body);
+        }
     }
 
     #endregion
@@ -252,26 +287,18 @@ internal class QuadTreeNode
     /// </summary>
     private void CalcMassDistInternal()
     {
-        // Recursively call this method on all children first. This ensures
-        // their mass properties are calculated before we use them.
-        _nwChild!.EvaluateWorker();
-        _neChild!.EvaluateWorker();
-        _swChild!.EvaluateWorker();
-        _seChild!.EvaluateWorker();
+        Vector2D weightedPositionSum = Vector2D.Zero;
 
-        TotalMass = _nwChild.TotalMass
-            + _neChild.TotalMass
-            + _swChild.TotalMass
-            + _seChild.TotalMass;
+        // Recursively evaluate children and aggregate their mass properties.
+        // Each child's CenterOfMass is treated as a single point-mass.
+        foreach (var child in Children)
+        {
+            child.EvaluateWorker();
+            TotalMass += child.TotalMass;
+            weightedPositionSum += child.CenterOfMass * child.TotalMass;
+        }
 
         if (TotalMass == 0) return; // If TotalMass is 0, CenterOfMass remains at its initial (0,0) position.
-
-        // Each child's CenterOfMass is treated as a single point-mass.
-        // We calculate the weighted sum of their centers of mass.
-        Vector2D weightedPositionSum = (_nwChild.CenterOfMass * _nwChild.TotalMass)
-            + (_neChild.CenterOfMass * _neChild.TotalMass)
-            + (_swChild.CenterOfMass * _swChild.TotalMass)
-            + (_seChild.CenterOfMass * _seChild.TotalMass);
 
         CenterOfMass = weightedPositionSum / TotalMass;
     }
