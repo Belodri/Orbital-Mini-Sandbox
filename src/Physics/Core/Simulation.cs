@@ -130,7 +130,7 @@ internal class Simulation : ISimulation
 
     #region Body Management
 
-    int _nextAvailableId = 1;
+    int _nextAvailableId = 0;
 
     /// <inheritdoc/>
     public ICelestialBody CreateBody(Func<int, ICelestialBody> bodyFactory)

@@ -1,5 +1,5 @@
 using Physics.Models;
-namespace Physics.Core;
+namespace Physics;
 
 #region BodyData DTOs
 
@@ -67,8 +67,21 @@ public record SimDataUpdates(
 #endregion
 
 
+#region Other Public Data
+
+public enum IntegrationAlgorithm
+{
+    SymplecticEuler,
+    RungeKutta4,
+    VelocityVerlet
+}
+
+#endregion
+
+
 #region Internal DTOs
 
 internal readonly record struct EvaluationResult(Vector2D Position, Vector2D Velocity, Vector2D Acceleration);
 
 #endregion
+

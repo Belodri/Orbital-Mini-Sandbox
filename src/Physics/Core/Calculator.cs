@@ -66,13 +66,6 @@ internal interface ICalculator
     );
 }
 
-public enum IntegrationAlgorithm
-{
-    SymplecticEuler,
-    RungeKutta4,
-    VelocityVerlet
-}
-
 internal class Calculator : ICalculator
 {
     #region Constructors
