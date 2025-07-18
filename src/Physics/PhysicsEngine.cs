@@ -142,7 +142,9 @@ public class PhysicsEngine : IPhysicsEngine
             posX: updates.PosX,
             posY: updates.PosY,
             velX: updates.VelX,
-            velY: updates.VelY
+            velY: updates.VelY,
+            accX: updates.AccX,
+            accY: updates.AccY
         );
 
         return true;
@@ -160,7 +162,8 @@ public class PhysicsEngine : IPhysicsEngine
         simulation.Calculator.Update(
             gravitationalConstant: updates.GravitationalConstant,
             theta: updates.Theta,
-            epsilon: updates.Epsilon
+            epsilon: updates.Epsilon,
+            integrationAlgorithm: updates.IntegrationAlgorithm
         );
     }
 

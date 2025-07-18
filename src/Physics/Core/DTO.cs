@@ -40,7 +40,7 @@ public record SimDataBase(
     // Timer
     double SimulationTime, double TimeScale, bool IsTimeForward, int TimeConversionFactor,
     // Calculator
-    double Theta, double GravitationalConstant, double Epsilon
+    double Theta, double GravitationalConstant, double Epsilon, IntegrationAlgorithm IntegrationAlgorithm
 );
 
 /// <summary>
@@ -48,8 +48,8 @@ public record SimDataBase(
 /// </summary>
 public record SimDataFull(
     double SimulationTime, double TimeScale, bool IsTimeForward, int TimeConversionFactor,
-    double Theta, double GravitationalConstant, double Epsilon
-) : SimDataBase(SimulationTime, TimeScale, IsTimeForward, TimeConversionFactor, Theta, GravitationalConstant, Epsilon);
+    double Theta, double GravitationalConstant, double Epsilon, IntegrationAlgorithm IntegrationAlgorithm
+) : SimDataBase(SimulationTime, TimeScale, IsTimeForward, TimeConversionFactor, Theta, GravitationalConstant, Epsilon, IntegrationAlgorithm);
 
 /// <summary>
 /// Partial data to update a simulation. Null values are ignored. 
@@ -60,7 +60,8 @@ public record SimDataUpdates(
     int? TimeConversionFactor = null,
     double? Theta = null,
     double? GravitationalConstant = null,
-    double? Epsilon = null
+    double? Epsilon = null,
+    IntegrationAlgorithm? IntegrationAlgorithm = null
 );
 
 #endregion

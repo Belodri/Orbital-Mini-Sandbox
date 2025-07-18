@@ -12,7 +12,8 @@ internal static class DataMapper
             enabled: data.Enabled,
             mass: data.Mass,
             position: new(data.PosX, data.PosY),
-            velocity: new(data.VelX, data.VelY)
+            velocity: new(data.VelX, data.VelY),
+            acceleration: new(data.AccX, data.AccY)
         );
 
     internal static Timer ToTimer(this SimDataBase data)
@@ -27,7 +28,8 @@ internal static class DataMapper
         => new(
             gravitationalConstant: data.GravitationalConstant,
             theta: data.Theta,
-            epsilon: data.Epsilon
+            epsilon: data.Epsilon,
+            algorithm: data.IntegrationAlgorithm
         );
 
     internal static Grid ToGrid(this SimDataBase data)
@@ -75,7 +77,8 @@ internal static class DataMapper
             TimeConversionFactor: sim.Timer.TimeConversionFactor,
             Theta: sim.Calculator.Theta,
             GravitationalConstant: sim.Calculator.G,
-            Epsilon: sim.Calculator.Epsilon
+            Epsilon: sim.Calculator.Epsilon,
+            IntegrationAlgorithm: sim.Calculator.IntegrationAlgorithm
         );
 
     internal static SimDataFull ToSimDataFull(this ISimulation sim)
@@ -86,7 +89,8 @@ internal static class DataMapper
             TimeConversionFactor: sim.Timer.TimeConversionFactor,
             Theta: sim.Calculator.Theta,
             GravitationalConstant: sim.Calculator.G,
-            Epsilon: sim.Calculator.Epsilon
+            Epsilon: sim.Calculator.Epsilon,
+            IntegrationAlgorithm: sim.Calculator.IntegrationAlgorithm
         );
 
     #endregion
