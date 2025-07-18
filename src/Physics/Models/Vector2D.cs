@@ -145,6 +145,38 @@ public readonly struct Vector2D(double x, double y) : IEquatable<Vector2D>
     public static Vector2D FromAngle(double angle, double magnitude = 1.0)
         => new(Math.Cos(angle) * magnitude, Math.Sin(angle) * magnitude);
 
+
+    /// <summary>
+    /// Creates a new vector by replacing specific components of this vector.
+    /// </summary>
+    /// <param name="newX">If given, this value is used for the new vector's X component.</param>
+    /// <param name="newY">If given, this value is used for the new vector's Y component.</param>
+    /// <returns>A new vector with the updated components, or this vector if no changes were made.</returns>
+    public Vector2D With(double? x = null, double? y = null)
+    {
+        var xChange = x != null && !x.Value.Equals(X);
+        var yChange = y != null && !y.Value.Equals(Y);
+
+        return xChange || yChange
+            ? new(x ?? X, y ?? Y)
+            : this;
+    }
+
+    /// <summary>
+    /// Creates a new vector by replacing it with the given vector.
+    /// </summary>
+    /// <remarks>
+    /// This method is a performance-optimized alternative to the null-coalescing operator (`??`).
+    /// It avoids a struct copy if the provided vector is null or has the same value as this vector.
+    /// </remarks>
+    /// <param name="vector">The vector to replace this one with.</param>
+    /// <returns>The provided vector, or this vector if the provided vector is null or equal to this one.</returns>
+    public Vector2D With(Vector2D? vector)
+    {
+        if (vector == null || vector.Value.Equals(this)) return this;
+        return vector.Value;
+    }
+
     #endregion
 
 
