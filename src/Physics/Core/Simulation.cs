@@ -1,5 +1,4 @@
 using Physics.Bodies;
-using Physics.Models;
 
 namespace Physics.Core;
 
@@ -164,7 +163,7 @@ internal class Simulation : ISimulation
     {
         _bodies.Add(body.Id, body);
         if (body.Enabled) _enabledBodies.Add(body);
-        body.Updated += OnBodyUpdated;
+        body.EnabledChanged += OnBodyEnabledToggle;
     }
 
     /// <inheritdoc/>
@@ -186,18 +185,18 @@ internal class Simulation : ISimulation
 
     private void DeleteBodyWorker(ICelestialBody body)
     {
-        body.Updated -= OnBodyUpdated;
+        body.EnabledChanged -= OnBodyEnabledToggle;
         if (body.Enabled) _enabledBodies.Remove(body);
         _bodies.Remove(body.Id);
     }
 
-    private void OnBodyUpdated(ICelestialBody body, BodyDataUpdates delta)
+    private void OnBodyEnabledToggle(ICelestialBody body)
     {
-        if (delta.Enabled == true && !_enabledBodies.Contains(body))
+        if (body.Enabled == true && !_enabledBodies.Contains(body))
         {
             _enabledBodies.Add(body);
         }
-        else if (delta.Enabled == false) _enabledBodies.Remove(body);
+        else if (body.Enabled == false) _enabledBodies.Remove(body);
     }
 
     #endregion
@@ -208,7 +207,7 @@ internal class Simulation : ISimulation
     /// <summary>
     /// A list of DTOs that contain the data used to update the Bodies to the next state.  
     /// </summary>
-    private readonly List<(ICelestialBody body, Vector2D newPosition, Vector2D newVelocity)> _tickBodyUpdatesCache = [];
+    private readonly List<(ICelestialBody body, EvaluationResult result)> _tickBodyUpdatesCache = [];
 
     /// <inheritdoc/>
     public void Tick(double deltaTime)
@@ -230,13 +229,17 @@ internal class Simulation : ISimulation
         // Calculate the body updates to be performed
         foreach (var body in _enabledBodies)
         {
-            var newPosVel = Calculator.EvaluateBody(body, simTimeDelta, Grid.Root);
-            if (newPosVel == null) continue;
-            _tickBodyUpdatesCache.Add((body, newPosVel.Value.newPosition, newPosVel.Value.newVelocity));
+            var result = Calculator.EvaluateBody(body, simTimeDelta, Grid.Root);
+            if (result == null) continue;
+            _tickBodyUpdatesCache.Add((body, result.Value));
         }
 
         // Perform the body updates
-        foreach (var (body, newPosition, newVelocity) in _tickBodyUpdatesCache) body.Update(position: newPosition, velocity: newVelocity);
+        foreach (var (body, result) in _tickBodyUpdatesCache) body.Update(
+            position: result.Position,
+            velocity: result.Velocity,
+            acceleration: result.Acceleration
+        );
     }
 
     #endregion
