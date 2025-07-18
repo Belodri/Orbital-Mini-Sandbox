@@ -1,0 +1,73 @@
+using Physics.Models;
+namespace Physics.Core;
+
+#region BodyData DTOs
+
+/// <summary>
+/// The base data that defines a celestial body.
+/// </summary>
+public record BodyDataBase(int Id, bool Enabled, double Mass, double PosX, double PosY, double VelX, double VelY, double AccX, double AccY);
+
+/// <summary>
+/// The base data that that defines a celestial body plus any derived properties of the body.
+/// </summary>
+public record BodyDataFull(int Id, bool Enabled, double Mass, double PosX, double PosY, double VelX, double VelY, double AccX, double AccY)
+    : BodyDataBase(Id, Enabled, Mass, PosX, PosY, VelX, VelY, AccX, AccY);
+
+/// <summary>
+/// Partial data to update a celestial body. Null values are ignored. 
+/// </summary>
+public record BodyDataUpdates(
+    bool? Enabled = null,
+    double? Mass = null,
+    double? PosX = null,
+    double? PosY = null,
+    double? VelX = null,
+    double? VelY = null,
+    double? AccX = null,
+    double? AccY = null
+);
+
+#endregion
+
+
+#region SimData DTOs
+
+/// <summary>
+/// The base data that defines a simulation.
+/// </summary>
+public record SimDataBase(
+    // Timer
+    double SimulationTime, double TimeScale, bool IsTimeForward, int TimeConversionFactor,
+    // Calculator
+    double Theta, double GravitationalConstant, double Epsilon
+);
+
+/// <summary>
+/// The base data that defines a simulation plus any derived properties.
+/// </summary>
+public record SimDataFull(
+    double SimulationTime, double TimeScale, bool IsTimeForward, int TimeConversionFactor,
+    double Theta, double GravitationalConstant, double Epsilon
+) : SimDataBase(SimulationTime, TimeScale, IsTimeForward, TimeConversionFactor, Theta, GravitationalConstant, Epsilon);
+
+/// <summary>
+/// Partial data to update a simulation. Null values are ignored. 
+/// </summary>
+public record SimDataUpdates(
+    double? TimeScale = null,
+    bool? IsTimeForward = null,
+    int? TimeConversionFactor = null,
+    double? Theta = null,
+    double? GravitationalConstant = null,
+    double? Epsilon = null
+);
+
+#endregion
+
+
+#region Internal DTOs
+
+internal readonly record struct EvaluationResult(Vector2D Position, Vector2D Velocity, Vector2D Acceleration);
+
+#endregion
