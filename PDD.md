@@ -3,6 +3,8 @@
 
 # Revision History
 
+- **17/07/2025**
+    - Clarified the `PhysicsEngine` API and data contract.
 - **16/07/2025**
     - Simplified and optimized Tick workflow by eliminating the need for double buffering.
 - **09/07/2025**
@@ -383,52 +385,130 @@ Javascript
 ---
 
 ## PhysicsEngine Architecture
-The physics engine is designed as a double-buffered, completely UI-agnostic, self-contained system that provides a clean API boundary for external integration. This separation ensures the computational physics logic remains independent of presentation concerns and can be thoroughly tested in isolation.
+The physics engine is designed as a completely UI-agnostic, self-contained system that provides a clean API boundary for external integration. This separation ensures the computational physics logic remains independent of presentation concerns and can be thoroughly tested in isolation.
 
 ### API
-The PhysicsEngine is accessed by initializing the exposed `PhysicsEngine` class. This class exposes the following methods.
-```c#
-// Presets
-public PresetData GetPresetData(); // takes a snapshot of the current state of the Simulation
+The PhysicsEngine is accessed by initializing the exposed `PhysicsEngine` class, which implements the `IPhysicsEngine` interface.
+```csharp
+public interface IPhysicsEngine
+{
+    /// <summary>
+    /// Advances the simulation by a single step.
+    /// </summary>
+    /// <param name="realDeltaTimeMs">The elapsed real-world time, in milliseconds, since the last tick was called.</param>
+    /// <remarks>
+    void Tick(double realDeltaTimeMs);
 
-public TickData LoadPreset(PresetData preset); // takes a preset data DTO and creates a new Simulation instance from it which replaces the current simulation instance;
+    /// <summary>
+    /// Loads a simulation with provided bodies from the given base data.
+    /// </summary>
+    /// <param name="sim">The base data for the simulation.</param>
+    /// <param name="bodies">The base data for all the bodies.</param>
+    void Load(SimDataBase sim, List<BodyDataBase> bodies);
 
-// Simulation Time
-public TickDataDto Tick(double deltaTime); // ticks the simulation once
+    /// <summary>
+    /// Gets a snapshot of the base data that makes up the current simulation.
+    /// Does not contain any derived values.
+    /// </summary>
+    /// <returns>A tuple containing the base simulation data and the base data of all bodies.</returns>
+    (SimDataBase sim, List<BodyDataBase> bodies) GetBaseData();
 
-public void SetSimulationTime(double time); // sets the simulation time 
+    /// <summary>
+    /// Gets a snapshot of the full data of the current simulation.
+    /// Contains both the base data as well as derived values.
+    /// </summary>
+    /// <returns>A tuple containing the full simulation data and the full data of all bodies.</returns>
+    (SimDataFull sim, List<BodyDataFull> bodies) GetFullData();
 
-public void SetTimeScale(double timescale);  // sets the timescale for the simulation
+    /// <summary>
+    /// Creates a new celestial body in the simulation.
+    /// </summary>
+    /// <returns>The unique Id of the created body.</returns>
+    int CreateBody();
 
-public void SetTimeForward(bool isForward); // sets the direction of time for the simulation
+    /// <summary>
+    /// Deletes a celestial body from the simulation.
+    /// </summary>
+    /// <param name="id">The unique id of the body to delete.</param>
+    /// <returns><c>true</c> if the specified body instance was found and removed; otherwise <c>false</c>.</returns>
+    bool DeleteBody(int id);
 
-// DTOs
-public record BodyStateData(int Id, bool Enabled, double Mass, double PosX, double PosY, double VelX, double VelY); // I might need to add other properties to this record as CelestialBody also has derived properties like certain orbital values for example. I don't yet know which ones though.
+    /// <summary>
+    /// Atomically updates a celestial body in the simulation.
+    /// </summary>
+    /// <param name="id">The unique id of the body to update.</param>
+    /// <param name="updates">
+    /// The new values for properties to be updated.
+    /// Unspecified (<c>null</c>) parameters will be ignored and their corresponding properties will remain unchanged.
+    /// </param>
+    /// <returns><c>true</c> if the update was successful, <c>false</c> if not or if the body wasn't found.</returns>
+    bool UpdateBody(int id, BodyDataUpdates updates);
 
-public record SimStateData(double SimulationTime, double TimeScale, bool IsTimeForward);
+    /// <summary>
+    /// Atomically updates the simulation.
+    /// </summary>
+    /// <param name="updates">
+    /// The new values for properties to be updated.
+    /// Unspecified (<c>null</c>) parameters will be ignored and their corresponding properties will remain unchanged.
+    /// </param>
+    void UpdateSimulation(SimDataUpdates updates);
+}
+```
 
-public record TickDataDto(SimStateData SimStateData, BodyStateData[] BodiesStateData);
+Additionally the `Physics` namespace exposes the following records for data transfer.
 
-public record PresetBodyData(int Id, bool Enabled, double Mass, double PosX, double PosY, double VelX, double VelY);
+```csharp
+/// <summary>
+/// The base data that defines a celestial body.
+/// </summary>
+public record BodyDataBase(int Id, bool Enabled, double Mass, double PosX, double PosY, double VelX, double VelY);
 
-public record PresetSimData(double SimulationTime, double TimeScale, bool IsTimeForward);
+/// <summary>
+/// The base data that that defines a celestial body plus any derived properties of the body.
+/// </summary>
+public record BodyDataFull(int Id, bool Enabled, double Mass, double PosX, double PosY, double VelX, double VelY);  // Note: Which  derived properties will be added are yet to be determined. 
 
-public record PresetData(PresetSimData PresetSimData, PresetBodyData[] PresetBodyDataArray);
+/// <summary>
+/// Partial data to update a celestial body. Null values are ignored. 
+/// </summary>
+public record BodyDataUpdates(
+    bool? Enabled = null,
+    double? Mass = null,
+    double? PosX = null,
+    double? PosY = null,
+    double? VelX = null,
+    double? VelY = null
+);
 
-public record BodyUpdateData(int Id, bool? Enabled, double? Mass, double? PosX, double? PosY, double? VelX, double? VelY);
+/// <summary>
+/// The base data that defines a simulation.
+/// </summary>
+public record SimDataBase(
+    // Timer
+    double SimulationTime, double TimeScale, bool IsTimeForward, int TimeConversionFactor,
+    // Calculator
+    double Theta, double GravitationalConstant, double Epsilon
+);
 
-// Celestial Bodies
+/// <summary>
+/// The base data that defines a simulation plus any derived properties.
+/// </summary>
+public record SimDataFull(
+    double SimulationTime, double TimeScale, bool IsTimeForward, int TimeConversionFactor,
+    double Theta, double GravitationalConstant, double Epsilon
+);  // Note: Which  derived properties will be added are yet to be determined. 
 
-public int CreateBody(); // creats a CelestialBody instance and adds it to the simulation; is always initiaized with enabled=false, a unique id, and default values; the unique id is returned.
-
-public bool DeleteBody(int id); // destroys an existing CelestialBody by its id;
-
-public bool UpdateBody(BodyStateData newData); // updates an existing CelestialBody
-
-public BodyStateData? GetBodyData(int id); // gets the data of an existing CelestialBody instance by its id; If none exists retunrs null instead;
-
-public BodyStateData[] GetBodyDataAll(); // gets the data of all existing CelestialBody instances
-
+/// <summary>
+/// Partial data to update a simulation. Null values are ignored. 
+/// </summary>
+public record SimDataUpdates(
+    double? TimeScale = null,
+    bool? IsTimeForward = null,
+    int? TimeConversionFactor = null,
+    double? Theta = null,
+    double? GravitationalConstant = null,
+    double? Epsilon = null
+);
 
 ```
 
