@@ -79,7 +79,6 @@ internal class Calculator : ICalculator
         G = gravitationalConstant;
         Theta = theta;
         Epsilon = epsilon;
-        SetIntegrationAlgorithm(algorithm);
 
         // Pre-Square
         Theta_sq = Theta * Theta;
@@ -92,6 +91,7 @@ internal class Calculator : ICalculator
             { IntegrationAlgorithm.RungeKutta4, RungeKutta4 },
             { IntegrationAlgorithm.VelocityVerlet, VelocityVerlet }
         };
+        SetIntegrationAlgorithm(algorithm); // Must be called AFTER integration methods is initialized
     }
 
     #endregion
