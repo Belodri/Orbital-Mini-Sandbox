@@ -7,14 +7,16 @@ namespace Bridge;
 
 internal class Program { private static void Main(string[] args) { } }  // Called while initializing dotnet.js; Don't remove!
 
+internal record PresetData(SimDataBase Sim, List<BodyDataBase> Bodies);
+
 [JsonSourceGenerationOptions(
     WriteIndented = false,
     GenerationMode = JsonSourceGenerationMode.Metadata,
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 [JsonSerializable(typeof(PresetData))]
-[JsonSerializable(typeof(PresetSimData))]
-[JsonSerializable(typeof(PresetBodyData))]
-[JsonSerializable(typeof(PresetBodyData[]))]
+[JsonSerializable(typeof(SimDataBase))]
+[JsonSerializable(typeof(BodyDataBase))]
+[JsonSerializable(typeof(List<BodyDataBase>))]
 partial class PresetJSONSerializerContext : JsonSerializerContext { }
 
 public static partial class EngineBridge
@@ -53,14 +55,17 @@ public static partial class EngineBridge
     #region Publicly exposed methods
 
     [JSExport]
-    public static void Tick(double timestamp)
+    public static void Tick(double realDeltaTimeMs)
     {
         // Process queued commands
         commandQueue.ProcessAll(physicsEngine);
         // Let the engine do its calculations
-        TickData tickData = physicsEngine.Tick(timestamp);
+        physicsEngine.Tick(realDeltaTimeMs);
+        // Get the tick data
+
+        (SimDataFull sim, List<BodyDataFull> bodies) = physicsEngine.GetFullData();
         // Write the resulting state into the shared memory
-        memoryBufferHandler.WriteTickData(tickData);
+        memoryBufferHandler.WriteTickData(sim, bodies);
         // Resolve the queued commands
         commandQueue.ResolveProcessed();
     }
@@ -77,14 +82,13 @@ public static partial class EngineBridge
         return commandQueue.EnqueueTask(engine => engine.DeleteBody(id));
     }
 
-    // TODO Consider refactor to using delta values in updates
     [JSExport]
     public static Task<bool> UpdateBody(int id, bool? enabled, double? mass, double? posX, double? posY, double? velX, double? velY)
     {
         return commandQueue.EnqueueTask(engine =>
         {
             return physicsEngine.UpdateBody(
-                new(id, enabled, mass, posX, posY, velX, velY)
+                id, new(enabled, mass, posX, posY, velX, velY)
             );
         });
     }
@@ -99,7 +103,8 @@ public static partial class EngineBridge
     [JSExport]
     public static string GetPreset()
     {
-        PresetData data = physicsEngine.GetPresetData();
+        (SimDataBase sim, List<BodyDataBase> bodies) = physicsEngine.GetBaseData();
+        PresetData data = new(sim, bodies);
         return CreatePresetString(data);
     }
 
@@ -119,8 +124,8 @@ public static partial class EngineBridge
     {
         commandQueue.ClearQueue(); // Ensure prior commands cannot interfere with the newly loaded state.
         PresetData? data = ParseJsonPreset(jsonPreset) ?? throw new Exception("Failed to load: Preset data was null or empty.");
-        TickData tickData = physicsEngine.LoadPreset(data);
-        memoryBufferHandler.WriteTickData(tickData);
+        physicsEngine.Load(data.Sim, data.Bodies);
+        Tick(0);
     }
 
     internal static PresetData? ParseJsonPreset(string jsonPreset)

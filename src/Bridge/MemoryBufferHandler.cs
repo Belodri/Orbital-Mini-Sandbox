@@ -122,34 +122,36 @@ internal class MemoryBufferHandler : IDisposable
 
     #region Data Writing
 
-    internal void WriteTickData(TickData tickData)
+    internal void WriteTickData(SimDataFull sim, List<BodyDataFull> bodies)
     {
         // Resize if needed and ensure that _bodyStateBufferPtr
         // and _bodyStateBufferSizeInBytes are up to date
-        EnsureBodyCapacity(tickData.BodyTickDataArray.Length);
+        var bodyCount = bodies.Count;
+        EnsureBodyCapacity(bodyCount);
 
-        WriteSimState(tickData);
-        WriteBodyState(tickData);
+        WriteSimState(sim, bodyCount);
+        WriteBodyState(bodies);
     }
 
-    private unsafe void WriteSimState(TickData tickData)
+    private unsafe void WriteSimState(SimDataFull sim, int bodyCount)
     {
         double* pSimState = (double*)_simBufferPtr;
 
         pSimState[SimStateLayout._bodyBufferPtr] = _bodyBufferPtr;
         pSimState[SimStateLayout._bodyBufferSize] = _bodyBufferSizeInBytes;
-        pSimState[SimStateLayout.simulationTime] = tickData.SimTickData.SimulationTime;
-        pSimState[SimStateLayout.timeScale] = tickData.SimTickData.TimeScale;
-        pSimState[SimStateLayout.timeIsForward] = Convert.ToDouble(tickData.SimTickData.IsTimeForward);
-        pSimState[SimStateLayout.bodyCount] = tickData.BodyTickDataArray.Length;
-        pSimState[SimStateLayout.timeConversionFactor] = tickData.SimTickData.TimeConversionFactor;
+        pSimState[SimStateLayout.simulationTime] = sim.SimulationTime;
+        pSimState[SimStateLayout.timeScale] = sim.TimeScale;
+        pSimState[SimStateLayout.timeIsForward] = Convert.ToDouble(sim.IsTimeForward);
+        pSimState[SimStateLayout.bodyCount] = bodyCount;
+        pSimState[SimStateLayout.timeConversionFactor] = sim.TimeConversionFactor;
+        // TODO Add Theta, GravitationalCostant, Epsilon
     }
 
     
 
-    private unsafe void WriteBodyState(TickData tickData)
+    private unsafe void WriteBodyState(List<BodyDataFull> bodies)
     {
-        int bodyCount = tickData.BodyTickDataArray.Length;
+        int bodyCount = bodies.Count;
         if (bodyCount == 0) return;
 
         int bodyStride = BodyStateLayoutArr.Length;
@@ -158,9 +160,9 @@ internal class MemoryBufferHandler : IDisposable
         // Span to represent only the used portion of the reusable array.
         var allBodiesData = new Span<double>(_bodiesStagingBuffer, 0, totalDoubles);
 
-        for (int i = 0; i < tickData.BodyTickDataArray.Length; i++)
+        for (int i = 0; i < bodyCount; i++)
         {
-            BodyTickData body = tickData.BodyTickDataArray[i];
+            BodyDataFull body = bodies[i];
             var bodySlice = allBodiesData.Slice(i * bodyStride, bodyStride);
 
             bodySlice[BodyStateLayout.id] = body.Id;
