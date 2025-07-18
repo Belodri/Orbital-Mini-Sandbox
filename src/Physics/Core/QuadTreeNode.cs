@@ -4,6 +4,68 @@ using Physics.Models;
 
 namespace Physics.Core;
 
+internal interface IQuadTreeNode
+{
+    /// <summary>
+    /// Tracks how many bodies are in this node and all of its children.
+    /// </summary>
+    int Count { get; }
+
+    /// <summary>
+    /// Tracks if the node has been evaluated and is locked from further modification.
+    /// </summary>
+    bool IsEvaluated { get; }
+
+    /// <summary>
+    /// Iterator to access the bodies contained directly within this node.
+    /// If the node is an internal node, the enumeration is empty. 
+    /// </summary>
+    IEnumerable<ICelestialBody> Bodies { get; }
+
+    /// <summary>
+    /// Iterator to safely access the existing child nodes.
+    /// </summary>
+    IEnumerable<IQuadTreeNode> Children { get; }
+
+    /// <summary>
+    /// The rectangular boundary that this node represents in the simulation space.
+    /// </summary>
+    AABB Boundary { get; }
+
+    /// <summary>
+    /// A flag indicating whether this node is a external or an internal node.
+    /// </summary>
+    bool IsExternal { get; }
+
+    /// <summary>
+    /// The combined total mass of the node (either its body or of all of its children, if any).
+    /// </summary>
+    double TotalMass { get; }
+
+    /// <summary>
+    /// The weighted-average position of node's body or of all of its children, if any.
+    /// This acts as the single point from which the node's TotalMass exerts its gravitational force.
+    /// </summary>
+    Vector2D CenterOfMass { get; }
+
+    /// <summary>
+    /// Inserts a celestial body into the QuadTree starting from this node.
+    /// Attempting to insert a body after the node has been evaluated will throw an exception!
+    /// </summary>
+    /// <param name="body">The celestial body to insert.</param>
+    /// <returns>True if the body was successfully inserted into this node or one of its
+    /// children; false if the body is outside this node's boundary.</returns>
+    bool Insert(ICelestialBody body);
+
+    /// <summary>
+    /// Does a recursive, bottom-up calculation of the total mass and the center of mass of this node.
+    /// Must only be called on the root node after all bodies have been inserted into the tree.
+    /// Once called, locks the node so any further attempts to modify it will throw an exception.
+    /// </summary>
+    void Evaluate();
+}
+
+
 /// <summary>
 /// Represents a node in the QuadTree. Can be:
 /// <list type="bullet">
@@ -18,9 +80,9 @@ namespace Physics.Core;
 /// </list>
 /// Once the node has been evaluated, any further attempts to modify it will throw an exception.
 /// </summary>
-internal class QuadTreeNode
+internal class QuadTreeNode : IQuadTreeNode
 {
-    internal QuadTreeNode(AABB boundary) : this(boundary, 0) {}
+    internal QuadTreeNode(AABB boundary) : this(boundary, 0) { }
 
     private QuadTreeNode(AABB boundary, int depth)
     {
@@ -41,21 +103,14 @@ internal class QuadTreeNode
     /// </summary>
     private readonly int _depth = 0;
 
-    /// <summary>
-    /// Tracks how many bodies are in this node and all of its children.
-    /// </summary>
-    internal int Count { get; private set; } = 0;
+    /// <inheritdoc />
+    public int Count { get; private set; } = 0;
 
-    /// <summary>
-    /// Tracks if the node has been evaluated and is locked from further modification.
-    /// </summary>
-    internal bool IsEvaluated { get; private set; } = false;
+    /// <inheritdoc />
+    public bool IsEvaluated { get; private set; } = false;
 
-    /// <summary>
-    /// Consumer-facing iterator to access the bodies contained directly within this node.
-    /// If the node is an internal node, the enumeration is empty. 
-    /// </summary>
-    internal IEnumerable<CelestialBody> Bodies
+    /// <inheritdoc />
+    public IEnumerable<ICelestialBody> Bodies
     {
         get
         {
@@ -72,13 +127,13 @@ internal class QuadTreeNode
     /// majority of external nodes and avoids the overhead of a List allocation.
     /// It is null if the node is internal, crowded, or empty.
     /// </summary>
-    private CelestialBody? _body;
+    private ICelestialBody? _body;
 
     /// <summary>
     /// The storage for a "crowded" node. Is only allocated and used if a node
     /// is at MAX_DEPTH, ensuring the happy path has zero list overhead.
     /// </summary>
-    private List<CelestialBody>? _crowdedBodies;
+    private List<ICelestialBody>? _crowdedBodies;
 
     // Child nodes are nullable, as they only exist after subdivision.
     private QuadTreeNode? _nwChild;
@@ -86,10 +141,16 @@ internal class QuadTreeNode
     private QuadTreeNode? _swChild;
     private QuadTreeNode? _seChild;
 
+    /// <inheritdoc />
+    IEnumerable<IQuadTreeNode> IQuadTreeNode.Children
+    {
+        get => PrivateChildren;
+    }
+
     /// <summary>
-    /// Iterator to safely access the existing child nodes.
+    /// Private iterator to safely access the existing child nodes.
     /// </summary>
-    internal IEnumerable<QuadTreeNode> Children
+    private IEnumerable<QuadTreeNode> PrivateChildren
     {
         get
         {
@@ -100,58 +161,43 @@ internal class QuadTreeNode
         }
     }
 
-    /// <summary>
-    /// The rectangular boundary that this node represents in the simulation space.
-    /// </summary>
-    internal AABB Boundary { get; init; }
+    /// <inheritdoc />
+    public AABB Boundary { get; init; }
 
-    /// <summary>
-    /// A flag indicating whether this node is a external or an internal node.
-    /// </summary>
-    internal bool IsExternal { get; private set; } = true;
+    /// <inheritdoc />
+    public bool IsExternal { get; private set; } = true;
 
     /// <summary>
     /// A flag to determine if a node is crowded or not.
     /// </summary>
-    internal bool IsCrowded => _depth >= MAX_DEPTH;
+    private bool IsCrowded => _depth >= MAX_DEPTH;
 
-    /// <summary>
-    /// The combined total mass of the node (either its body or of all of its children, if any).
-    /// </summary>
-    internal double TotalMass { get; private set; } = 0;
+    /// <inheritdoc />
+    public double TotalMass { get; private set; } = 0;
 
-    /// <summary>
-    /// The weighted-average position of node's body or of all of its children, if any.
-    /// This acts as the single point from which the node's TotalMass exerts its gravitational force.
-    /// </summary>
-    internal Vector2D CenterOfMass { get; private set; } = Vector2D.Zero;
+    /// <inheritdoc />
+    public Vector2D CenterOfMass { get; private set; } = Vector2D.Zero;
 
     #endregion
 
 
     #region Insert
 
-    /// <summary>
-    /// Inserts a celestial body into the QuadTree starting from this node.
-    /// Attempting to insert a body after the node has been evaluated will throw an exception!
-    /// </summary>
-    /// <param name="newBody">The celestial body to insert.</param>
-    /// <returns>True if the body was successfully inserted into this node or one of its
-    /// children; false if the body is outside this node's boundary.</returns>
-    internal bool Insert(CelestialBody newBody)
+    /// <inheritdoc />
+    public bool Insert(ICelestialBody body)
     {
         if (IsEvaluated) throw new InvalidOperationException("The QuadTreeNode has been evaluated and cannot be modified.");
 
-        if (!Boundary.Contains(newBody)) return false;
+        if (!Boundary.Contains(body)) return false;
 
-        InsertWorker(newBody);
+        InsertWorker(body);
         return true;
     }
 
     /// <summary>
     /// Private worker that skips the redundant public-facing safety check. 
     /// </summary>
-    private void InsertWorker(CelestialBody newBody)
+    private void InsertWorker(ICelestialBody newBody)
     {
         Debug.Assert(Boundary.Contains(newBody), "InsertWorker was called on a node that does not contain the body. Check DistributeToChild logic.");
 
@@ -204,7 +250,7 @@ internal class QuadTreeNode
     /// <summary>
     /// Insert helper method to pass a body down to the correct child node.
     /// </summary>
-    private void DistributeToChild(CelestialBody body)
+    private void DistributeToChild(ICelestialBody body)
     {
         Debug.Assert(!IsExternal, "DistributeToChild should only be called on internal nodes.");
 
@@ -227,12 +273,8 @@ internal class QuadTreeNode
 
     #region Mass Distribution Calculation
 
-    /// <summary>
-    /// Does a recursive, bottom-up calculation of the total mass and the center of mass of this node.
-    /// Must only be called on the root node after all bodies have been inserted into the tree.
-    /// Once called, locks the node so any further attempts to modify it will throw an exception.
-    /// </summary>
-    internal void Evaluate()
+    /// <inheritdoc />
+    public void Evaluate()
     {
         if (IsEvaluated) throw new InvalidOperationException("The QuadTreeNode has been evaluated and cannot be modified.");
         EvaluateWorker();
@@ -241,7 +283,7 @@ internal class QuadTreeNode
     /// <summary>
     /// Private worker that skips the redundant public-facing safety check. 
     /// </summary>
-    void EvaluateWorker()
+    private void EvaluateWorker()
     {
         IsEvaluated = true;
 
@@ -291,7 +333,7 @@ internal class QuadTreeNode
 
         // Recursively evaluate children and aggregate their mass properties.
         // Each child's CenterOfMass is treated as a single point-mass.
-        foreach (var child in Children)
+        foreach (var child in PrivateChildren)
         {
             child.EvaluateWorker();
             TotalMass += child.TotalMass;

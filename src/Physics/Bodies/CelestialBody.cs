@@ -2,26 +2,98 @@ using Physics.Models;
 
 namespace Physics.Bodies;
 
-internal class CelestialBody
+internal interface ICelestialBody
+{
+    /// <summary>
+    /// Unique ID of the body. Must not be negative!
+    /// </summary>
+    int Id { get; }
+
+    /// <summary>
+    /// A disabled body will be ignored by physics calculations.
+    /// </summary>
+    bool Enabled { get; }
+
+    /// <summary>
+    /// The mass of the body in kg.
+    /// </summary>
+    double Mass { get; }
+
+    /// <summary>
+    /// The position of the body in space.
+    /// </summary>
+    Vector2D Position { get; }
+
+    /// <summary>
+    /// The velocity vector of the body in space.
+    /// </summary>
+    Vector2D Velocity { get; }
+
+    /// <summary>
+    /// An event raised after the body's state has been successfully changed via the <see cref="Update"/> method.
+    /// </summary>
+    /// <remarks>
+    /// This event only fires if at least one property's value is different after the update.
+    /// The event handler receives two arguments: the instance of the body that was updated, and a <see cref="BodyDataUpdates"/>
+    /// record containing only the new values for the properties that were changed. Unchanged properties will be <c>null</c> in this record.
+    /// </remarks>
+    event Action<ICelestialBody, BodyDataUpdates>? Updated;
+
+    /// <summary>
+    /// Atomically updates one or more properties of the celestial body.
+    /// If any property's value changes, the <see cref="Updated"/> event is raised.
+    /// Unspecified (<c>null</c>) parameters will be ignored and their corresponding properties will remain unchanged.
+    /// </summary>
+    /// <param name="enabled">The new value for the <see cref="Enabled"/> property. If null, the current value is not changed.</param>
+    /// <param name="mass">The new value for the <see cref="Mass"/> property. If null, the current value is not changed.</param>
+    /// <param name="posX">The new X component for the <see cref="Position"/> vector. If null, the X component is not changed.</param>
+    /// <param name="posY">The new Y component for the <see cref="Position"/> vector. If null, the Y component is not changed.</param>
+    /// <param name="velX">The new X component for the <see cref="Velocity"/> vector. If null, the X component is not changed.</param>
+    /// <param name="velY">The new Y component for the <see cref="Velocity"/> vector. If null, the Y component is not changed.</param>
+    void Update(
+        bool? enabled = null,
+        double? mass = null,
+        double? posX = null,
+        double? posY = null,
+        double? velX = null,
+        double? velY = null
+    );
+
+    /// <inheritdoc cref="Update(bool?, double?, double?, double?, double?, double?)"/>
+    /// <param name="position">The new value for the <see cref="Position"/> vector. If null, the current value is not changed.</param>
+    /// <param name="velocity">The new value for the <see cref="Velocity"/> vector. If null, the current value is not changed.</param>
+    void Update(
+        bool? enabled = null,
+        double? mass = null,
+        Vector2D? position = null,
+        Vector2D? velocity = null
+    );
+}
+
+internal class CelestialBody : ICelestialBody
 {
     #region Constructors
 
-    internal CelestialBody(int id) : this(CreateInitialData(id)) {}
-
-    internal CelestialBody(BodyData data)
+    internal CelestialBody(
+        int id,
+        bool enabled = false,
+        double mass = 0.0,
+        Vector2D? position = null,
+        Vector2D? velocity = null)
     {
-        if (data.Id <= 0) throw new ArgumentOutOfRangeException(nameof(data), "Id must be greater than 0.");
-        Id = data.Id;
-        _enabled = data.Enabled;
-        _mass = data.Mass;
-        _position = data.Position;
-        _velocity = data.Velocity;
-    }
+        if (id < 0) throw new ArgumentOutOfRangeException(nameof(id), "Id must not be negative.");
+        Id = id;
+        _enabled = enabled;
+        _mass = mass;
 
-    private static BodyData CreateInitialData(int id)
-    {
-        var offset = id * INITIALIZATION_POSITION_OFFSET;
-        return DEFAULT_DATA with { Id = id, Position = new(offset, offset) };
+        if (position == null)
+        {
+            var offset = id * INITIALIZATION_POSITION_OFFSET + INITIALIZATION_POSITION_OFFSET;
+            _position = new(offset, offset);
+        }
+        else _position = position.Value;
+
+        _velocity = velocity ?? Vector2D.Zero;
     }
 
     #endregion
@@ -29,12 +101,10 @@ internal class CelestialBody
 
     #region Consts & Config
 
-    internal static readonly BodyData DEFAULT_DATA = new(0, false, 0.0, new(0, 0), new(0, 0));
-
     /// <summary>
     /// This deterministic offset ensures no two bodies are ever initialized at exactly (0, 0).
     /// </summary>
-    internal const double INITIALIZATION_POSITION_OFFSET = 1e-10;
+    private const double INITIALIZATION_POSITION_OFFSET = 1e-10;
 
     #endregion
 
@@ -46,42 +116,76 @@ internal class CelestialBody
     Vector2D _position;
     Vector2D _velocity;
 
-    internal int Id { get; init; }
-    internal bool Enabled { get => _enabled; private set => _enabled = value; }
-    internal double Mass { get => _mass; private set => _mass = value; }
-    internal Vector2D Position { get => _position; private set => _position = value; }
-    internal Vector2D Velocity { get => _velocity; private set => _velocity = value; }
+    /// <inheritdoc />
+    public int Id { get; init; }
+    /// <inheritdoc />
+    public bool Enabled { get => _enabled; private set => _enabled = value; }
+    /// <inheritdoc />
+    public double Mass { get => _mass; private set => _mass = value; }
+    /// <inheritdoc />
+    public Vector2D Position { get => _position; private set => _position = value; }
+    /// <inheritdoc />
+    public Vector2D Velocity { get => _velocity; private set => _velocity = value; }
 
     #endregion
 
 
     #region Updates
 
-    internal event Action<CelestialBody, BodyDataPartial>? Updated;
+    /// <inheritdoc />
+    public event Action<ICelestialBody, BodyDataUpdates>? Updated;
 
-    internal bool Update(BodyDataPartial updatePreset)
+    /// <inheritdoc />
+    public void Update(
+        bool? enabled = null,
+        double? mass = null,
+        double? posX = null,
+        double? posY = null,
+        double? velX = null,
+        double? velY = null)
     {
-        var enabledChanged = TryUpdateProperty(ref _enabled, updatePreset.Enabled);
-        var massChanged = TryUpdateProperty(ref _mass, updatePreset.Mass);
-        var posChanged = TryUpdateProperty(ref _position, updatePreset.PosX, updatePreset.PosY);
-        var velChanged = TryUpdateProperty(ref _velocity, updatePreset.VelX, updatePreset.VelY);
+        var enabledChanged = TryUpdateProperty(ref _enabled, enabled);
+        var massChanged = TryUpdateProperty(ref _mass, mass);
+        var posChanged = TryUpdateProperty(ref _position, posX, posY);
+        var velChanged = TryUpdateProperty(ref _velocity, velX, velY);
+        UpdateNotificationWorker(enabledChanged, massChanged, posChanged, velChanged);
+    }
 
+    /// <inheritdoc />
+    public void Update(
+        bool? enabled = null,
+        double? mass = null,
+        Vector2D? position = null,
+        Vector2D? velocity = null)
+    {
+        var enabledChanged = TryUpdateProperty(ref _enabled, enabled);
+        var massChanged = TryUpdateProperty(ref _mass, mass);
+        var posChanged = TryUpdateProperty(ref _position, position);
+        var velChanged = TryUpdateProperty(ref _position, position);
+        UpdateNotificationWorker(enabledChanged, massChanged, posChanged, velChanged);
+    }
+
+    /// <summary>
+    /// Notifies the subscribers of this body's update event based on the fields that were updated.
+    /// </summary>
+    /// <param name="enabledChanged">Was the <see cref="Enabled"/> field updated?</param>
+    /// <param name="massChanged">Was the <see cref="Mass"/> field updated?</param>
+    /// <param name="posChanged">Was the <see cref="Position"/> field or one of its components updated?</param>
+    /// <param name="velChanged">Was the <see cref="Velocity"/> field or one of its components updated?</param>
+    private void UpdateNotificationWorker(bool enabledChanged, bool massChanged, bool posChanged, bool velChanged)
+    {
         bool anyPropertyChanged = enabledChanged || massChanged || posChanged || velChanged;
-        if (anyPropertyChanged)
-        {
-            BodyDataPartial delta = new(
-                Id,
-                enabledChanged ? Enabled : null,
-                massChanged ? Mass : null,
-                posChanged ? Position.X : null,
-                posChanged ? Position.Y : null,
-                velChanged ? Velocity.X : null,
-                velChanged ? Velocity.Y : null
-            );
-            Updated?.Invoke(this, delta);
-        }
+        if (!anyPropertyChanged) return;
 
-        return true; // TODO: Add validation logic for updatePreset and return false without updating if invalid
+        BodyDataUpdates delta = new(
+            Enabled: enabledChanged ? _enabled : null,
+            Mass: massChanged ? _mass : null,
+            PosX: posChanged ? _position.X : null,
+            PosY: posChanged ? _position.Y : null,
+            VelX: velChanged ? _velocity.X : null,
+            VelY: velChanged ? _velocity.Y : null
+        );
+        Updated?.Invoke(this, delta);
     }
 
     /// <summary>

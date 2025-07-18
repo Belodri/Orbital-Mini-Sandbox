@@ -61,7 +61,7 @@ internal readonly struct AABB
     /// </summary>
     /// <param name="body">The celestial body to check.</param>
     /// <returns>True if the body is inside the boundary, otherwise false.</returns>
-    internal bool Contains(CelestialBody body) => Contains(body.Position);
+    internal bool Contains(ICelestialBody body) => Contains(body.Position);
 
     /// <summary>
     /// Checks if a point's position is containd within this bounding box.
