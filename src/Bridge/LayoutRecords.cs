@@ -39,7 +39,19 @@ public record SimStateLayoutRec(
     /// <summary>
     /// The total number of bodies in the simulation, including disabled ones.
     /// </summary>
-    int bodyCount
+    int bodyCount,
+    /// <summary>
+    /// The opening-angle parameter (theta, θ) for the Barnes-Hut algorithm. 0 < theta < 1
+    /// </summary>
+    int theta,
+    /// <summary>
+    /// The value for the gravitational constant G in m3/kg/s^2
+    /// </summary>
+    int gravitationalConstant,
+    /// <summary>
+    /// The softening factor (epsilon, ε) used to prevent numerical instability in the simulation. 0 < epsilon
+    /// </summary>
+    int epsilon
 );
 
 public record BodyStateLayoutRec(
@@ -70,5 +82,13 @@ public record BodyStateLayoutRec(
     /// <summary>
     /// The body's velocity in the y direction 
     /// </summary>
-    int velY
+    int velY,
+    /// <summary>
+    /// The body's acceleration in the x direction 
+    /// </summary>
+    int accX,
+    /// <summary>
+    /// The body's acceleration in the y direction 
+    /// </summary>
+    int accY
 );

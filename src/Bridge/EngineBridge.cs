@@ -83,12 +83,17 @@ public static partial class EngineBridge
     }
 
     [JSExport]
-    public static Task<bool> UpdateBody(int id, bool? enabled, double? mass, double? posX, double? posY, double? velX, double? velY)
+    public static Task<bool> UpdateBody(
+        int id,
+        bool? enabled, double? mass,
+        double? posX, double? posY,
+        double? velX, double? velY,
+        double? accX, double? accY)
     {
         return commandQueue.EnqueueTask(engine =>
         {
             return physicsEngine.UpdateBody(
-                id, new(enabled, mass, posX, posY, velX, velY)
+                id, new(enabled, mass, posX, posY, velX, velY, accX, accY)
             );
         });
     }

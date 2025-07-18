@@ -22,6 +22,18 @@ export interface SimStateLayout {
      * The total number of bodies in the simulation, including disabled ones.
      */
     readonly bodyCount: number;
+    /**
+     * The opening-angle parameter (theta, θ) for the Barnes-Hut algorithm. 0
+     */
+    readonly theta: number;
+    /**
+     * The value for the gravitational constant G in m3/kg/s^2
+     */
+    readonly gravitationalConstant: number;
+    /**
+     * The softening factor (epsilon, ε) used to prevent numerical instability in the simulation. 0
+     */
+    readonly epsilon: number;
 }
 
 export interface BodyStateLayout {
@@ -53,4 +65,12 @@ export interface BodyStateLayout {
      * The body's velocity in the y direction
      */
     readonly velY: number;
+    /**
+     * The body's acceleration in the x direction
+     */
+    readonly accX: number;
+    /**
+     * The body's acceleration in the y direction
+     */
+    readonly accY: number;
 }

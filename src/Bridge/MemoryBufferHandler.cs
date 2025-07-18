@@ -144,10 +144,10 @@ internal class MemoryBufferHandler : IDisposable
         pSimState[SimStateLayout.timeIsForward] = Convert.ToDouble(sim.IsTimeForward);
         pSimState[SimStateLayout.bodyCount] = bodyCount;
         pSimState[SimStateLayout.timeConversionFactor] = sim.TimeConversionFactor;
-        // TODO Add Theta, GravitationalCostant, Epsilon
+        pSimState[SimStateLayout.theta] = sim.Theta;
+        pSimState[SimStateLayout.gravitationalConstant] = sim.GravitationalConstant;
+        pSimState[SimStateLayout.epsilon] = sim.Epsilon;
     }
-
-    
 
     private unsafe void WriteBodyState(List<BodyDataFull> bodies)
     {
@@ -172,6 +172,8 @@ internal class MemoryBufferHandler : IDisposable
             bodySlice[BodyStateLayout.posY] = body.PosY;
             bodySlice[BodyStateLayout.velX] = body.VelX;
             bodySlice[BodyStateLayout.velY] = body.VelY;
+            bodySlice[BodyStateLayout.accX] = body.AccX;
+            bodySlice[BodyStateLayout.accY] = body.AccY;
         }
 
         fixed (double* pSource = allBodiesData)
