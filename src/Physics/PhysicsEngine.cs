@@ -1,5 +1,6 @@
 ﻿using Physics.Bodies;
 using Physics.Core;
+using Physics.Models;
 using Timer = Physics.Core.Timer;
 
 namespace Physics;
@@ -9,13 +10,13 @@ namespace Physics;
 /// <summary>
 /// The base data that defines a celestial body.
 /// </summary>
-public record BodyDataBase(int Id, bool Enabled, double Mass, double PosX, double PosY, double VelX, double VelY);
+public record BodyDataBase(int Id, bool Enabled, double Mass, double PosX, double PosY, double VelX, double VelY, double AccX, double AccY);
 
 /// <summary>
 /// The base data that that defines a celestial body plus any derived properties of the body.
 /// </summary>
-public record BodyDataFull(int Id, bool Enabled, double Mass, double PosX, double PosY, double VelX, double VelY)
-    : BodyDataBase(Id, Enabled, Mass, PosX, PosY, VelX, VelY);
+public record BodyDataFull(int Id, bool Enabled, double Mass, double PosX, double PosY, double VelX, double VelY, double AccX, double AccY)
+    : BodyDataBase(Id, Enabled, Mass, PosX, PosY, VelX, VelY, AccX, AccY);
 
 /// <summary>
 /// Partial data to update a celestial body. Null values are ignored. 
@@ -26,7 +27,9 @@ public record BodyDataUpdates(
     double? PosX = null,
     double? PosY = null,
     double? VelX = null,
-    double? VelY = null
+    double? VelY = null,
+    double? AccX = null,
+    double? AccY = null
 );
 
 #endregion
@@ -63,6 +66,12 @@ public record SimDataUpdates(
     double? GravitationalConstant = null,
     double? Epsilon = null
 );
+
+#endregion
+
+#region Internal DTOs
+
+internal readonly record struct EvaluationResult(Vector2D Position, Vector2D Velocity, Vector2D Acceleration);
 
 #endregion
 
@@ -175,7 +184,9 @@ internal static class DataMapper
             PosX: body.Position.X,
             PosY: body.Position.Y,
             VelX: body.Velocity.X,
-            VelY: body.Velocity.Y
+            VelY: body.Velocity.Y,
+            AccX: body.Acceleration.X,
+            AccY: body.Acceleration.Y
         );
     
     internal static BodyDataFull ToBodyDataFull(this ICelestialBody body)
@@ -186,7 +197,9 @@ internal static class DataMapper
             PosX: body.Position.X,
             PosY: body.Position.Y,
             VelX: body.Velocity.X,
-            VelY: body.Velocity.Y
+            VelY: body.Velocity.Y,
+            AccX: body.Acceleration.X,
+            AccY: body.Acceleration.Y
         );
 
     #endregion
