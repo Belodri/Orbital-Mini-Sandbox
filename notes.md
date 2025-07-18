@@ -26,3 +26,4 @@ https://learn.microsoft.com/en-us/aspnet/core/client-side/dotnet-interop/wasm-br
 - 10/07/2025 - Refactored Simulation & CelestialBody for clarity and body management. Refactored QuadTreeNode into a state-machine-like evaluator. Added Grid class. Added Tests for QuadTreeNode and Grid, refactored PhysicsEngineTests.
 - 11/07/2025 - Added Timer class; Split public from internal DTOs and added DTOMapper class to handle conversions; Refactored CelestialBody and Simulation; PHYSICS UNIT TESTS NOT YET UPDATED
 - 16/07/2025 - Added Calculator class; Refactored QuadTreeNode and AABB for performance and access; Finalized Tick workflow, updated physics unit tests; Updated PDD to reflect Tick workflow changes;
+- 17/07/2025 - Refactored all components of the Physics project to use the interface pattern for clarity, maintainability, and testability; Clarified PhysicsEngine api and data contracts; Updated Bridge accordingly;
