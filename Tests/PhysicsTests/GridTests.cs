@@ -1,7 +1,10 @@
+using System.Data.Common;
+using System.Linq.Expressions;
 using Physics;
 using Physics.Bodies;
 using Physics.Core;
 using Physics.Models;
+using static PhysicsTests.TestHelpers;
 
 namespace PhysicsTests;
 
@@ -9,26 +12,19 @@ namespace PhysicsTests;
 [DefaultFloatingPointTolerance(1e-12)]
 internal class GridTests
 {
-    public Grid grid = null!;
-    public List<CelestialBody> bodies = null!;
+    public IGrid grid = null!;
+    public List<ICelestialBody> bodies = null!;
 
-    CelestialBody AddBody(PresetBodyData preset)
+    ICelestialBody AddBody(ICelestialBody body)
     {
-        var body = new CelestialBody(preset.ToBodyData());
         bodies.Add(body);
         return body;
-    }
-
-    CelestialBody AddBody(int Id, bool Enabled, double Mass, double PosX, double PosY, double VelX, double VelY)
-    {
-        PresetBodyData preset = new(Id, Enabled, Mass, PosX, PosY, VelX, VelY);
-        return AddBody(preset);
     }
 
     [SetUp]
     public void BeforeEachTest()
     {
-        grid = new();
+        grid = new Grid();
         bodies = [];
     }
 
@@ -50,7 +46,7 @@ internal class GridTests
     public void Rebuild_WithSingleBody_CorrectlyInitializesRootAndBounds()
     {
         // Arrange
-        var body = AddBody(1, true, 100, 50, -50, 0, 0);
+        var body = AddBody(new CelestialBody(id: 1, enabled: true, mass: 1e6, position: new(2,2)));
 
         // Act
         grid.Rebuild(bodies);
@@ -59,7 +55,7 @@ internal class GridTests
         Assert.That(grid.Root, Is.Not.Null, "Root should be created for a single body.");
 
         // A single point has zero width and height, so padding is only the flat amount.
-        double expectedPadding = Grid.PADDING_FLAT;
+        double expectedPadding = Grid.TEST_PADDING_FLAT;
         var expectedHalfDim = new Vector2D(expectedPadding, expectedPadding);
 
         Assert.Multiple(() =>
@@ -80,10 +76,10 @@ internal class GridTests
     public void Rebuild_WithMultipleBodies_CorrectlyCalculatesBoundsAndMassDistribution()
     {
         // Arrange: Create a symmetrical system for easy-to-predict results.
-        AddBody(1, true, 10, -10, -10, 0, 0); // SW
-        AddBody(2, true, 10,  10, -10, 0, 0); // SE
-        AddBody(3, true, 10, -10,  10, 0, 0); // NW
-        AddBody(4, true, 10,  10,  10, 0, 0); // NE
+        AddBody(new CelestialBody(id: 1, enabled: true, mass: 10, position: new(-10,-10))); // SW
+        AddBody(new CelestialBody(id: 2, enabled: true, mass: 10, position: new(10,-10))); // SE
+        AddBody(new CelestialBody(id: 3, enabled: true, mass: 10, position: new(-10, 10))); // NW
+        AddBody(new CelestialBody(id: 4, enabled: true, mass: 10, position: new(10, 10))); // NE
 
         // Act
         grid.Rebuild(bodies);
@@ -94,7 +90,7 @@ internal class GridTests
         // Manually calculate the expected bounds for verification.
         double width = 20; // maxX(10) - minX(-10)
         double height = 20; // maxY(10) - minY(-10)
-        double padding = Math.Max(width, height) * Grid.PADDING_MULT + Grid.PADDING_FLAT;
+        double padding = Math.Max(width, height) * Grid.TEST_PADDING_MULT + Grid.TEST_PADDING_FLAT;
         Vector2D expectedHalfDim = new(width / 2.0 + padding, height / 2.0 + padding);
         var expectedCenter = Vector2D.Zero;
 
