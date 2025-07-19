@@ -3,11 +3,11 @@
 
 export interface SimStateLayout {
     /**
-     * Internal simulation time.
+     * Internal simulation time in units of days (d).
      */
     readonly simulationTime: number;
     /**
-     * A multiplier for how much the simulationTime advances during each simulation tick. Default = 1; Min = 0.01; Max = 100;
+     * A multiplier for how much the simulationTime advances during each simulation tick. Default = 1; Min = 0.001; Max = 1000;
      */
     readonly timeScale: number;
     /**
@@ -15,7 +15,7 @@ export interface SimStateLayout {
      */
     readonly timeIsForward: number;
     /**
-     * Determines how many ms in Simulation time is 1ms in real time, assuming TimeScale = 1.
+     * The conversion factor for simulation time (in d) to real time (in s). Default is 1. Must be positive.
      */
     readonly timeConversionFactor: number;
     /**
@@ -23,15 +23,15 @@ export interface SimStateLayout {
      */
     readonly bodyCount: number;
     /**
-     * The opening-angle parameter (theta, θ) for the Barnes-Hut algorithm. 0
+     * The opening-angle parameter (theta, θ) for the Barnes-Hut algorithm. Clamped between 0 and 1.
      */
     readonly theta: number;
     /**
-     * The value for the gravitational constant G in m3/kg/s^2
+     * The value for the gravitational constant G in m³/kg/s²
      */
     readonly gravitationalConstant: number;
     /**
-     * The softening factor (epsilon, ε) used to prevent numerical instability in the simulation. 0
+     * The softening factor (epsilon, ε) used to prevent numerical instability in the simulation. Clamped to a value greater than 0.001.
      */
     readonly epsilon: number;
 }
@@ -46,31 +46,31 @@ export interface BodyStateLayout {
      */
     readonly enabled: number;
     /**
-     * The mass of the body
+     * The mass of the body in units of Solar Mass (M☉)
      */
     readonly mass: number;
     /**
-     * The x position of the body
+     * The x position of the body in units of Astronomical Units (au)
      */
     readonly posX: number;
     /**
-     * The y position of the body
+     * The y position of the body in units of Astronomical Units (au)
      */
     readonly posY: number;
     /**
-     * The body's velocity in the x direction
+     * The body's velocity in the x direction in units of Astronomical Units per day (au/d)
      */
     readonly velX: number;
     /**
-     * The body's velocity in the y direction
+     * The body's velocity in the y direction in units of Astronomical Units per day (au/d)
      */
     readonly velY: number;
     /**
-     * The body's acceleration in the x direction
+     * The body's acceleration in the x direction in units of Astronomical Units per day squared (au/d²)
      */
     readonly accX: number;
     /**
-     * The body's acceleration in the y direction
+     * The body's acceleration in the y direction in units of Astronomical Units per day squared (au/d²)
      */
     readonly accY: number;
 }

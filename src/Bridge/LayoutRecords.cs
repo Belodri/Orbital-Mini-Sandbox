@@ -21,11 +21,11 @@ public record SimStateLayoutRec(
     int _bodyBufferPtr,
     int _bodyBufferSize,
     /// <summary>
-    /// Internal simulation time.
+    /// Internal simulation time in units of days (d).
     /// </summary>
     int simulationTime,
     /// <summary>
-    /// A multiplier for how much the simulationTime advances during each simulation tick. Default = 1; Min = 0.01; Max = 100;
+    /// A multiplier for how much the simulationTime advances during each simulation tick. Default = 1; Min = 0.001; Max = 1000;
     /// </summary>
     int timeScale,
     /// <summary>
@@ -33,7 +33,7 @@ public record SimStateLayoutRec(
     /// </summary>
     int timeIsForward,
     /// <summary>
-    /// Determines how many ms in Simulation time is 1ms in real time, assuming TimeScale = 1.
+    /// The conversion factor for simulation time (in d) to real time (in s). Default is 1. Must be positive.
     /// </summary>
     int timeConversionFactor,
     /// <summary>
@@ -41,15 +41,15 @@ public record SimStateLayoutRec(
     /// </summary>
     int bodyCount,
     /// <summary>
-    /// The opening-angle parameter (theta, θ) for the Barnes-Hut algorithm. 0 < theta < 1
+    /// The opening-angle parameter (theta, θ) for the Barnes-Hut algorithm. Clamped between 0 and 1.
     /// </summary>
     int theta,
     /// <summary>
-    /// The value for the gravitational constant G in m3/kg/s^2
+    /// The value for the gravitational constant G in m³/kg/s²
     /// </summary>
     int gravitationalConstant,
     /// <summary>
-    /// The softening factor (epsilon, ε) used to prevent numerical instability in the simulation. 0 < epsilon
+    /// The softening factor (epsilon, ε) used to prevent numerical instability in the simulation. Clamped to a value greater than 0.001.
     /// </summary>
     int epsilon
 );
@@ -64,31 +64,31 @@ public record BodyStateLayoutRec(
     /// </summary>
     int enabled,
     /// <summary>
-    /// The mass of the body
+    /// The mass of the body in units of Solar Mass (M☉)
     /// </summary>
     int mass,
     /// <summary>
-    /// The x position of the body
+    /// The x position of the body in units of Astronomical Units (au)
     /// </summary>
     int posX,
     /// <summary>
-    /// The y position of the body
+    /// The y position of the body in units of Astronomical Units (au)
     /// </summary>
     int posY,
     /// <summary>
-    /// The body's velocity in the x direction 
+    /// The body's velocity in the x direction in units of Astronomical Units per day (au/d)
     /// </summary>
     int velX,
     /// <summary>
-    /// The body's velocity in the y direction 
+    /// The body's velocity in the y direction in units of Astronomical Units per day (au/d)
     /// </summary>
     int velY,
     /// <summary>
-    /// The body's acceleration in the x direction 
+    /// The body's acceleration in the x direction in units of Astronomical Units per day squared (au/d²)
     /// </summary>
     int accX,
     /// <summary>
-    /// The body's acceleration in the y direction 
+    /// The body's acceleration in the y direction in units of Astronomical Units per day squared (au/d²)
     /// </summary>
     int accY
 );
