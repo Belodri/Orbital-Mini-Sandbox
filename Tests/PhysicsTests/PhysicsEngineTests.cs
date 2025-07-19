@@ -32,7 +32,7 @@ public class PhysicsEngineTests
             Assert.That(simData.TimeConversionFactor, Is.EqualTo(DefaultTimer.TimeConversionFactor));
             Assert.That(simData.Theta, Is.EqualTo(DefaultCalculator.Theta));
             Assert.That(simData.Epsilon, Is.EqualTo(DefaultCalculator.Epsilon));
-            Assert.That(simData.GravitationalConstant, Is.EqualTo(DefaultCalculator.G));
+            Assert.That(simData.GravitationalConstant, Is.EqualTo(DefaultCalculator.GravitationalConstant));
             Assert.That(bodies, Is.Not.Null, "Body list should not be null.");
             Assert.That(bodies, Is.Empty, "Body list should be empty for a new simulation.");
         });
