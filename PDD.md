@@ -672,3 +672,6 @@ Development will strictly adhere to features and functionality defined in this P
 
 # Potential Future Improvements
 - Auto-save feature using the snapshot system
+- Body creation and manipulation via click & drag
+    - Drag to determine velocity vector
+    - Disable body during manipulation workflow to avoid destabilizing the simulation
