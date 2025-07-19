@@ -38,7 +38,7 @@ public record BodyDataUpdates(
 /// </summary>
 public record SimDataBase(
     // Timer
-    double SimulationTime, double TimeScale, bool IsTimeForward, int TimeConversionFactor,
+    double SimulationTime, double TimeScale, bool IsTimeForward, double TimeConversionFactor,
     // Calculator
     double Theta, double GravitationalConstant, double Epsilon, IntegrationAlgorithm IntegrationAlgorithm
 );
@@ -47,7 +47,7 @@ public record SimDataBase(
 /// The base data that defines a simulation plus any derived properties.
 /// </summary>
 public record SimDataFull(
-    double SimulationTime, double TimeScale, bool IsTimeForward, int TimeConversionFactor,
+    double SimulationTime, double TimeScale, bool IsTimeForward, double TimeConversionFactor,
     double Theta, double GravitationalConstant, double Epsilon, IntegrationAlgorithm IntegrationAlgorithm
 ) : SimDataBase(SimulationTime, TimeScale, IsTimeForward, TimeConversionFactor, Theta, GravitationalConstant, Epsilon, IntegrationAlgorithm);
 
@@ -57,7 +57,7 @@ public record SimDataFull(
 public record SimDataUpdates(
     double? TimeScale = null,
     bool? IsTimeForward = null,
-    int? TimeConversionFactor = null,
+    double? TimeConversionFactor = null,
     double? Theta = null,
     double? GravitationalConstant = null,
     double? Epsilon = null,

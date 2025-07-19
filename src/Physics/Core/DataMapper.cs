@@ -76,7 +76,7 @@ internal static class DataMapper
             IsTimeForward: sim.Timer.IsTimeForward,
             TimeConversionFactor: sim.Timer.TimeConversionFactor,
             Theta: sim.Calculator.Theta,
-            GravitationalConstant: sim.Calculator.G,
+            GravitationalConstant: sim.Calculator.GravitationalConstant,
             Epsilon: sim.Calculator.Epsilon,
             IntegrationAlgorithm: sim.Calculator.IntegrationAlgorithm
         );
@@ -88,7 +88,7 @@ internal static class DataMapper
             IsTimeForward: sim.Timer.IsTimeForward,
             TimeConversionFactor: sim.Timer.TimeConversionFactor,
             Theta: sim.Calculator.Theta,
-            GravitationalConstant: sim.Calculator.G,
+            GravitationalConstant: sim.Calculator.GravitationalConstant,
             Epsilon: sim.Calculator.Epsilon,
             IntegrationAlgorithm: sim.Calculator.IntegrationAlgorithm
         );

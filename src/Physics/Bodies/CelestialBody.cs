@@ -15,22 +15,22 @@ internal interface ICelestialBody
     bool Enabled { get; }
 
     /// <summary>
-    /// The mass of the body in kg.
+    /// The mass of the body in Solar Masses (M☉).
     /// </summary>
     double Mass { get; }
 
     /// <summary>
-    /// The position of the body in space.
+    /// The position of the body in space in au.
     /// </summary>
     Vector2D Position { get; }
 
     /// <summary>
-    /// The velocity vector of the body in space.
+    /// The velocity vector of the body in space in au/d.
     /// </summary>
     Vector2D Velocity { get; }
 
     /// <summary>
-    /// The acceleration vector of the body.
+    /// The acceleration vector of the body in au/d².
     /// </summary>
     Vector2D Acceleration { get; }
 

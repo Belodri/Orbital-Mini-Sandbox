@@ -9,8 +9,8 @@ internal interface ICalculator
     /// <summary>
     /// The value for the gravitational constant G in cubic meters per kilogram per second squared.
     /// </summary>
-    /// <value>The gravitational constant, in units of m^3 kg^-1 s^-2.</value>
-    double G { get; }
+    /// <value>The gravitational constant, in units of m³/kg/s².</value>
+    double GravitationalConstant { get; }
 
     /// <summary>
     /// The opening-angle parameter (theta, θ) for the Barnes-Hut algorithm.
@@ -18,14 +18,14 @@ internal interface ICalculator
     /// <value>A value, between 0 and 1, that controls the trade-off between accuracy and computational speed.</value>
     /// <remarks>
     /// A smaller theta value results in higher accuracy but more calculations, as tree nodes must be closer to be treated as a single mass.
-    /// A larger theta value is faster but less accurate. A common value is 0.5.
+    /// A larger theta value is faster but less accurate. Default value is 0.5.
     /// </remarks>
     double Theta { get; }
 
     /// <summary>
     /// The softening factor (epsilon, ε) used to prevent numerical instability.
     /// </summary>
-    /// <value>A small, non-zero value added to the distance calculation in the gravity formula.</value>
+    /// <value>A small, non-zero value, the square of which is added to the distance calculation in the gravity formula.</value>
     /// <remarks>
     /// Prevents the gravitational force from approaching infinity when two bodies get extremely close,
     /// which would otherwise lead to simulation errors and unphysically large accelerations.
@@ -38,7 +38,7 @@ internal interface ICalculator
     IntegrationAlgorithm IntegrationAlgorithm { get; }
 
     /// <summary>
-    /// Calculates the next position and velocity for a body after a given time step.
+    /// Calculates the next position, velocity, and acceleration for a body after a given time step.
     /// This method uses the Barnes-Hut approximation to efficiently compute the net gravitational force on the body.
     /// </summary>
     /// <param name="body">The celestial body for which to evaluate the next state.</param>
@@ -51,10 +51,10 @@ internal interface ICalculator
     EvaluationResult? EvaluateBody(ICelestialBody body, double deltaTime, IQuadTreeNode gridRoot);
 
     /// <summary>
-    /// Atomically updates one or more properties of the timer.
+    /// Atomically updates one or more properties of the Calculator.
     /// Unspecified (<c>null</c>) parameters will be ignored and their corresponding properties will remain unchanged.
     /// </summary>
-    /// <param name="gravitationalConstant">The new value for the <see cref="G"/> property. If null, the current value is not changed.</param>
+    /// <param name="gravitationalConstant">The new value for the <see cref="GravitationalConstant"/> property. If null, the current value is not changed.</param>
     /// <param name="theta">The new value for the <see cref="Theta"/> property. If null, the current value is not changed.</param>
     /// <param name="epsilon">The new value for the <see cref="Epsilon"/> property. If null, the current value is not changed.</param>
     /// <param name="integrationAlgorithm">The new integration algorithm to use <see cref="IntegrationAlgorithm"/>. If null, the current value is not changed.</param>
@@ -76,7 +76,7 @@ internal class Calculator : ICalculator
         double epsilon = 0.001,
         IntegrationAlgorithm algorithm = IntegrationAlgorithm.SymplecticEuler)
     {
-        G = gravitationalConstant;
+        GravitationalConstant = gravitationalConstant;  // Also sets the private G
         Theta = theta;
         Epsilon = epsilon;
 
@@ -98,9 +98,34 @@ internal class Calculator : ICalculator
 
 
     #region Fields & Properties
+    
+    public const double METERS_PER_AU = 149597870700;
+    public const double SECONDS_PER_DAY = 86400;
+    public const double KILOGRAM_PER_SOLAR_MASS = 1.988416e30;
+    /// <summary>
+    /// Conversion factor for G between SI and AC units. <c>1 au³/M☉/d²</c>(AC) = <c>0.01948746035 m³/kg/s²</c>(SI)
+    /// </summary>
+    public const double G_SI_PER_AC_FACTOR =
+        METERS_PER_AU * METERS_PER_AU * METERS_PER_AU   // au³ => m³
+        / KILOGRAM_PER_SOLAR_MASS                       // M☉ => kg
+        / (SECONDS_PER_DAY * SECONDS_PER_DAY);          // d² => s²
+
 
     /// <inheritdoc/>
-    public double G { get; private set; }
+    public double GravitationalConstant
+    {
+        get;
+        private set
+        {
+            field = value;
+            G = value * G_SI_PER_AC_FACTOR;
+        }
+    }
+
+    /// <summary>
+    /// Gravitational constant in units of <c>au³/M☉/d²</c> for actual calculations. 
+    /// </summary>
+    private double G { get; set; }
     /// <inheritdoc/>
     public double Theta { get; private set { field = Math.Clamp(value, 0, 1); } }
     /// <inheritdoc/>
@@ -138,7 +163,7 @@ internal class Calculator : ICalculator
         double? epsilon = null,
         IntegrationAlgorithm? integrationAlgorithm = null)
     {
-        if (gravitationalConstant is double g) G = g;
+        if (gravitationalConstant is double g) GravitationalConstant = g;
         if (theta is double newTheta)
         {
             Theta = newTheta;
