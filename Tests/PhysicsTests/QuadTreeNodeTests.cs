@@ -3,6 +3,7 @@ using Physics.Bodies;
 using Physics.Core;
 using Physics.Models;
 using System.Reflection;
+using static PhysicsTests.TestHelpers;
 
 namespace PhysicsTests;
 
@@ -12,45 +13,21 @@ internal class QuadTreeNodeTests
 {
     #region Helpers
 
-    /// <summary>
-    /// Uses reflection to get the value of a private field from an object.
-    /// This is useful in unit testing to verify internal state without
-    /// exposing private fields in the public API.
-    /// </summary>
-    private static T? GetPrivateField<T>(object obj, string fieldName) where T : class
-    {
-        var field = obj.GetType().GetField(fieldName, BindingFlags.NonPublic | BindingFlags.Instance);
-        if (field == null)
-        {
-            Assert.Fail($"Private field '{fieldName}' not found on type '{obj.GetType().Name}'.");
-            return null; // Will not be reached due to Assert.Fail
-        }
-        return field.GetValue(obj) as T;
-    }
-
-
-    // A simplified helper for tests where enabled status and velocity are not relevant.
-    private static CelestialBody CreateBody(int id, double mass, double posX, double posY)
-    {
-        BodyData preset = new(id, true, mass, new(posX, posY), Vector2D.Zero);
-        return CreateBody(preset);
-    }
-
-    static CelestialBody CreateBody(BodyData preset)
-    {
-        return new(preset);
-    }
-
-    static CelestialBody CreateBody(int Id, bool Enabled, double Mass, double PosX, double PosY, double VelX, double VelY)
-    {
-        BodyData preset = new(Id, Enabled, Mass, new(PosX, PosY), new(VelX, VelY));
-        return CreateBody(preset);
-    }
-
     // A standard boundary used for most tests. A 200x200 box centered at (0,0).
     private readonly AABB _standardBounds = new(Vector2D.Zero, new Vector2D(100, 100));
 
+    private readonly ICelestialBody bodyInBounds = new CelestialBody(1, true, 100, new(50, 50));
+    private readonly ICelestialBody bodyOutOfBounds = new CelestialBody(2, true, 200, new(200, 200));
+
     #endregion
+
+    private IQuadTreeNode _root = null!;
+
+    [SetUp]
+    public void BeforeEachTest()
+    {
+        _root = new QuadTreeNode(_standardBounds);
+    }
 
 
     #region Insert Tests
@@ -59,18 +36,17 @@ internal class QuadTreeNodeTests
     public void Insert_BodyOutsideBounds_ReturnsFalseAndDoesNotModifyNode()
     {
         // Arrange
-        var root = new QuadTreeNode(_standardBounds);
-        var body = CreateBody(1, 100, 200, 200); // Position is outside the bounds
+        var body = bodyOutOfBounds; // Position is outside the bounds
 
         // Act
-        bool result = root.Insert(body);
+        bool result = _root.Insert(body);
 
         // Assert
         Assert.Multiple(() =>
         {
             Assert.That(result, Is.False, "Insert should return false for a body outside the bounds.");
-            Assert.That(root.Count, Is.EqualTo(0), "Node count should remain 0.");
-            Assert.That(root.IsExternal, Is.True, "Node should remain external.");
+            Assert.That(_root.Count, Is.EqualTo(0), "Node count should remain 0.");
+            Assert.That(_root.IsExternal, Is.True, "Node should remain external.");
         });
     }
 
@@ -78,18 +54,17 @@ internal class QuadTreeNodeTests
     public void Insert_FirstBodyIntoEmptyNode_StoresBodyAndRemainsExternal()
     {
         // Arrange
-        var root = new QuadTreeNode(_standardBounds);
-        var body = CreateBody(1, 100, 10, 10);
+        var body = bodyInBounds;
 
         // Act
-        bool result = root.Insert(body);
+        bool result = _root.Insert(body);
 
         // Assert: We check the public state of the node.
         Assert.Multiple(() =>
         {
             Assert.That(result, Is.True);
-            Assert.That(root.Count, Is.EqualTo(1));
-            Assert.That(root.IsExternal, Is.True, "Node with one body should be external.");
+            Assert.That(_root.Count, Is.EqualTo(1));
+            Assert.That(_root.IsExternal, Is.True, "Node with one body should be external.");
         });
     }
 
@@ -97,21 +72,26 @@ internal class QuadTreeNodeTests
     public void Insert_SecondBody_CausesSubdivisionAndBecomesInternal()
     {
         // Arrange
-        var root = new QuadTreeNode(_standardBounds);
-        var body1 = CreateBody(1, 100, -10, -10);
-        var body2 = CreateBody(2, 100, 10, 10);
+        var body1 = new CelestialBody(id: 1, mass: 100, position: new(-10, -10)); 
+        var body2 = new CelestialBody(id: 2, mass: 200, position: new(10, 10));
+
+        Assert.That(GetPrivateField<CelestialBody>(_root, "_body"), Is.Null);
 
         // Act
-        root.Insert(body1);
-        root.Insert(body2);
+        _root.Insert(body1);
+
+        Assert.That(GetPrivateField<CelestialBody>(_root, "_body"), Is.Not.Null);
+
+        _root.Insert(body2);
+
 
         // Assert
         Assert.Multiple(() =>
         {
-            Assert.That(root.Count, Is.EqualTo(2), "Count should be 2 after inserting two bodies.");
-            Assert.That(root.IsExternal, Is.False, "Node should become internal after second insert.");
+            Assert.That(_root.Count, Is.EqualTo(2), "Count should be 2 after inserting two bodies.");
+            Assert.That(_root.IsExternal, Is.False, "Node should become internal after second insert.");
             // Verify that the original body was cleared from the parent node after subdivision.
-            Assert.That(GetPrivateField<CelestialBody>(root, "_body"), Is.Null);
+            Assert.That(GetPrivateField<CelestialBody>(_root, "_body"), Is.Null);
         });
     }
 
@@ -119,23 +99,22 @@ internal class QuadTreeNodeTests
     public void Insert_FourBodies_DistributesToCorrectQuadrants()
     {
         // Arrange
-        var root = new QuadTreeNode(_standardBounds);
-        var bodyNW = CreateBody(1, 10, -50, 50);  // North-West
-        var bodyNE = CreateBody(2, 10, 50, 50);   // North-East
-        var bodySW = CreateBody(3, 10, -50, -50); // South-West
-        var bodySE = CreateBody(4, 10, 50, -50);  // South-East
+        var bodyNW = new CelestialBody(id: 0, mass: 10, position: new(-50, 50));  // North-West
+        var bodyNE = new CelestialBody(id: 1, mass: 10, position: new(50, 50));   // North-East
+        var bodySW = new CelestialBody(id: 2, mass: 10, position: new(-50, -50)); // South-West
+        var bodySE = new CelestialBody(id: 3, mass: 10, position: new(50, -50));  // South-East
         
         // Act
-        root.Insert(bodyNW);
-        root.Insert(bodyNE);
-        root.Insert(bodySW);
-        root.Insert(bodySE);
+        _root.Insert(bodyNW);
+        _root.Insert(bodyNE);
+        _root.Insert(bodySW);
+        _root.Insert(bodySE);
 
         // Assert
-        var nwChild = GetPrivateField<QuadTreeNode>(root, "_nwChild");
-        var neChild = GetPrivateField<QuadTreeNode>(root, "_neChild");
-        var swChild = GetPrivateField<QuadTreeNode>(root, "_swChild");
-        var seChild = GetPrivateField<QuadTreeNode>(root, "_seChild");
+        var nwChild = GetPrivateField<QuadTreeNode>(_root, "_nwChild");
+        var neChild = GetPrivateField<QuadTreeNode>(_root, "_neChild");
+        var swChild = GetPrivateField<QuadTreeNode>(_root, "_swChild");
+        var seChild = GetPrivateField<QuadTreeNode>(_root, "_seChild");
 
         Assert.Multiple(() =>
         {
@@ -147,7 +126,7 @@ internal class QuadTreeNodeTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(root.Count, Is.EqualTo(4));
+            Assert.That(_root.Count, Is.EqualTo(4));
             Assert.That(nwChild.Count, Is.EqualTo(1), "NW child should contain one body.");
             Assert.That(neChild.Count, Is.EqualTo(1), "NE child should contain one body.");
             Assert.That(swChild.Count, Is.EqualTo(1), "SW child should contain one body.");
@@ -159,19 +138,18 @@ internal class QuadTreeNodeTests
     public void Insert_MultipleCoincidentBodies_ForcesMaxDepthAndCrowding()
     {
         // Arrange
-        var root = new QuadTreeNode(_standardBounds);
-        var body1 = CreateBody(1, 10, 1.23, 4.56);
-        var body2 = CreateBody(2, 20, 1.23, 4.56);
-        var body3 = CreateBody(3, 30, 1.23, 4.56);
+        var body1 = new CelestialBody(id: 1, mass: 10, position: new(1.23, 4.56));
+        var body2 = new CelestialBody(id: 2, mass: 20, position: new(1.23, 4.56));
+        var body3 = new CelestialBody(id: 3, mass: 30, position: new(1.23, 4.56));
 
         // Act
-        root.Insert(body1);
-        root.Insert(body2);
-        root.Insert(body3);
+        _root.Insert(body1);
+        _root.Insert(body2);
+        _root.Insert(body3);
 
         // Assert
         // We need to traverse the tree to find the crowded node.
-        QuadTreeNode currentNode = root;
+        IQuadTreeNode currentNode = _root;
         int depth = 0;
         while (!currentNode.IsExternal && depth <= 32) // 32 is MAX_DEPTH
         {
@@ -208,15 +186,15 @@ internal class QuadTreeNodeTests
             }
         }
 
-        var crowdedBodies = GetPrivateField<List<CelestialBody>>(currentNode, "_crowdedBodies");
-
         Assert.Multiple(() =>
         {
-            Assert.That(root.Count, Is.EqualTo(3));
+            Assert.That(_root.Count, Is.EqualTo(3));
             Assert.That(depth, Is.EqualTo(32), "Tree should have subdivided to MAX_DEPTH.");
             Assert.That(currentNode.IsExternal, Is.True, "Node at MAX_DEPTH should be external.");
-            Assert.That(crowdedBodies, Is.Not.Null);
-            Assert.That(crowdedBodies, Has.Count.EqualTo(3));
+
+            var bodyCount = 0;
+            foreach (var body in currentNode.Bodies) bodyCount++;
+            Assert.That(bodyCount, Is.EqualTo(3), "Node should contain 3 bodies.");
         });
     }
 
@@ -224,20 +202,20 @@ internal class QuadTreeNodeTests
     public void Insert_BodyExactlyOnBoundary_IsPlacedInOneChildWithoutError()
     {
         // Arrange
-        var root = new QuadTreeNode(_standardBounds); // Center (0,0), HalfDim (100,100)
-        var bodyOnXAxis = CreateBody(1, 10, 0, 50); // On boundary between NW and NE
-        var bodyOnYAxis = CreateBody(2, 10, 50, 0); // On boundary between NE and SE
-        var bodyOnCenter = CreateBody(3, 10, 0, 0);  // On boundary of all four
+        // Center (0,0), HalfDim (100,100)
+        var bodyOnXAxis = new CelestialBody(id: 1, mass: 10, position: new(0, 50)); // On boundary between NW and NE
+        var bodyOnYAxis = new CelestialBody(id: 2, mass: 10, position: new(50, 0)); // On boundary between NE and SE
+        var bodyOnCenter = new CelestialBody(id: 3, mass: 10, position: new(0, 0));  // On boundary of all four
 
         // Act & Assert
         Assert.DoesNotThrow(() => {
-            root.Insert(bodyOnXAxis);
-            root.Insert(bodyOnYAxis);
-            root.Insert(bodyOnCenter);
+            _root.Insert(bodyOnXAxis);
+            _root.Insert(bodyOnYAxis);
+            _root.Insert(bodyOnCenter);
         }, "Inserting a body on a boundary should not throw an exception.");
         
         // We don't care *which* quadrant it goes into, only that it is successfully placed.
-        Assert.That(root.Count, Is.EqualTo(3), "All three bodies should be inserted.");
+        Assert.That(_root.Count, Is.EqualTo(3), "All three bodies should be inserted.");
     }
 
     #endregion
@@ -249,18 +227,17 @@ internal class QuadTreeNodeTests
     public void Evaluate_OnExternalNode_MatchesSingleBodyProperties()
     {
         // Arrange
-        var root = new QuadTreeNode(_standardBounds);
-        var body = CreateBody(1, 150, 25, -75);
-        root.Insert(body);
+        var body = new CelestialBody(id: 1, mass: 150, position: new(25, -75));
+        _root.Insert(body);
 
         // Act
-        root.Evaluate();
+        _root.Evaluate();
 
         // Assert
         Assert.Multiple(() =>
         {
-            Assert.That(root.TotalMass, Is.EqualTo(body.Mass));
-            Assert.That(root.CenterOfMass, Is.EqualTo(body.Position));
+            Assert.That(_root.TotalMass, Is.EqualTo(body.Mass));
+            Assert.That(_root.CenterOfMass, Is.EqualTo(body.Position));
         });
     }
 
@@ -268,14 +245,13 @@ internal class QuadTreeNodeTests
     public void Evaluate_OnInternalNode_AggregatesChildProperties()
     {
         // Arrange
-        var root = new QuadTreeNode(_standardBounds);
-        var body1 = CreateBody(1, 10, -10, 0);
-        var body2 = CreateBody(2, 30, 10, 0);
-        root.Insert(body1);
-        root.Insert(body2);
+        var body1 = new CelestialBody(id: 1, mass: 10, position: new(-10, 0));
+        var body2 = new CelestialBody(id: 2, mass: 30, position: new(10, 0));
+        _root.Insert(body1);
+        _root.Insert(body2);
 
         // Act
-        root.Evaluate();
+        _root.Evaluate();
 
         // Assert
         double expectedTotalMass = 40.0;
@@ -284,8 +260,8 @@ internal class QuadTreeNodeTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(root.TotalMass, Is.EqualTo(expectedTotalMass));
-            Assert.That(root.CenterOfMass, Is.EqualTo(expectedCoM));
+            Assert.That(_root.TotalMass, Is.EqualTo(expectedTotalMass));
+            Assert.That(_root.CenterOfMass, Is.EqualTo(expectedCoM));
         });
     }
 
@@ -293,24 +269,23 @@ internal class QuadTreeNodeTests
     public void Evaluate_WithZeroMassBodies_HandlesCorrectlyWithoutError()
     {
         // Arrange
-        var root = new QuadTreeNode(_standardBounds);
-        var body1 = CreateBody(1, 10, -10, 0); // Positive mass
-        var body2 = CreateBody(2, 0, 0, 0);   // Zero mass
-        var body3 = CreateBody(3, -10, 10, 0);  // Negative mass
-        root.Insert(body1);
-        root.Insert(body2);
-        root.Insert(body3);
+        var body1 = new CelestialBody(id: 1, mass: 10, position: new(-10, 0)); // Positive mass
+        var body2 = new CelestialBody(id: 2, mass: 00, position: new(00, 0));   // Zero mass
+        var body3 = new CelestialBody(id: 3, mass: -10, position: new(10, 0));  // Negative mass
+        _root.Insert(body1);
+        _root.Insert(body2);
+        _root.Insert(body3);
         
         // Act
-        root.Evaluate();
+        _root.Evaluate();
 
         // Assert
         // TotalMass = 10 + 0 + (-10) = 0
         // Because TotalMass is 0, CenterOfMass should remain at its default.
         Assert.Multiple(() =>
         {
-            Assert.That(root.TotalMass, Is.EqualTo(0));
-            Assert.That(root.CenterOfMass, Is.EqualTo(Vector2D.Zero));
+            Assert.That(_root.TotalMass, Is.EqualTo(0));
+            Assert.That(_root.CenterOfMass, Is.EqualTo(Vector2D.Zero));
         });
     }
 
@@ -318,18 +293,15 @@ internal class QuadTreeNodeTests
     [Test]
     public void Evaluate_OnEmptyTree_ResultsInZeroValues()
     {
-        // Arrange
-        var root = new QuadTreeNode(_standardBounds);
-
         // Act
-        root.Evaluate();
+        _root.Evaluate();
 
         // Assert
         Assert.Multiple(() =>
         {
-            Assert.That(root.Count, Is.EqualTo(0));
-            Assert.That(root.TotalMass, Is.EqualTo(0));
-            Assert.That(root.CenterOfMass, Is.EqualTo(Vector2D.Zero));
+            Assert.That(_root.Count, Is.EqualTo(0));
+            Assert.That(_root.TotalMass, Is.EqualTo(0));
+            Assert.That(_root.CenterOfMass, Is.EqualTo(Vector2D.Zero));
         });
     }
 
@@ -337,15 +309,14 @@ internal class QuadTreeNodeTests
     public void Evaluate_InternalNodeWithEmptyChildren_CalculatesCorrectly()
     {
         // Arrange
-        var root = new QuadTreeNode(_standardBounds);
-        var bodyNW = CreateBody(1, 10, -50, 50);    // Will go to NW child
-        var bodySE = CreateBody(2, 30, 50, -50);    // Will go to SE child
+        var bodyNW = new CelestialBody(id: 1, mass: 10, position: new(-50, 50));    // Will go to NW child
+        var bodySE = new CelestialBody(id: 2, mass: 30, position: new(50, -50));    // Will go to SE child
                                                     // NE and SW children will be empty.
-        root.Insert(bodyNW);
-        root.Insert(bodySE);
+        _root.Insert(bodyNW);
+        _root.Insert(bodySE);
 
         // Act
-        root.Evaluate();
+        _root.Evaluate();
 
         // Assert
         double expectedTotalMass = 40.0;
@@ -355,9 +326,9 @@ internal class QuadTreeNodeTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(root.TotalMass, Is.EqualTo(expectedTotalMass));
-            Assert.That(root.CenterOfMass.X, Is.EqualTo(expectedCoM.X));
-            Assert.That(root.CenterOfMass.Y, Is.EqualTo(expectedCoM.Y));
+            Assert.That(_root.TotalMass, Is.EqualTo(expectedTotalMass));
+            Assert.That(_root.CenterOfMass.X, Is.EqualTo(expectedCoM.X));
+            Assert.That(_root.CenterOfMass.Y, Is.EqualTo(expectedCoM.Y));
         });
     }
     #endregion
@@ -377,8 +348,8 @@ internal class QuadTreeNodeTests
             [_standardBounds, 32], // 32 is MAX_DEPTH
             null)!;
 
-        var body1 = CreateBody(1, 10, 1, 1);
-        var body2 = CreateBody(2, 10, 2, 2);
+        var body1 = new CelestialBody(id: 1, mass: 10, position: new(1, 1));
+        var body2 = new CelestialBody(id: 2, mass: 10, position: new(2, 2));
 
         // Act
         node.Insert(body1);
@@ -387,7 +358,7 @@ internal class QuadTreeNodeTests
         // Assert
 
         // Check internal state to confirm it's using the crowded list.
-        var crowdedBodies = GetPrivateField<List<CelestialBody>>(node, "_crowdedBodies");
+        var crowdedBodies = GetPrivateField<List<ICelestialBody>>(node, "_crowdedBodies");
         Assert.That(crowdedBodies, Is.Not.Null);
 
         Assert.Multiple(() =>
@@ -409,8 +380,8 @@ internal class QuadTreeNodeTests
             [_standardBounds, 32],
             null)!;
 
-        var body1 = CreateBody(1, 10, -10, 0);
-        var body2 = CreateBody(2, 30, 10, 0);
+        var body1 = new CelestialBody(id: 1, mass: 10, position: new(-10, 0));
+        var body2 = new CelestialBody(id: 2, mass: 30, position: new(10, 0));
         node.Insert(body1);
         node.Insert(body2);
         
