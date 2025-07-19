@@ -27,3 +27,4 @@ https://learn.microsoft.com/en-us/aspnet/core/client-side/dotnet-interop/wasm-br
 - 11/07/2025 - Added Timer class; Split public from internal DTOs and added DTOMapper class to handle conversions; Refactored CelestialBody and Simulation; PHYSICS UNIT TESTS NOT YET UPDATED
 - 16/07/2025 - Added Calculator class; Refactored QuadTreeNode and AABB for performance and access; Finalized Tick workflow, updated physics unit tests; Updated PDD to reflect Tick workflow changes;
 - 17/07/2025 - Refactored all components of the Physics project to use the interface pattern for clarity, maintainability, and testability; Clarified PhysicsEngine api and data contracts; Updated Bridge accordingly;
+- 18/07/2025 - Added various integration algorithms (Symplectic Euler, Runge-Kutta-4, Velocity-Valet) via strategy pattern to Calculator; Refactored CelestialBody to simplify update event and add acceleration; Integrate new simulation and body properties across the stack; Update all tests;
