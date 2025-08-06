@@ -29,7 +29,7 @@ internal static class TestHelpers
         grid: new Grid(),
         calculator: new Calculator()
     );
-    public static readonly ICelestialBody DefaultCelestialBody = new CelestialBody(0);
+    public static readonly CelestialBody DefaultCelestialBody = new(0);
 
     public static readonly SimDataBase DefaultSimDataBase = DefaultSimulation.ToSimDataBase();
     public static readonly SimDataFull DefaultSimDataFull = DefaultSimulation.ToSimDataFull();
@@ -51,7 +51,8 @@ internal static class TestHelpers
 
     public static CelestialBody CreateBody(BodyDataBase baseData) => baseData.ToCelestialBody();
 
-    
+    public static CelestialBody CreateBody(int id) => new (id);
+
     /// <summary>
     /// Uses reflection to get the value of a private field from an object.
     /// This is useful in unit testing to verify internal state without
