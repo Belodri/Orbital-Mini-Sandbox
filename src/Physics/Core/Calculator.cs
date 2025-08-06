@@ -15,20 +15,22 @@ internal interface ICalculator
     /// <summary>
     /// The opening-angle parameter (theta, θ) for the Barnes-Hut algorithm.
     /// </summary>
-    /// <value>A value, between 0 and 1, that controls the trade-off between accuracy and computational speed.</value>
+    /// <value>A value, between 0 and 1 (inclusive), that controls the trade-off between accuracy and computational speed.</value>
     /// <remarks>
     /// A smaller theta value results in higher accuracy but more calculations, as tree nodes must be closer to be treated as a single mass.
     /// A larger theta value is faster but less accurate. Default value is 0.5.
+    /// Out of range values are clamped (inclusive).
     /// </remarks>
     double Theta { get; }
 
     /// <summary>
     /// The softening factor (epsilon, ε) used to prevent numerical instability.
     /// </summary>
-    /// <value>A small, non-zero value, the square of which is added to the distance calculation in the gravity formula.</value>
+    /// <value>A small value greater than 0.0001, the square of which is added to the distance calculation in the gravity formula.</value>
     /// <remarks>
     /// Prevents the gravitational force from approaching infinity when two bodies get extremely close,
-    /// which would otherwise lead to simulation errors and unphysically large accelerations.
+    /// which would otherwise lead to simulation errors and unphysically large accelerations. Default value is 0.001.
+    /// Out of range values are clamped (inclusive).
     /// </remarks>
     double Epsilon { get; }
 
@@ -71,18 +73,14 @@ internal class Calculator : ICalculator
     #region Constructors
 
     internal Calculator(
-        double gravitationalConstant = 6.67430e-11,
-        double theta = 0.5,
-        double epsilon = 0.001,
-        IntegrationAlgorithm algorithm = IntegrationAlgorithm.SymplecticEuler)
+        double gravitationalConstant = GravitationalConstant_DEFAULT,
+        double theta = THETA_DEFAULT,
+        double epsilon = EPSILON_DEFAULT,
+        IntegrationAlgorithm algorithm = IntegrationAlgorithm_DEFAULT)
     {
         GravitationalConstant = gravitationalConstant;  // Also sets the private G
-        Theta = theta;
-        Epsilon = epsilon;
-
-        // Pre-Square
-        Theta_sq = Theta * Theta;
-        Epsilon_sq = epsilon * epsilon;
+        Theta = theta;                                  // also sets private Theta_sq
+        Epsilon = epsilon;                              // also sets private Epsilon_sq
 
         // Integration Methods must be set here as they are instance members.
         IntegrationMethods = new()
@@ -98,7 +96,7 @@ internal class Calculator : ICalculator
 
 
     #region Fields & Properties
-    
+
     public const double METERS_PER_AU = 149597870700;
     public const double SECONDS_PER_DAY = 86400;
     public const double KILOGRAM_PER_SOLAR_MASS = 1.988416e30;
@@ -111,6 +109,7 @@ internal class Calculator : ICalculator
         / (SECONDS_PER_DAY * SECONDS_PER_DAY);          // d² => s²
 
 
+
     /// <inheritdoc/>
     public double GravitationalConstant
     {
@@ -118,23 +117,51 @@ internal class Calculator : ICalculator
         private set
         {
             field = value;
-            G = value * G_SI_PER_AC_FACTOR;
+            G = value / G_SI_PER_AC_FACTOR;
         }
     }
+    public const double GravitationalConstant_DEFAULT = 6.67430e-11;
 
     /// <summary>
     /// Gravitational constant in units of <c>au³/M☉/d²</c> for actual calculations. 
     /// </summary>
     private double G { get; set; }
-    /// <inheritdoc/>
-    public double Theta { get; private set { field = Math.Clamp(value, 0, 1); } }
-    /// <inheritdoc/>
-    public double Epsilon { get; private set { field = Math.Max(value, 0.0001); } }
+    /// <summary>
+    /// Gravitational constant in units of <c>au³/M☉/d²</c> for actual calculations. 
+    /// </summary>
+    public double G_AC => G;
+    
 
-    private double Epsilon_sq { get; set; }
+    /// <inheritdoc/>
+    public double Theta
+    {
+        get; private set
+        {
+            field = Math.Clamp(value, THETA_MIN, THETA_MAX);
+            Theta_sq = field * field;
+        }
+    }
     private double Theta_sq { get; set; }
+    public const double THETA_MIN = 0.0;
+    public const double THETA_MAX = 1.0;
+    public const double THETA_DEFAULT = 0.5;
 
-    private IntegrationMethod _currentIntegrationMethod { get; set; }
+    /// <inheritdoc/>
+    public double Epsilon
+    {
+        get; private set
+        {
+            field = Math.Max(value, EPSILON_MIN);
+            Epsilon_sq = field * field;
+        }
+    }
+    private double Epsilon_sq { get; set; }
+    public const double EPSILON_MIN = 0.0001;
+    public const double EPSILON_DEFAULT = 0.001;
+    
+
+    private IntegrationMethod CurrentIntegrationMethod { get; set; }
+    public const IntegrationAlgorithm IntegrationAlgorithm_DEFAULT = IntegrationAlgorithm.SymplecticEuler;
     public IntegrationAlgorithm IntegrationAlgorithm { get; private set; }
 
     private readonly Dictionary<IntegrationAlgorithm, IntegrationMethod> IntegrationMethods;
@@ -147,12 +174,12 @@ internal class Calculator : ICalculator
     /// </summary>
     /// <param name="algorithm">The name of the algorithm as in <see cref="IntegrationAlgorithm"/></param>
     /// <exception cref="ArgumentException">If a given algorithm is not supported.</exception>
-    [MemberNotNull(nameof(_currentIntegrationMethod))]
+    [MemberNotNull(nameof(CurrentIntegrationMethod))]
     private void SetIntegrationAlgorithm(IntegrationAlgorithm algorithm)
     {
         if (!IntegrationMethods.TryGetValue(algorithm, out var method))
             throw new ArgumentException($"Integration algorithm '{algorithm}' is not supported.", nameof(algorithm));
-        _currentIntegrationMethod = method;
+        CurrentIntegrationMethod = method;
         IntegrationAlgorithm = algorithm;
     }
 
@@ -164,43 +191,54 @@ internal class Calculator : ICalculator
         IntegrationAlgorithm? integrationAlgorithm = null)
     {
         if (gravitationalConstant is double g) GravitationalConstant = g;
-        if (theta is double newTheta)
-        {
-            Theta = newTheta;
-            Theta_sq = newTheta * newTheta;
-        }
-        if (epsilon is double newEpsilon)
-        {
-            Epsilon = newEpsilon;
-            Epsilon_sq = newEpsilon * newEpsilon;
-        }
+        if (theta is double newTheta) Theta = newTheta;
+        if (epsilon is double newEpsilon) Epsilon = newEpsilon;
         if (integrationAlgorithm is IntegrationAlgorithm newAlg) SetIntegrationAlgorithm(newAlg);
     }
 
 
     #region Evaluation
 
+    /// <summary>
+    /// DeltaTime cache for the current calculation step as DeltaTime is  the same for all calculations of a given tick. 
+    /// Also sets <see cref="HalfDeltaTime"/>
+    /// </summary>
+    double DeltaTime
+    {
+        get; set {
+            if (field == value) return;
+            field = value;
+            HalfDeltaTime = field / 2;
+        }
+    }
+
+    double HalfDeltaTime { get; set; }
+
     /// <inheritdoc/>
     public EvaluationResult? EvaluateBody(ICelestialBody body, double deltaTime, IQuadTreeNode gridRoot)
-        => _currentIntegrationMethod.Invoke(body, deltaTime, gridRoot);
+    {
+        DeltaTime = deltaTime;
+        return CurrentIntegrationMethod.Invoke(body, gridRoot);
+    }
 
+    private delegate EvaluationResult? IntegrationMethod(ICelestialBody body, IQuadTreeNode gridRoot);
 
-    private delegate EvaluationResult? IntegrationMethod(
-        ICelestialBody body, double deltaTime, IQuadTreeNode gridRoot);
-
-    private EvaluationResult? SymplecticEuler(ICelestialBody body, double deltaTime, IQuadTreeNode gridRoot)
+    private EvaluationResult? SymplecticEuler(ICelestialBody body, IQuadTreeNode gridRoot)
     {
         Vector2D accel = CalcAcceleration(body, gridRoot);
 
         if (accel.MagnitudeSquared == 0 && body.Velocity.MagnitudeSquared == 0)
             return null;    // If the body is neither moving nor experiencing any acceleration, skip calculations.
 
-        Vector2D newVel = body.Velocity + accel * deltaTime;
-        Vector2D newPos = body.Position + newVel * deltaTime;
+        Vector2D newVel = body.Velocity + accel * DeltaTime;
+        Vector2D newPos = body.Position + newVel * DeltaTime;
         return new(newPos, newVel, accel);
     }
 
-    private EvaluationResult? RungeKutta4(ICelestialBody body, double deltaTime, IQuadTreeNode gridRoot)
+    /// <remarks>
+    /// Dissipative and thus not time-reversable!
+    /// </remarks>
+    private EvaluationResult? RungeKutta4(ICelestialBody body, IQuadTreeNode gridRoot)
     {
         // K1
         Vector2D k1_pos = body.Position;
@@ -209,21 +247,19 @@ internal class Calculator : ICalculator
         if (k1_a.MagnitudeSquared == 0 && k1_v.MagnitudeSquared == 0)
             return null;    // If the body is neither moving nor experiencing any acceleration, skip calculations.
 
-        double halfDeltaTime = deltaTime / 2;
-
         // K2 - halfway though the time step
-        Vector2D k2_pos = k1_pos + k1_v * halfDeltaTime;
-        Vector2D k2_v = k1_a * halfDeltaTime + k1_v;
+        Vector2D k2_pos = k1_pos + k1_v * HalfDeltaTime;
+        Vector2D k2_v = k1_a * HalfDeltaTime + k1_v;
         Vector2D k2_a = CalcAcceleration(body, gridRoot, k2_pos);
 
         // K3 - halfway though the time step
-        Vector2D k3_pos = k1_pos + k2_v * halfDeltaTime;
-        Vector2D k3_v = k2_a * halfDeltaTime + k1_v;
+        Vector2D k3_pos = k1_pos + k2_v * HalfDeltaTime;
+        Vector2D k3_v = k2_a * HalfDeltaTime + k1_v;
         Vector2D k3_a = CalcAcceleration(body, gridRoot, k3_pos);
 
         // K4 - end of the time step
-        Vector2D k4_pos = k1_pos + k3_v * deltaTime;
-        Vector2D k4_v = k3_a * deltaTime + k1_v;
+        Vector2D k4_pos = k1_pos + k3_v * DeltaTime;
+        Vector2D k4_v = k3_a * DeltaTime + k1_v;
         Vector2D k4_a = CalcAcceleration(body, gridRoot, k4_pos);
 
         // Weighted average (1/6, 2/6, 2/6, 1/6)
@@ -232,28 +268,28 @@ internal class Calculator : ICalculator
         Vector2D average_a = sixth * (k1_a + 2 * k2_a + 2 * k3_a + k4_a);
 
         // Final weighted average rate of change over the full time step
-        Vector2D newPos = k1_pos + average_v * deltaTime;
-        Vector2D newVel = k1_v + average_a * deltaTime;
+        Vector2D newPos = k1_pos + average_v * DeltaTime;
+        Vector2D newVel = k1_v + average_a * DeltaTime;
 
         return new(newPos, newVel, average_a);
     }
 
-    private EvaluationResult? VelocityVerlet(ICelestialBody body, double deltaTime, IQuadTreeNode gridRoot)
-    {
-        Vector2D newAccel = CalcAcceleration(body, gridRoot);
+    private EvaluationResult? VelocityVerlet(ICelestialBody body, IQuadTreeNode gridRoot)
+    {   
+        // Step 1: Calculate the new position using current velocity and acceleration.
+        // x(t + Δt) = x(t) + v(t)Δt + 0.5a(t)Δt²
+        Vector2D newPos = body.Position + body.Velocity * DeltaTime + body.Acceleration * (DeltaTime * HalfDeltaTime);
+
+        // Step 2: Calculate the new acceleration based on the NEW position.
+        // a(t + Δt) = F(x(t + Δt)) / m
+        Vector2D newAccel = CalcAcceleration(body, gridRoot, newPos);
+
         if (newAccel.MagnitudeSquared == 0 && body.Velocity.MagnitudeSquared == 0)
             return null;    // If the body is neither moving nor experiencing any acceleration, skip calculations.
 
-        double halfDeltaTime = deltaTime / 2;
-
-        // r(t+Δt) = r(t) + v(t)*dt + 0.5*a(t)*dt^2
-        Vector2D newPos = body.Position
-            + (body.Velocity * deltaTime)
-            + (body.Acceleration * deltaTime * halfDeltaTime);
-
-        // v(t+Δt) = v(t) + 0.5*(a(t) + a(t+dt)) * dt
-        Vector2D newVel = body.Velocity
-            + (body.Acceleration + newAccel) * halfDeltaTime;
+        // Step 3: Calculate the new velocity using the average of the old and new acceleration.
+        // v(t + Δt) = v(t) + 0.5 * (a(t) + a(t + Δt)) * Δt
+        Vector2D newVel = body.Velocity + (body.Acceleration + newAccel) * HalfDeltaTime;
 
         return new(newPos, newVel, newAccel);
     }
@@ -319,12 +355,12 @@ internal class Calculator : ICalculator
 
         // F = G * m1 * m2 / (d^2 + e^2)
         // a = F / m1 = G * m2 / (d^2 + e^2)
-        double forceMag = G * sourceMass / (d_sq + Epsilon_sq);
+        double accelerationMagnitude = G * sourceMass / (d_sq + Epsilon_sq);
 
         // Vector from target to source, then normalize to get direction
         Vector2D direction = (sourcePos - targetPos).Normalized;
 
-        return direction * forceMag;
+        return direction * accelerationMagnitude;
     }
 
     #endregion
