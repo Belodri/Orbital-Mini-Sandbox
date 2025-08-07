@@ -4,6 +4,15 @@ https://webassembly.org/features/
 https://learn.microsoft.com/en-us/aspnet/core/client-side/dotnet-interop/?view=aspnetcore-9.0#type-mappings
 https://learn.microsoft.com/en-us/aspnet/core/client-side/dotnet-interop/wasm-browser-app?view=aspnetcore-9.0#javascript-interop-on-
 
+### Papers
+- [Time stepping N-Body simulations](https://ar5iv.labs.arxiv.org/html/astro-ph/9710043#:~:text=and%20show%20that%20if%20is,that%20reflexivity%20is%20the%20key)
+- [Testing and tuning symplectic integrators for Hybrid Monte Carlo algorithm in lattice QCD](https://arxiv.org/abs/hep-lat/0505020)
+- [BEHALF - BarnEs-Hut ALgorithm For CS205](https://anaroxanapop.github.io/behalf/#Nbody)
+- [Symplectic analytically integrable decomposition algorithms: classification, derivation, and application to molecular dynamics, quantum and celestial mechanics simulations](https://www.sciencedirect.com/science/article/abs/pii/S0010465502007543)
+- [Using numerical methods to solve the Gravitational n-Body Problem & represent the result graphically using OpenGL](https://www.maths.tcd.ie/~btyrrel/nbody.pdf)
+- [Time integration issues](https://courses.physics.ucsd.edu/2019/Winter/physics141/Assignments/volker_error.pdf)
+- [Advanced Character Physics](https://www.researchgate.net/publication/228599597_Advanced_character_physics)
+- [Dynamic Graphics Project - Chapter 7 Implementation Issues](https://www.dgp.toronto.edu/~davet/phd/tonnesen-thesis-pdf/tonnesen-7.pdf)
 
 # Day Log
 
@@ -30,3 +39,4 @@ https://learn.microsoft.com/en-us/aspnet/core/client-side/dotnet-interop/wasm-br
 - 18/07/2025 - Added various integration algorithms (Symplectic Euler, Runge-Kutta-4, Velocity-Valet) via strategy pattern to Calculator; Refactored CelestialBody to simplify update event and add acceleration; Integrate new simulation and body properties across the stack; Update all tests;
 - 19/07/2025 - Clarify and fix undocumented and inconsistent units ( & spend several hours on a unit conversion utility that turned out to be completely unnecessary); Improve documentation across the stack;
 - 05/08/2025 -  Improve testability and clarity of Calculator class; Write unit tests to verify physics calculations; Discover flaws in calculations; Struggle with understanding the math behind VelocityVerlet and why the current implementation doesn't work;
+- 06/08/2025 - Discover major misunderstandings regarding the interaction between integration algorithms and the tick workflow; Find relevant papers; Study math;
