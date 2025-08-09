@@ -41,3 +41,4 @@ https://learn.microsoft.com/en-us/aspnet/core/client-side/dotnet-interop/wasm-br
 - 05/08/2025 -  Improve testability and clarity of Calculator class; Write unit tests to verify physics calculations; Discover flaws in calculations; Struggle with understanding the math behind VelocityVerlet and why the current implementation doesn't work;
 - 06/08/2025 - Discover major misunderstandings regarding the interaction between integration algorithms and the tick workflow; Find relevant papers; Study math;
 - 07/08/2025 - Study integration math and figure out how to apply it efficiently in the context of the simulation loop; Plan the substantial rewrites of Simulation, Calculator, and Timer necessary to implement the Position variant of the Velocity-Verlet integration.
+- 08/08/2025 - Work on solidifying the understanding and mental model of the integration algorithm and the challenges of its implementation (see [IntegrationAlgorithm.md](IntegrationAlgorithm.md));
