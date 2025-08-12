@@ -278,21 +278,24 @@ b) Purely internal to be used in the next iteration:
 #### Step-by-Step
 
 0. Check if actual, now known `Δtₙ` equals the previously estimated value. If not, redo 3 & 4 from the previous step but with the corrected value for `Δtₙ`.
+
 1. Rebuild the QuadTree
 
 *Now we can start with the actual integration.*
+
 2. Force at time `tₙ₊₁`:
    `a(tₙ + Δtₙ) = F( x(tₙ + Δtₙ) )/m` 
-2. Velocity at time `tₙ₊₁`:
+
+3. Velocity at time `tₙ₊₁`:
    `v(tₙ + Δtₙ) = v(tₙ + Δtₙ/2) + ( a(tₙ + Δtₙ) * Δtₙ )/2`
 
 *At this point, we know `x(tₙ + Δtₙ)`, `v(tₙ + Δtₙ), and a(tₙ + Δtₙ)`. This would be the end of the regular Velocity-Verlet.
-In this algorithm however, we must continue to set up for the next loop. For this, we assume that `Δtₙ = Δtₙ₊₁`. If this assumption doesn't hold, we must  
 
-*
+In this algorithm however, we must continue to set up for the next loop. For this, we assume that `Δtₙ = Δtₙ₊₁`. Because this assumption won't hold in all cases, we must correct this assumption in step 0 if necessary.*
 
-3. Velocity at time `tₙ₊₁.₅` (half-step velocity):
+4. Velocity at time `tₙ₊₁.₅` (half-step velocity):
    `v(tₙ₊₁ + (Δtₙ₊₁)/2) = v(tₙ + Δtₙ) + ( a(tₙ + Δtₙ) * Δtₙ₊₁ )/2`
-4. Position at time `tₙ₊₂`:
+
+5. Position at time `tₙ₊₂`:
    `x(tₙ₊₁ + Δtₙ₊₁) = x(tₙ + Δtₙ) + v(tₙ₊₁ + (Δtₙ₊₁)/2) * Δtₙ₊₁`
 
