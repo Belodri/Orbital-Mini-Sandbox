@@ -101,7 +101,7 @@ While this raises the number of loops back to two, this is generally a worthy tr
 ## The Problems
 This algorithm introduces several new and major issues however.
 #### 1. Incoherent Particle State
-The values of a particle's individual properties all represent different points in time. The state variables for a given particle P at time `tₙ` (before the start of the n-th step) are:
+The values of a particle's individual properties all represent different points in time. While this is a fundamental property of these kinds of "Leapfrog" integrators, it violates one of the set goals. The state variables for a given particle P at time `tₙ` (before the start of the n-th step) are:
 
 `Pₙ.x = x(tₙ)`  The particle's position at time step n
 `Pₙ.v_half = v(tₙ - Δtₙ₋₁/2)`   The particle's velocity at the halfway point between time steps n-1 and n
@@ -188,11 +188,13 @@ To make this concept of a transient and shifting view of time more intuitive and
 
 *Note that this is a purely mental model and does not represent a concrete data structure.*
 
-`...`
-`TC(n-1): { x(tₙ₋₁), v(tₙ₋₁), a(tₙ₋₁), tₙ₋₁, Δtₙ₋₁ }
-`TC(n): { x(tₙ), v(tₙ), a(tₙ), tₙ, Δtₙ }
-`TC(n+1): { x(tₙ₊₁), v(tₙ₊₁), a(tₙ₊₁), tₙ₊₁, Δtₙ₊₁ }
-`...`
+```
+...
+TC(n-1): { x(tₙ₋₁), v(tₙ₋₁), a(tₙ₋₁), tₙ₋₁, Δtₙ₋₁ }
+TC(n): { x(tₙ), v(tₙ), a(tₙ), tₙ, Δtₙ }
+TC(n+1): { x(tₙ₊₁), v(tₙ₊₁), a(tₙ₊₁), tₙ₊₁, Δtₙ₊₁ }
+...
+```
 
 Since not all properties can have a value in all states - that depends on the chosen integration algorithm - they can still be thought of as buckets that might or might not contain anything.
 
@@ -239,3 +241,58 @@ Since this involves two full integration steps, the impact of `Δt` changes on t
 - how a proper "rewind" system can be implemented efficiently with relative ease (handling time reversability through storing  `tₙ` and `Δtₙ` pairs in a stack (FILO) when `Δtₙ` changes )
 - general concessions such as a memory overhead that scales with the number of particles in the simulation at 2-3x the rate of simple, single-step integrations  
 etc.
+
+
+---
+# Calcs
+
+### Velocity-Verlet but starting with the Force-Calculation step
+
+At the start of step `n`, we know:
+- `tₙ` The time at the START of step `n`
+- `Δtₙ` The size of the time step between `tₙ` and `tₙ₊₁`
+- `x(tₙ + Δtₙ)` Position at time `tₙ₊₁` (calculated in the previous step)
+- `v(tₙ + Δtₙ/2)` Velocity at time `tₙ + Δtₙ/2`. Half-step velocity (calculated in the previous step)
+- `m` Mass
+
+At the end of step `n`, we want to know:
+- `tₙ₊₁` The time at the END of step `n`
+
+
+
+- `x(tₙ₊₁ + Δtₙ₊₁)` The position at time `tₙ₊₂` (for the next step)
+- ``
+
+At the end of step `n` (which is identical to the start of step `n+1`), the following values are evaluated and carried:
+
+a) Considered to be the actual, true state and are user-facing:
+- `tₙ₊₁` The time at the END of step `n`. = `tₙ + Δtₙ`
+- `x(tₙ₊₁)` The position at time `tₙ₊₁`. = `x(tₙ + Δtₙ)`
+- `v(tₙ₊₁)` The velocity at time `tₙ₊₁`. = `v(tₙ + Δtₙ)`
+- `a(tₙ₊₁)` The acceleration at time `tₙ₊₁`. = `a(tₙ + Δtₙ)`
+
+b) Purely internal to be used in the next iteration:
+- `v(tₙ + Δtₙ/2)` The velocity at the halfstep between time `tₙ` and `tₙ₊₁`.
+- `x(tₙ₊₂)` The position at time `tₙ₊₂`. This is a
+
+#### Step-by-Step
+
+0. Check if actual, now known `Δtₙ` equals the previously estimated value. If not, redo 3 & 4 from the previous step but with the corrected value for `Δtₙ`.
+1. Rebuild the QuadTree
+
+*Now we can start with the actual integration.*
+2. Force at time `tₙ₊₁`:
+   `a(tₙ + Δtₙ) = F( x(tₙ + Δtₙ) )/m` 
+2. Velocity at time `tₙ₊₁`:
+   `v(tₙ + Δtₙ) = v(tₙ + Δtₙ/2) + ( a(tₙ + Δtₙ) * Δtₙ )/2`
+
+*At this point, we know `x(tₙ + Δtₙ)`, `v(tₙ + Δtₙ), and a(tₙ + Δtₙ)`. This would be the end of the regular Velocity-Verlet.
+In this algorithm however, we must continue to set up for the next loop. For this, we assume that `Δtₙ = Δtₙ₊₁`. If this assumption doesn't hold, we must  
+
+*
+
+3. Velocity at time `tₙ₊₁.₅` (half-step velocity):
+   `v(tₙ₊₁ + (Δtₙ₊₁)/2) = v(tₙ + Δtₙ) + ( a(tₙ + Δtₙ) * Δtₙ₊₁ )/2`
+4. Position at time `tₙ₊₂`:
+   `x(tₙ₊₁ + Δtₙ₊₁) = x(tₙ + Δtₙ) + v(tₙ₊₁ + (Δtₙ₊₁)/2) * Δtₙ₊₁`
+
