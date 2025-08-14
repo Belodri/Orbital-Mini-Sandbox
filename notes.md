@@ -42,3 +42,4 @@ https://learn.microsoft.com/en-us/aspnet/core/client-side/dotnet-interop/wasm-br
 - 06/08/2025 - Discover major misunderstandings regarding the interaction between integration algorithms and the tick workflow; Find relevant papers; Study math;
 - 07/08/2025 - Study integration math and figure out how to apply it efficiently in the context of the simulation loop; Plan the substantial rewrites of Simulation, Calculator, and Timer necessary to implement the Position variant of the Velocity-Verlet integration.
 - 08/08/2025 - Work on solidifying the understanding and mental model of the integration algorithm and the challenges of its implementation (see [IntegrationAlgorithm.md](IntegrationAlgorithm.md));
+- 13/08/2025 - Take a brief break from math; Add performance optimized QuadTree class with mutable struct Nodes and object pooling to reduce GC pressure (to replace Grid and QuadTreeNode);
