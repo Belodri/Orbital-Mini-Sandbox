@@ -6,126 +6,70 @@ internal interface ITimer
     /// The current timestamp of the simulation time in units of days (d).
     /// </summary>
     double SimulationTime { get; }
-
     /// <summary>
-    /// A multiplier for the time that passes each tick. 
+    /// The amount of time that passes in a single simulation step. In units of days (d).
+    /// A negative timestep makes the simulation step backwards in time.
     /// </summary>
-    double TimeScale { get; }
-
+    /// <remarks>
+    /// Altering the timestep of a running simulation breaks time-reversability!
+    /// </remarks> 
+    double TimeStep { get; }
     /// <summary>
-    /// Controls the direction of time flow.
+    /// An alias for TimeStep
     /// </summary>
-    bool IsTimeForward { get; }
-
+    double DeltaTime { get; }
     /// <summary>
-    /// The conversion factor for simulation time (in d) to real time (in s). Default = 1.
+    /// Pre-calculated half of <see cref="DeltaTime"/>
     /// </summary>
-    double TimeConversionFactor { get; }
-
+    double DeltaTimeHalf { get; }
+    /// <summary>
+    /// Pre-calculated square of <see cref="DeltaTime"/>
+    /// </summary>
+    double DeltaTimeSquared { get; }
     /// <summary>
     /// Atomically updates one or more properties of the timer.
     /// Unspecified or null parameters will remain unchanged.
     /// </summary>
-    /// <param name="timeScale"><see cref="TimeScale"/> property. The value will be clamped to the valid range.</param>
-    /// <param name="isTimeForward">T<see cref="IsTimeForward"/> property.</param>
-    /// <param name="timeConversionFactor"><see cref="TimeConversionFactor"/> property.</param>
-    void Update(
-        double? timeScale = null,
-        bool? isTimeForward = null,
-        double? timeConversionFactor = null
-    );
-
+    /// <param name="timeStep">The new value for the <see cref="TimeStep"/> property.</param>
+    void Update(double? timeStep = null);
     /// <summary>
-    /// Calculates how much the simulation time advances in a given amount of real time
-    /// and updates the simulation time accordingly.
+    /// Advances the simulation time by a single step, as determined by <see cref="TimeStep"/>.
     /// </summary>
-    /// <param name="realDeltaTimeMs">The real-world time (in ms).</param>
-    /// <returns>A delta for how much simulation time advanced (in s).</returns>
-    double AdvanceSimTime(double realDeltaTimeMs);
+    void AdvanceSimTime();
 }
 
-
-internal class Timer : ITimer
+internal class Timer(double simulationTime = 0.0, double timeStep = 1.0) : ITimer
 {
-    #region Constructors
-
-    internal Timer(
-        double simulationTime = 0.0,
-        double timeScale = 1.0,
-        bool isTimeForward = true,
-        double timeConversionFactor = 1)
-    {
-        bool validTimeScale = timeScale >= TIME_SCALE_MIN
-            && timeScale <= TIME_SCALE_MAX;
-        if (!validTimeScale) throw new ArgumentException($"TimeScale must be between {TIME_SCALE_MIN} and {TIME_SCALE_MAX} (both inclusive).", nameof(timeScale));
-
-        SimulationTime = simulationTime;
-        TimeScale = timeScale;
-        IsTimeForward = isTimeForward;
-        TimeConversionFactor = timeConversionFactor;
-    }
-
-    #endregion
-
-
-    #region Consts & Config
-
-    private const double TIME_SCALE_MIN = 0.001;
-    private const double TIME_SCALE_MAX = 1000;
-
-    #if DEBUG
-    internal double Test_TimeScaleMin => TIME_SCALE_MIN;
-    internal double Test_TimeScaleMax => TIME_SCALE_MAX;
-    #endif
-
-    #endregion
-
-
-    #region Fields & Properties
     /// <inheritdoc />
-    public double SimulationTime { get; private set; }
+    public double SimulationTime { get; private set; } = simulationTime;
+
     /// <inheritdoc />
-    public double TimeScale { get; private set => field = Math.Clamp(value, TIME_SCALE_MIN, TIME_SCALE_MAX); }
-    /// <inheritdoc />
-    public double TimeConversionFactor
+    public double TimeStep
     {
         get;
         private set
         {
-            field = Math.Max(0, value);
-            RealSecondsToSimDays = 1 / field;
+            field = value;
+            DeltaTimeHalf = field / 2;
+            DeltaTimeSquared = field * field;
         }
-    }
-    /// <inheritdoc />
-    public bool IsTimeForward { get; private set; }
-
-    /// <summary>
-    /// Inverse of <see cref="TimeConversionFactor"/>
-    /// </summary>
-    private double RealSecondsToSimDays { get; set; }
-
-    #endregion
+    } = timeStep;
 
     /// <inheritdoc />
-    public double AdvanceSimTime(double realDeltaTimeMs)
+    public double DeltaTime => TimeStep;
+
+    /// <inheritdoc />
+    public double DeltaTimeHalf { get; private set; }
+
+    /// <inheritdoc />
+    public double DeltaTimeSquared { get; private set; }
+
+    /// <inheritdoc />
+    public void AdvanceSimTime() => SimulationTime += TimeStep;
+
+    /// <inheritdoc />
+    public void Update(double? timeStep)
     {
-        double realDeltaInS = Math.Abs(realDeltaTimeMs) * 1000; // IsTimeForward alone controls time direction.
-        double delta = realDeltaInS
-            * RealSecondsToSimDays  // determined by the TimeConversionFactor
-            * TimeScale
-            * (IsTimeForward ? 1 : -1);
-        SimulationTime += delta;
-        return delta;
-    }
-    
-    /// <inheritdoc />
-    public void Update(
-        double? timeScale = null,
-        bool? isTimeForward = null,
-        double? timeConversionFactor = null)
-    {
-        if (timeScale is double newTimeScale) TimeScale = newTimeScale;
-        if (isTimeForward is bool newTimeDir) IsTimeForward = newTimeDir;
-        if (timeConversionFactor is double newTimeConvFact) TimeConversionFactor = newTimeConvFact;
+        if (timeStep is double newTimeStep) TimeStep = newTimeStep;
     }
 }
