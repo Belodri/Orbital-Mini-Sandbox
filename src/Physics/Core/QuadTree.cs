@@ -22,7 +22,7 @@ internal class QuadTree
     /// <param name="body">The body to insert.</param>
     /// <exception cref="InvalidOperationException">If the tree has already been evaluated.</exception>
     /// <exception cref="ArgumentException">If the body is outside the tree's boundary.</exception>
-    public void InsertBody(CelestialBody body)
+    public void InsertBody(ICelestialBody body)
     {
         ref var root = ref Root;
         if (!root.Bounds.Contains(body)) throw new ArgumentException("The body is outside the tree's boundary.", nameof(body));
@@ -45,7 +45,7 @@ internal class QuadTree
     /// </summary>
     /// <param name="body">The celestial body being accelerated.</param>
     /// <param name="calc">The calculator to use for the acceleration calculation.</param>
-    public Vector2D CalcAcceleration(CelestialBody body, ICalculator calc)
+    public Vector2D CalcAcceleration(ICelestialBody body, ICalculator calc)
     {
         ref var root = ref Root;
         if (!root.IsEvaluated) throw new InvalidOperationException("The tree must be evaluated first.");
@@ -90,7 +90,7 @@ internal class QuadTree
     /// Resets and prepares the tree for a new timestep. Must be called before first insertion in every timestep!
     /// </summary>
     /// <param name="bodies">The bodies that will later be inserted into this tree. Must not be empty.</param>
-    public void Reset(IReadOnlyList<CelestialBody> bodies)
+    public void Reset(IReadOnlyList<ICelestialBody> bodies)
     {
         if (bodies.Count == 0) throw new ArgumentException("Bodies must not be empty.", nameof(bodies));
 
@@ -122,7 +122,7 @@ internal class QuadTree
     private readonly List<Node> _nodes = new(1024); // Pre-allocate capacity
     private readonly Stack<int> _freeNodeIndices = new(256);
 
-    private readonly List<List<CelestialBody>> _crowdedBodyLists = [];  // Don't pre-allocate as its unlikely to ever be used
+    private readonly List<List<ICelestialBody>> _crowdedBodyLists = [];  // Don't pre-allocate as its unlikely to ever be used
     private readonly Stack<int> _freeCrowdedBodyListIndices = new();
 
     private ref Node GetNodeRef(int nodeIndex) => ref CollectionsMarshal.AsSpan(_nodes)[nodeIndex];
@@ -208,10 +208,10 @@ internal class QuadTree
         private readonly int _depth;
         private double Bounds_MaxDimension_sq { get; init; }
 
-        private CelestialBody? _body;
+        private ICelestialBody? _body;
 
         private int _crowdedBodiesIdx = -1;
-        private readonly List<CelestialBody> CrowdedBodies
+        private readonly List<ICelestialBody> CrowdedBodies
         {
             get
             {
@@ -267,7 +267,7 @@ internal class QuadTree
 
         #region Insertion
 
-        public void Insert(CelestialBody newBody)
+        public void Insert(ICelestialBody newBody)
         {
             if (IsCrowded)
             {
@@ -312,7 +312,7 @@ internal class QuadTree
             ChildNodeIdx_SE = Tree.AllocateNode(new AABB(seCenter, newHalfDim), _depth + 1);
         }
 
-        private void DistributeToChild(CelestialBody body)
+        private void DistributeToChild(ICelestialBody body)
         {
             var bodySouth = body.Position.Y < Bounds.Center.Y;
             var bodyWest = body.Position.X < Bounds.Center.X;
@@ -388,7 +388,7 @@ internal class QuadTree
 
 
 
-        public readonly Vector2D CalcAcceleration(CelestialBody body, ICalculator calc)
+        public readonly Vector2D CalcAcceleration(ICelestialBody body, ICalculator calc)
         {
             if (Mass == 0) return Vector2D.Zero;
             if (IsLeaf && _body?.Id == body.Id) return Vector2D.Zero;   // Ensure to never include self.
