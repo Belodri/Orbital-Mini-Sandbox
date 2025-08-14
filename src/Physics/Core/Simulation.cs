@@ -9,24 +9,28 @@ internal interface ISimulation
     /// </summary>
     /// <seealso cref="ITimer"/>
     ITimer Timer { get; }
-
     /// <summary>
     /// Gets the QuadTree used for spatial partitioning of bodies.
     /// </summary>
     /// <seealso cref="QuadTree"/>
     QuadTree QuadTree { get; }
-
     /// <summary>
     /// Gets the calculator that contains the logic for determining physical interactions, such as gravitational forces.
     /// </summary>
     /// <seealso cref="ICalculator"/>
     ICalculator Calculator { get; }
-
     /// <summary>
     /// Provides read-only access to all celestial bodies currently in the simulation, indexed by their unique ID.
     /// </summary>
     IReadOnlyDictionary<int, ICelestialBody> Bodies { get; }
-
+    /// <summary>
+    /// Event raised after a body has been added to the simulation.
+    /// </summary>
+    public event Action<ICelestialBody> BodyAdded;
+    /// <summary>
+    /// Event raised after a body has been removed from the simulation.
+    /// </summary>
+    public event Action<int> BodyRemoved;
     /// <summary>
     /// Creates a new celestial body using a factory function, assigns it a unique ID, and adds it to the simulation.
     /// <example><code>
@@ -39,21 +43,18 @@ internal interface ISimulation
     /// </param>
     /// <returns>The newly created and added celestial body instance.</returns>
     ICelestialBody CreateBody(Func<int, ICelestialBody> bodyFactory);
-
     /// <summary>
     /// Attempts to add a pre-existing celestial body to the simulation.
     /// </summary>
     /// <param name="body">The celestial body to add. Its ID must not already exist in the simulation.</param>
     /// <returns><c>true</c> if the body was added successfully; <c>false</c> if a body with the same ID already exists.</returns>
     bool TryAddBody(ICelestialBody body);
-
     /// <summary>
     /// Attempts to remove a celestial body from the simulation using its ID.
     /// </summary>
     /// <param name="id">The unique ID of the body to remove.</param>
     /// <returns><c>true</c> if a body with the specified ID was found and removed; otherwise <c>false</c>.</returns>
     bool TryDeleteBody(int id);
-
     /// <summary>
     /// Attempts to remove a specific celestial body instance from the simulation.
     /// </summary>
@@ -64,7 +65,6 @@ internal interface ISimulation
     /// one being removed, which can prevent accidental deletion in complex scenarios involving stale references.
     /// </remarks>
     bool TryDeleteBody(ICelestialBody body);
-
     /// <summary>
     /// Advances the simulation by a single timestep.
     /// Calculates the forces on all enabled bodies and updates their properties like position, velocity and acceleration.
@@ -110,6 +110,9 @@ internal class Simulation : ISimulation
 
     readonly Dictionary<int, ICelestialBody> _bodies = [];
     readonly List<ICelestialBody> _enabledBodies = [];
+
+    public event Action<ICelestialBody>? BodyAdded;
+    public event Action<int>? BodyRemoved;
 
     /// <inheritdoc/>
     public ITimer Timer { get; private set; }
@@ -157,6 +160,7 @@ internal class Simulation : ISimulation
     private void AddBodyWorker(ICelestialBody body)
     {
         _bodies.Add(body.Id, body);
+        BodyAdded?.Invoke(body);
         if (body.Enabled) _enabledBodies.Add(body);
         body.EnabledChanged += OnBodyEnabledToggle;
     }
@@ -183,6 +187,7 @@ internal class Simulation : ISimulation
         body.EnabledChanged -= OnBodyEnabledToggle;
         if (body.Enabled) _enabledBodies.Remove(body);
         _bodies.Remove(body.Id);
+        BodyRemoved?.Invoke(body.Id);
     }
 
     private void OnBodyEnabledToggle(ICelestialBody body)
