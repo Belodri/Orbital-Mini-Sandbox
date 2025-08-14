@@ -63,7 +63,7 @@ internal class QuadTree
     public void Reset(double minX, double minY, double maxX, double maxY, int expectedBodies = 64)
     {
         if (minX >= maxX || minY >= maxY) throw new ArgumentException("Invalid boundary dimensions.");
-        if(expectedBodies <= 0) throw new ArgumentException("Expected bodies must be positive.", nameof(expectedBodies));
+        if (expectedBodies <= 0) throw new ArgumentException("Expected bodies must be positive.", nameof(expectedBodies));
 
         // Reserve extra capacity to avoid list resizing while holding refs.
         _nodes.EnsureCapacity(expectedBodies * 4 + 16);
@@ -86,32 +86,6 @@ internal class QuadTree
         AllocateNode(rootBounds);
     }
 
-    /// <summary>
-    /// Resets and prepares the tree for a new timestep. Must be called before first insertion in every timestep!
-    /// </summary>
-    /// <param name="bodies">The bodies that will later be inserted into this tree. Must not be empty.</param>
-    public void Reset(IReadOnlyList<ICelestialBody> bodies)
-    {
-        if (bodies.Count == 0) throw new ArgumentException("Bodies must not be empty.", nameof(bodies));
-
-        var p0 = bodies[0].Position;
-        double minX = p0.X;
-        double minY = p0.Y;
-        double maxX = p0.X;
-        double maxY = p0.Y;
-
-        for (int i = 1; i < bodies.Count; i++)
-        {
-            var (x, y) = bodies[i].Position;
-            minX = Math.Min(minX, x);
-            minY = Math.Min(minY, y);
-            maxX = Math.Max(maxX, x);
-            maxY = Math.Max(maxY, y);
-        }
-
-        Reset(minX, minY, maxX, maxY, bodies.Count);
-    }
-
     #endregion
 
     private const double PADDING_MULT = 0.01;
@@ -126,7 +100,6 @@ internal class QuadTree
     private readonly Stack<int> _freeCrowdedBodyListIndices = new();
 
     private ref Node GetNodeRef(int nodeIndex) => ref CollectionsMarshal.AsSpan(_nodes)[nodeIndex];
-
     private ref readonly Node GetNodeRef_RO(int nodeIndex) => ref CollectionsMarshal.AsSpan(_nodes)[nodeIndex];
 
 
@@ -210,7 +183,7 @@ internal class QuadTree
 
         private ICelestialBody? _body;
 
-        private int _crowdedBodiesIdx = -1;
+        private readonly int _crowdedBodiesIdx = -1;
         private readonly List<ICelestialBody> CrowdedBodies
         {
             get
@@ -386,8 +359,6 @@ internal class QuadTree
 
         #region Acceleration
 
-
-
         public readonly Vector2D CalcAcceleration(ICelestialBody body, ICalculator calc)
         {
             if (Mass == 0) return Vector2D.Zero;
@@ -400,22 +371,26 @@ internal class QuadTree
             // Case A: Node is far away => simply treat the node itself as a single point mass
             if (isFar) return calc.Acceleration(body.Position, CenterOfMass, Mass, d_sq_softened);
 
-            // Case B: Node is External & not crowded => use the single body
-            // Distance to node center of mass is same as distance to body so we can pass that along to avoid 
-            if (IsLeaf && _body != null) return calc.Acceleration(body.Position, _body.Position, _body.Mass, d_sq_softened); // node CenterOfMass == _body.Position 
-
-            // Case C: Node is External & crowded => Iterate through the crowded bodies and accumulate the results
-            if (IsLeaf && IsCrowded)
+            // Case B: Node is a Leaf
+            if (IsLeaf)
             {
-                Vector2D finalAcc = Vector2D.Zero;
-                foreach (var _crowdedBody in CrowdedBodies)
+                // Case B_1: Leaf Node is crowded => Iterate through the crowded bodies and accumulate the results
+                if (IsCrowded)
                 {
-                    if (_crowdedBody.Id != body.Id) finalAcc += calc.Acceleration(body.Position, _crowdedBody.Position, _crowdedBody.Mass);
+                    Vector2D finalAcc = Vector2D.Zero;
+                    foreach (var _crowdedBody in CrowdedBodies)
+                    {
+                        if (_crowdedBody.Id != body.Id) finalAcc += calc.Acceleration(body.Position, _crowdedBody.Position, _crowdedBody.Mass);
+                    }
+                    return finalAcc;
                 }
-                return finalAcc;
+
+                // Case B_2: Leaf Node is not crowded => use the single body
+                // Distance to node center of mass is same as distance to body so we can pass that along to avoid expensive recalculation.
+                if (_body != null) return calc.Acceleration(body.Position, _body.Position, _body.Mass, d_sq_softened);
             }
 
-            // Case D: Node is Internal => Recurse into children and accumulate the results
+            // Case C: Node is Internal => Recurse into children and accumulate the results
             return NW_Child_RO.CalcAcceleration(body, calc)
                 + NE_Child_RO.CalcAcceleration(body, calc)
                 + SW_Child_RO.CalcAcceleration(body, calc)
