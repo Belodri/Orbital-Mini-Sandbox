@@ -11,10 +11,10 @@ internal interface ISimulation
     ITimer Timer { get; }
 
     /// <summary>
-    /// Gets the grid used for spatial partitioning of bodies to optimize force calculations.
+    /// Gets the QuadTree used for spatial partitioning of bodies.
     /// </summary>
-    /// <seealso cref="IGrid"/>
-    IGrid Grid { get; }
+    /// <seealso cref="QuadTree"/>
+    QuadTree QuadTree { get; }
 
     /// <summary>
     /// Gets the calculator that contains the logic for determining physical interactions, such as gravitational forces.
@@ -66,15 +66,10 @@ internal interface ISimulation
     bool TryDeleteBody(ICelestialBody body);
 
     /// <summary>
-    /// Advances the simulation by a single step.
+    /// Advances the simulation by a single timestep.
+    /// Calculates the forces on all enabled bodies and updates their properties like position, velocity and acceleration.
     /// </summary>
-    /// <param name="realDeltaTimeMs">The elapsed real-world time, in milliseconds, since the last tick was called.
-    /// This is used to calculate the corresponding simulation time step.</param>
-    /// <remarks>
-    /// Executing a tick typically involves calculating forces on all enabled bodies, updating their velocities and
-    /// positions based on the simulation's time scale, and rebuilding spatial partitioning structures.
-    /// </remarks>
-    void Tick(double realDeltaTimeMs);
+    void Tick();
 }
 
 internal class Simulation : ISimulation
@@ -83,12 +78,12 @@ internal class Simulation : ISimulation
 
     internal Simulation(
         ITimer timer,
-        IGrid grid,
+        QuadTree quadTree,
         ICalculator calculator,
         IEnumerable<ICelestialBody>? bodies = null)
     {
         Timer = timer;
-        Grid = grid;
+        QuadTree = quadTree;
         Calculator = calculator;
 
         if (bodies != null)
@@ -96,7 +91,7 @@ internal class Simulation : ISimulation
             foreach (var body in bodies)
             {
                 bool added = TryAddBody(body);
-                if(!added) throw new ArgumentException($"Contains contains more than one body with Id '{body.Id}'.", nameof(bodies));
+                if (!added) throw new ArgumentException($"Contains contains more than one body with Id '{body.Id}'.", nameof(bodies));
             }
         }
     }
@@ -119,7 +114,7 @@ internal class Simulation : ISimulation
     /// <inheritdoc/>
     public ITimer Timer { get; private set; }
     /// <inheritdoc/>
-    public IGrid Grid { get; private set; }
+    public QuadTree QuadTree { get; private set; }
     /// <inheritdoc/>
     public ICalculator Calculator { get; private set; }
     /// <inheritdoc/>
@@ -204,42 +199,72 @@ internal class Simulation : ISimulation
 
     #region Tick Management
 
-    /// <summary>
-    /// A list of DTOs that contain the data used to update the Bodies to the next state.  
-    /// </summary>
-    private readonly List<(ICelestialBody body, EvaluationResult result)> _tickBodyUpdatesCache = [];
+    // Step function using Velocity-Verlet
+    // 
+    // Separating read/write steps would require either a different integration algorithm
+    // (i.e. Leapfrog-Verlet), or a rewrite of QuadTree to accept DTOs instead of actual bodies.
+    // Leapfrog is not ideal because we want the calculated 
+    // properties x, v, and a to be in sync with one another.
 
     /// <inheritdoc/>
-    public void Tick(double deltaTime)
+    public void Tick()
     {
-        // Calculate the simulation time that has passed since the last tick & 
-        // update the simulation time by adding delta of this tick.
-        // This is safe because only simTimeDelta is used for the rest of the tick calculation.
-        double simTimeDelta = Timer.AdvanceSimTime(deltaTime);
+        int bodyCount = _enabledBodies.Count;
 
-        // Rebuild the QuadTree
-        Grid.Rebuild(_enabledBodies);
-
-        // If the grid root is null, we cannot update any bodies so we can just return early.
-        if (Grid.Root == null) return;
-
-        // Clear the updates cache
-        _tickBodyUpdatesCache.Clear();
-
-        // Calculate the body updates to be performed
-        foreach (var body in _enabledBodies)
+        if (bodyCount == 0)
         {
-            var result = Calculator.EvaluateBody(body, simTimeDelta, Grid.Root);
-            if (result == null) continue;
-            _tickBodyUpdatesCache.Add((body, result.Value));
+            Timer.AdvanceSimTime();
+            return;
         }
 
-        // Perform the body updates
-        foreach (var (body, result) in _tickBodyUpdatesCache) body.Update(
-            position: result.Position,
-            velocity: result.Velocity,
-            acceleration: result.Acceleration
-        );
+        double minX = 0;
+        double minY = 0;
+        double maxX = 0;
+        double maxY = 0;
+
+        for (int i = 0; i < bodyCount; i++)
+        {
+            var body = _enabledBodies[i];
+
+            // Step 1: Half-Kick
+            // v(t + Δt/2) = v(t) + (a(t)Δt)/2
+            var v_half = body.Velocity + body.Acceleration * Timer.DeltaTimeHalf;
+
+            // Step 2: Drift
+            // x(t + Δt) = x(t) + v(t + Δt/2)Δt
+            var x = body.Position + v_half * Timer.DeltaTime;
+
+            // Update body directly
+            body.Update(position: x, velocityHalfStep: v_half);
+
+            // Get boundaries for quad-tree
+            minX = Math.Min(minX, x.X);
+            minY = Math.Min(minY, x.Y);
+            maxX = Math.Max(maxX, x.X);
+            maxY = Math.Max(maxY, x.Y);
+        }
+
+        // Rebuild and evaluate the tree with the new body positions.
+        QuadTree.Reset(minX, minY, maxX, maxY, _enabledBodies.Count);
+        for (int i = 0; i < bodyCount; i++) QuadTree.InsertBody(_enabledBodies[i]);
+        QuadTree.Evaluate();
+
+        for (int i = 0; i < bodyCount; i++)
+        {
+            var body = _enabledBodies[i];
+
+            // Step 3: Force
+            // a(t+Δt) = F(x(t + Δt))/m
+            var a = QuadTree.CalcAcceleration(body, Calculator);
+
+            // Step 4: Half-Kick
+            // v(t + Δt) = v(t + Δt/2) + a(t + Δt)Δt/2
+            var v = body.VelocityHalfStep + a * Timer.DeltaTimeHalf;
+
+            body.Update(acceleration: a, velocity: v);
+        }
+
+        Timer.AdvanceSimTime();
     }
 
     #endregion
