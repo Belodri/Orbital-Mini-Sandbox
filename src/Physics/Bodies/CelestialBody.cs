@@ -8,32 +8,30 @@ internal interface ICelestialBody
     /// Unique ID of the body. Must not be negative!
     /// </summary>
     int Id { get; }
-
     /// <summary>
     /// A disabled body will be ignored by physics calculations.
     /// </summary>
     bool Enabled { get; }
-
     /// <summary>
     /// The mass of the body in Solar Masses (M☉).
     /// </summary>
     double Mass { get; }
-
     /// <summary>
-    /// The position of the body in space in au.
+    /// The position of the body in space in au at time t.
     /// </summary>
     Vector2D Position { get; }
-
     /// <summary>
-    /// The velocity vector of the body in space in au/d.
+    /// The velocity vector of the body in space in au/d at time t.
     /// </summary>
     Vector2D Velocity { get; }
-
     /// <summary>
-    /// The acceleration vector of the body in au/d².
+    /// The velocity vector of the body in space in au/d at time (t - Δt/2).
+    /// </summary>
+    Vector2D VelocityHalfStep { get; }
+    /// <summary>
+    /// The acceleration vector of the body in au/d² at time t.
     /// </summary>
     Vector2D Acceleration { get; }
-
     /// <summary>
     /// An event raised after the body's Enabled status has changed.
     /// </summary>
@@ -41,7 +39,6 @@ internal interface ICelestialBody
     /// This event only fires if the property's value is different after the update.
     /// </remarks>
     event Action<ICelestialBody>? EnabledChanged;
-
     /// <summary>
     /// Atomically updates one or more properties of the celestial body.
     /// Unspecified (<c>null</c>) parameters will be ignored and their corresponding properties will remain unchanged.
@@ -52,6 +49,8 @@ internal interface ICelestialBody
     /// <param name="posY">The new Y component for the <see cref="Position"/> vector. If null, the Y component is not changed.</param>
     /// <param name="velX">The new X component for the <see cref="Velocity"/> vector. If null, the X component is not changed.</param>
     /// <param name="velY">The new Y component for the <see cref="Velocity"/> vector. If null, the Y component is not changed.</param>
+    /// <param name="velX_half">The new X component for the <see cref="VelocityHalfStep"/> vector. If null, the X component is not changed.</param>
+    /// <param name="velY_half">The new Y component for the <see cref="VelocityHalfStep"/> vector. If null, the Y component is not changed.</param>
     /// <param name="accX">The new X component for the <see cref="Acceleration"/> vector. If null, the X component is not changed.</param>
     /// <param name="accY">The new Y component for the <see cref="Acceleration"/> vector. If null, the Y component is not changed.</param>
     void Update(
@@ -61,19 +60,23 @@ internal interface ICelestialBody
         double? posY = null,
         double? velX = null,
         double? velY = null,
+        double? velX_half = null,
+        double? velY_half = null,
         double? accX = null,
         double? accY = null
     );
 
-    /// <inheritdoc cref="Update(bool?, double?, double?, double?, double?, double?)"/>
+    /// <inheritdoc cref="Update(bool?, double?, double?, double?, double?, double?, double?, double?, double?, double?)"/>
     /// <param name="position">The new value for the <see cref="Position"/> vector. If null, the current value is not changed.</param>
     /// <param name="velocity">The new value for the <see cref="Velocity"/> vector. If null, the current value is not changed.</param>
+    /// <param name="velocityHalfStep">The new value for the <see cref="VelocityHalfStep"/> vector. If null, the current value is not changed.</param>
     /// <param name="acceleration">The new value for the <see cref="Acceleration"/> vector. If null, the current value is not changed.</param>
     void Update(
         bool? enabled = null,
         double? mass = null,
         Vector2D? position = null,
         Vector2D? velocity = null,
+        Vector2D? velocityHalfStep = null,
         Vector2D? acceleration = null
     );
 }
@@ -88,6 +91,7 @@ internal class CelestialBody : ICelestialBody
         double mass = 0.0,
         Vector2D? position = null,
         Vector2D? velocity = null,
+        Vector2D? velocityHalfStep = null,
         Vector2D? acceleration = null)
     {
         if (id < 0) throw new ArgumentOutOfRangeException(nameof(id), "Id must not be negative.");
@@ -103,6 +107,7 @@ internal class CelestialBody : ICelestialBody
         else Position = position.Value;
 
         Velocity = velocity ?? Vector2D.Zero;
+        VelocityHalfStep = velocityHalfStep ?? Vector2D.Zero;
         Acceleration = acceleration ?? Vector2D.Zero;
     }
 
@@ -143,6 +148,8 @@ internal class CelestialBody : ICelestialBody
     /// <inheritdoc />
     public Vector2D Velocity { get; private set; }
     /// <inheritdoc />
+    public Vector2D VelocityHalfStep { get; private set; }
+    /// <inheritdoc />
     public Vector2D Acceleration { get; private set; }
 
     #endregion
@@ -160,6 +167,8 @@ internal class CelestialBody : ICelestialBody
         double? posY = null,
         double? velX = null,
         double? velY = null,
+        double? velX_half = null,
+        double? velY_half = null,
         double? accX = null,
         double? accY = null)
     {
@@ -167,6 +176,7 @@ internal class CelestialBody : ICelestialBody
         Mass = mass ?? Mass;
         Position = Position.With(posX, posY);
         Velocity = Velocity.With(velX, velY);
+        VelocityHalfStep = VelocityHalfStep.With(velX_half, velY_half);
         Acceleration = Acceleration.With(accX, accY);
     }
 
@@ -176,12 +186,14 @@ internal class CelestialBody : ICelestialBody
         double? mass = null,
         Vector2D? position = null,
         Vector2D? velocity = null,
+        Vector2D? velocityHalfStep = null,
         Vector2D? acceleration = null)
     {
         Enabled = enabled ?? Enabled;
         Mass = mass ?? Mass;
         Position = Position.With(position);
         Velocity = Velocity.With(velocity);
+        VelocityHalfStep = VelocityHalfStep.With(velocityHalfStep);
         Acceleration = Acceleration.With(acceleration);
     }
 
