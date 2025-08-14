@@ -59,6 +59,7 @@ internal class QuadTree
     /// <param name="minY">South-Boundary. The minimum Y position the tree should be capable of accepting.</param>
     /// <param name="maxX">East-Boundary. The maximum X position the tree should be capable of accepting.</param>
     /// <param name="maxY">North-Boundary. The maximum Y position the tree should be capable of accepting.</param>
+    /// <param name="expectedBodies">The number of bodies in this simulation step.</param>
     public void Reset(double minX, double minY, double maxX, double maxY, int expectedBodies = 64)
     {
         if (minX >= maxX || minY >= maxY) throw new ArgumentException("Invalid boundary dimensions.");
@@ -85,6 +86,32 @@ internal class QuadTree
         AllocateNode(rootBounds);
     }
 
+    /// <summary>
+    /// Resets and prepares the tree for a new timestep. Must be called before first insertion in every timestep!
+    /// </summary>
+    /// <param name="bodies">The bodies that will later be inserted into this tree. Must not be empty.</param>
+    public void Reset(IReadOnlyList<CelestialBody> bodies)
+    {
+        if (bodies.Count == 0) throw new ArgumentException("Bodies must not be empty.", nameof(bodies));
+
+        var p0 = bodies[0].Position;
+        double minX = p0.X;
+        double minY = p0.Y;
+        double maxX = p0.X;
+        double maxY = p0.Y;
+
+        for (int i = 1; i < bodies.Count; i++)
+        {
+            var (x, y) = bodies[i].Position;
+            minX = Math.Min(minX, x);
+            minY = Math.Min(minY, y);
+            maxX = Math.Max(maxX, x);
+            maxY = Math.Max(maxY, y);
+        }
+
+        Reset(minX, minY, maxX, maxY, bodies.Count);
+    }
+
     #endregion
 
     private const double PADDING_MULT = 0.01;
@@ -100,7 +127,7 @@ internal class QuadTree
 
     private ref Node GetNodeRef(int nodeIndex) => ref CollectionsMarshal.AsSpan(_nodes)[nodeIndex];
 
-    private ref readonly Node GetNodeRef_RO(int nodeIndex) => ref ((ReadOnlySpan<Node>)CollectionsMarshal.AsSpan(_nodes))[nodeIndex];
+    private ref readonly Node GetNodeRef_RO(int nodeIndex) => ref CollectionsMarshal.AsSpan(_nodes)[nodeIndex];
 
 
     private int AllocateNode(AABB bounds, int depth = 0)
@@ -359,7 +386,7 @@ internal class QuadTree
 
         #region Acceleration
 
-        
+
 
         public readonly Vector2D CalcAcceleration(CelestialBody body, ICalculator calc)
         {
