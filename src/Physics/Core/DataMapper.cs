@@ -19,21 +19,15 @@ internal static class DataMapper
     internal static Timer ToTimer(this SimDataBase data)
         => new(
             simulationTime: data.SimulationTime,
-            timeScale: data.TimeScale,
-            isTimeForward: data.IsTimeForward,
-            timeConversionFactor: data.TimeConversionFactor
+            timeStep: data.TimeStep
         );
 
     internal static Calculator ToCalculator(this SimDataBase data)
         => new(
-            gravitationalConstant: data.GravitationalConstant,
+            g_SI: data.G_SI,
             theta: data.Theta,
-            epsilon: data.Epsilon,
-            algorithm: data.IntegrationAlgorithm
+            epsilon: data.Epsilon
         );
-
-    internal static Grid ToGrid(this SimDataBase data)
-        => new();
 
     #endregion
 
@@ -52,19 +46,6 @@ internal static class DataMapper
             AccY: body.Acceleration.Y
         );
     
-    internal static BodyDataFull ToBodyDataFull(this ICelestialBody body)
-        => new(
-            Id: body.Id,
-            Enabled: body.Enabled,
-            Mass: body.Mass,
-            PosX: body.Position.X,
-            PosY: body.Position.Y,
-            VelX: body.Velocity.X,
-            VelY: body.Velocity.Y,
-            AccX: body.Acceleration.X,
-            AccY: body.Acceleration.Y
-        );
-
     #endregion
 
     #region Sim => Data
@@ -72,25 +53,10 @@ internal static class DataMapper
     internal static SimDataBase ToSimDataBase(this ISimulation sim)
         => new(
             SimulationTime: sim.Timer.SimulationTime,
-            TimeScale: sim.Timer.TimeScale,
-            IsTimeForward: sim.Timer.IsTimeForward,
-            TimeConversionFactor: sim.Timer.TimeConversionFactor,
+            TimeStep: sim.Timer.TimeStep,
             Theta: sim.Calculator.Theta,
-            GravitationalConstant: sim.Calculator.GravitationalConstant,
-            Epsilon: sim.Calculator.Epsilon,
-            IntegrationAlgorithm: sim.Calculator.IntegrationAlgorithm
-        );
-
-    internal static SimDataFull ToSimDataFull(this ISimulation sim)
-        => new(
-            SimulationTime: sim.Timer.SimulationTime,
-            TimeScale: sim.Timer.TimeScale,
-            IsTimeForward: sim.Timer.IsTimeForward,
-            TimeConversionFactor: sim.Timer.TimeConversionFactor,
-            Theta: sim.Calculator.Theta,
-            GravitationalConstant: sim.Calculator.GravitationalConstant,
-            Epsilon: sim.Calculator.Epsilon,
-            IntegrationAlgorithm: sim.Calculator.IntegrationAlgorithm
+            G_SI: sim.Calculator.G_SI,
+            Epsilon: sim.Calculator.Epsilon
         );
 
     #endregion
