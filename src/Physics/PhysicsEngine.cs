@@ -1,52 +1,42 @@
 ﻿using Physics.Bodies;
 using Physics.Core;
+using Physics.Models;
 using Timer = Physics.Core.Timer;
 
 namespace Physics;
 
-public interface IPhysicsEngine
+
+public abstract class PhysicsEngineBase
 {
+    /// <inheritdoc cref="SimulationView"/>
+    public abstract SimulationView View { get; private protected set; }
     /// <summary>
     /// Advances the simulation by a single step.
     /// </summary>
-    /// <param name="realDeltaTimeMs">The elapsed real-world time, in milliseconds, since the last tick was called.</param>
-    /// <remarks>
-    void Tick(double realDeltaTimeMs);
-
+    public abstract void Tick();
     /// <summary>
     /// Loads a simulation with provided bodies from the given base data.
     /// </summary>
     /// <param name="sim">The base data for the simulation.</param>
     /// <param name="bodies">The base data for all the bodies.</param>
-    void Load(SimDataBase sim, List<BodyDataBase> bodies);
-
+    public abstract void Load(SimDataBase sim, List<BodyDataBase> bodies);
     /// <summary>
     /// Gets a snapshot of the base data that makes up the current simulation.
     /// Does not contain any derived values.
     /// </summary>
     /// <returns>A tuple containing the base simulation data and the base data of all bodies.</returns>
-    (SimDataBase sim, List<BodyDataBase> bodies) GetBaseData();
-
-    /// <summary>
-    /// Gets a snapshot of the full data of the current simulation.
-    /// Contains both the base data as well as derived values.
-    /// </summary>
-    /// <returns>A tuple containing the full simulation data and the full data of all bodies.</returns>
-    (SimDataFull sim, List<BodyDataFull> bodies) GetFullData();
-
+    public abstract (SimDataBase sim, List<BodyDataBase> bodies) GetBaseData();
     /// <summary>
     /// Creates a new celestial body in the simulation.
     /// </summary>
     /// <returns>The unique Id of the created body.</returns>
-    int CreateBody();
-
+    public abstract int CreateBody();
     /// <summary>
     /// Deletes a celestial body from the simulation.
     /// </summary>
     /// <param name="id">The unique id of the body to delete.</param>
     /// <returns><c>true</c> if the specified body instance was found and removed; otherwise <c>false</c>.</returns>
-    bool DeleteBody(int id);
-
+    public abstract bool DeleteBody(int id);
     /// <summary>
     /// Atomically updates a celestial body in the simulation.
     /// </summary>
@@ -56,8 +46,10 @@ public interface IPhysicsEngine
     /// Unspecified (<c>null</c>) parameters will be ignored and their corresponding properties will remain unchanged.
     /// </param>
     /// <returns><c>true</c> if the update was successful, <c>false</c> if not or if the body wasn't found.</returns>
-    bool UpdateBody(int id, BodyDataUpdates updates);
-
+    /// <remarks>
+    /// Updating a running simulation breaks time-reversability!
+    /// </remarks>
+    public abstract bool UpdateBody(int id, BodyDataUpdates updates);
     /// <summary>
     /// Atomically updates the simulation.
     /// </summary>
@@ -65,76 +57,79 @@ public interface IPhysicsEngine
     /// The new values for properties to be updated.
     /// Unspecified (<c>null</c>) parameters will be ignored and their corresponding properties will remain unchanged.
     /// </param>
-    void UpdateSimulation(SimDataUpdates updates);
+    /// <remarks>
+    /// Updating a running simulation breaks time-reversability!
+    /// </remarks>
+    public abstract void UpdateSimulation(SimDataUpdates updates);
 }
 
-public class PhysicsEngine : IPhysicsEngine
+
+public sealed class PhysicsEngine : PhysicsEngineBase
 {
     #region Fields & Properties
 
-    private Simulation simulation = new(
-        timer: new Timer(),
-        grid: new Grid(),
-        calculator: new Calculator(),
-        bodies: null
-    );
+    public PhysicsEngine()
+    {
+        View = new();
+        Simulation = new(
+            timer: new Timer(),
+            quadTree: new QuadTree(),
+            calculator: new Calculator(),
+            bodies: null
+        );
+    }
+
+    internal Simulation Simulation
+    {
+        get;
+        private set
+        {
+            field = value;
+            View.SetSimulation(field);
+        }
+    }
 
     #endregion
 
 
-    #region Public Methods
+    #region Overrides
 
-    /// <inheritdoc/>
-    public void Tick(double realDeltaTimeMs) => simulation.Tick(realDeltaTimeMs);
+    public override SimulationView View { get; private protected set; }
 
-    /// <inheritdoc/>
-    public void Load(SimDataBase sim, List<BodyDataBase> bodies)
+    public override void Tick() => Simulation.Tick();
+
+    public override void Load(SimDataBase sim, List<BodyDataBase> bodies)
     {
         List<CelestialBody> bodiesList = [];
         foreach (var bodyData in bodies) bodiesList.Add(bodyData.ToCelestialBody());
 
         Simulation newSimulation = new(
             timer: sim.ToTimer(),
-            grid: sim.ToGrid(),
+            quadTree: new QuadTree(),
             calculator: sim.ToCalculator(),
             bodies: bodiesList
         );
 
-        simulation = newSimulation;
+        Simulation = newSimulation;
     }
 
-    /// <inheritdoc/>
-    public (SimDataBase sim, List<BodyDataBase> bodies) GetBaseData()
+    public override (SimDataBase sim, List<BodyDataBase> bodies) GetBaseData()
     {
-        var sim = simulation.ToSimDataBase();
+        var sim = Simulation.ToSimDataBase();
 
-        List<BodyDataBase> bodies = new(simulation.Bodies.Count);
-        foreach (var body in simulation.Bodies.Values) bodies.Add(body.ToBodyDataBase());
+        List<BodyDataBase> bodies = new(Simulation.Bodies.Count);
+        foreach (var body in Simulation.Bodies.Values) bodies.Add(body.ToBodyDataBase());
 
         return (sim, bodies);
     }
 
-    /// <inheritdoc/>
-    public (SimDataFull sim, List<BodyDataFull> bodies) GetFullData()
+    public override int CreateBody() => Simulation.CreateBody((id) => new CelestialBody(id)).Id;
+
+    public override bool DeleteBody(int id) => Simulation.TryDeleteBody(id);
+
+    public override bool UpdateBody(int id, BodyDataUpdates updates)
     {
-        var sim = simulation.ToSimDataFull();
-
-        List<BodyDataFull> bodies = new(simulation.Bodies.Count);
-        foreach (var body in simulation.Bodies.Values) bodies.Add(body.ToBodyDataFull());
-
-        return (sim, bodies);
-    }
-
-    /// <inheritdoc/>
-    public int CreateBody() => simulation.CreateBody((id) => new CelestialBody(id)).Id;
-
-    /// <inheritdoc/>
-    public bool DeleteBody(int id) => simulation.TryDeleteBody(id);
-
-    /// <inheritdoc/>
-    public bool UpdateBody(int id, BodyDataUpdates updates)
-    {
-        if (!simulation.Bodies.TryGetValue(id, out var body)) return false;
+        if (!Simulation.Bodies.TryGetValue(id, out var body)) return false;
 
         body.Update(
             enabled: updates.Enabled,
@@ -150,22 +145,138 @@ public class PhysicsEngine : IPhysicsEngine
         return true;
     }
 
-    /// <inheritdoc/>
-    public void UpdateSimulation(SimDataUpdates updates)
+    public override void UpdateSimulation(SimDataUpdates updates)
     {
-        simulation.Timer.Update(
-            timeScale: updates.TimeScale,
-            isTimeForward: updates.IsTimeForward,
-            timeConversionFactor: updates.TimeConversionFactor
+        Simulation.Timer.Update(
+            timeStep: updates.TimeStep
         );
 
-        simulation.Calculator.Update(
-            gravitationalConstant: updates.GravitationalConstant,
+        Simulation.Calculator.Update(
+            g_SI: updates.G_SI,
             theta: updates.Theta,
-            epsilon: updates.Epsilon,
-            integrationAlgorithm: updates.IntegrationAlgorithm
+            epsilon: updates.Epsilon
         );
     }
+
+    #endregion
+}
+
+/// <summary>
+/// Provides a live, direct, and read-only view into select properties of the simulation's state.
+/// </summary>
+/// <remarks>
+/// The data exposed is transient and represents the state at the end of the most 
+/// recent <see cref="Tick()"/> call and its values should not be cached across ticks.
+/// </remarks>
+public abstract class SimulationViewBase
+{
+    /// <inheritdoc cref="Timer.SimulationTime"/>
+    public abstract double SimulationTime { get; }
+    /// <inheritdoc cref="Timer.TimeStep"/>
+    public abstract double TimeStep { get; }
+    /// <inheritdoc cref="Calculator.G_SI"/>
+    public abstract double G_SI { get; }
+    /// <inheritdoc cref="Calculator.Theta"/>
+    public abstract double Theta { get; }
+    /// <inheritdoc cref="Calculator.Epsilon"/>
+    public abstract double Epsilon { get; }
+    /// <summary>
+    /// Provides a read-only list of views for every celestial body currently in the simulation.
+    /// </summary>
+    /// <remarks>
+    /// Each <c>BodyView</c> in this list acts as a lightweight, live proxy to a body within the simulation.
+    /// </remarks>
+    public abstract IReadOnlyList<BodyView> Bodies { get; }
+}
+
+/// <inheritdoc />
+public sealed class SimulationView : SimulationViewBase
+{
+    #region Internal
+
+    private Simulation? _sim;
+    private Simulation Sim => _sim ?? throw new InvalidOperationException("SimulationView is not initialized.");
+    private readonly List<BodyView> _bodyViews = new(128);
+
+    internal void SetSimulation(Simulation sim)
+    {
+        if (_sim != null)   // Reset and clear existing event subscriptions
+        {
+            _bodyViews.Clear();
+            _sim.BodyAdded -= AddBodyView;
+            _sim.BodyRemoved -= DeleteBodyView;
+        }
+
+        _sim = sim;
+
+        foreach (var (_, body) in _sim.Bodies) AddBodyView(body);
+        _sim.BodyAdded += AddBodyView;
+        _sim.BodyRemoved += DeleteBodyView;
+    }
+
+    internal void AddBodyView(ICelestialBody body) => _bodyViews.Add(new(body));
+    internal void DeleteBodyView(int id)
+    {
+        int idx = _bodyViews.FindIndex(bodyView => bodyView.Id == id);
+        if (idx != -1) _bodyViews.RemoveAt(idx);
+    }
+
+    #endregion
+
+
+    #region Overrides
+
+    public override double SimulationTime => Sim.Timer.SimulationTime;
+    public override double TimeStep => Sim.Timer.TimeStep;
+    public override double G_SI => Sim.Calculator.G_SI;
+    public override double Theta => Sim.Calculator.Theta;
+    public override double Epsilon => Sim.Calculator.Epsilon;
+    public override IReadOnlyList<BodyView> Bodies => _bodyViews;
+
+    #endregion
+}
+
+/// <summary>
+/// Provides a live, direct, and read-only view into select properties of a single celestial body's state.
+/// </summary>
+/// <remarks>
+/// The data exposed is transient and represents the state at the end of the most 
+/// recent <see cref="Tick()"/> call and its values should not be cached across ticks.
+/// </remarks>
+public readonly partial struct BodyView
+{
+    /// <inheritdoc cref="ICelestialBody.Id"/>
+    public readonly partial int Id { get; }
+    /// <inheritdoc cref="ICelestialBody.Enabled"/>
+    public readonly partial bool Enabled { get; }
+    /// <inheritdoc cref="ICelestialBody.Mass"/>
+    public readonly partial double Mass { get; }
+    /// <inheritdoc cref="ICelestialBody.Position"/>
+    public readonly partial Vector2D Position { get; }
+    /// <inheritdoc cref="ICelestialBody.Velocity"/>
+    public readonly partial Vector2D Velocity { get; }
+    /// <inheritdoc cref="ICelestialBody.Acceleration"/>
+    public readonly partial Vector2D Acceleration { get; }
+}
+
+public readonly partial struct BodyView()
+{
+    internal BodyView(ICelestialBody body) : this()
+    {
+        _body = body;
+    }
+
+    private readonly ICelestialBody? _body;
+    private readonly ICelestialBody Body => _body ?? throw new InvalidOperationException("BodyView is not initialized.");
+
+    #region Overrides
+
+    public readonly partial int Id => Body.Id;
+    public readonly partial bool Enabled => Body.Enabled;
+    public readonly partial double Mass => Body.Mass;
+    public readonly partial Vector2D Position => Body.Position;
+    public readonly partial Vector2D Velocity => Body.Velocity;
+    public readonly partial Vector2D Acceleration => Body.Acceleration;
 
     #endregion
 }
