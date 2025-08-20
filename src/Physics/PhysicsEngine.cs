@@ -19,13 +19,13 @@ public abstract class PhysicsEngineBase
     /// </summary>
     /// <param name="sim">The base data for the simulation.</param>
     /// <param name="bodies">The base data for all the bodies.</param>
-    public abstract void Load(SimDataBase sim, List<BodyDataBase> bodies);
+    public abstract void Import(SimDataBase sim, List<BodyDataBase> bodies);
     /// <summary>
     /// Gets a snapshot of the base data that makes up the current simulation.
     /// Does not contain any derived values.
     /// </summary>
     /// <returns>A tuple containing the base simulation data and the base data of all bodies.</returns>
-    public abstract (SimDataBase sim, List<BodyDataBase> bodies) GetBaseData();
+    public abstract (SimDataBase sim, List<BodyDataBase> bodies) Export();
     /// <summary>
     /// Creates a new celestial body in the simulation.
     /// </summary>
@@ -98,7 +98,7 @@ public sealed class PhysicsEngine : PhysicsEngineBase
 
     public override void Tick() => Simulation.StepFunction_VelocityVerlet();
 
-    public override void Load(SimDataBase sim, List<BodyDataBase> bodies)
+    public override void Import(SimDataBase sim, List<BodyDataBase> bodies)
     {
         List<CelestialBody> bodiesList = [];
         foreach (var bodyData in bodies) bodiesList.Add(bodyData.ToCelestialBody());
@@ -113,7 +113,7 @@ public sealed class PhysicsEngine : PhysicsEngineBase
         Simulation = newSimulation;
     }
 
-    public override (SimDataBase sim, List<BodyDataBase> bodies) GetBaseData()
+    public override (SimDataBase sim, List<BodyDataBase> bodies) Export()
     {
         var sim = Simulation.ToSimDataBase();
 

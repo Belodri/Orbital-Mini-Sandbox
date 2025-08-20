@@ -3,6 +3,8 @@
 
 # Revision History
 
+- **20/08/2025**
+    - Rename `PhysicsEngine` methods `Load()` to `Import()`, `GetBaseData()` to `Export()` for clarity.
 - **19/08/2025**
     - Updated to reflect recent, large-scale refactors of the `PhysicsEngine`, following deeper understanding of physics and maths, especially regarding integration algorithms and their interactions with the Barnes-Hut algorithm. This refactor includes:
         - Implementation of the **Velocity-Verlet** integration algorithm
@@ -405,13 +407,13 @@ public sealed class PhysicsEngine
     void Tick();
 
     // Loads a simulation with provided bodies from the given base data.
-    void Load(
+    void Import(
         SimDataBase sim,            // The base data for the simulation.
         List<BodyDataBase> bodies   // The base data for all the bodies.
     );
 
     // Gets a snapshot of the base data that makes up the current simulation.
-    (SimDataBase sim, List<BodyDataBase> bodies) GetBaseData();
+    (SimDataBase sim, List<BodyDataBase> bodies) Export();
 
     // Creates a new celestial body in the simulation.
     // Returns the unique Id of the created body.

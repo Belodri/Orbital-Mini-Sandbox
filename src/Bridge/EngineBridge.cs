@@ -113,7 +113,7 @@ public static partial class EngineBridge
     [JSExport]
     public static string GetPreset()
     {
-        (SimDataBase sim, List<BodyDataBase> bodies) = physicsEngine.GetBaseData();
+        (SimDataBase sim, List<BodyDataBase> bodies) = physicsEngine.Export();
         PresetData data = new(sim, bodies);
         return CreatePresetString(data);
     }
@@ -134,7 +134,7 @@ public static partial class EngineBridge
     {
         commandQueue.ClearQueue(); // Ensure prior commands cannot interfere with the newly loaded state.
         PresetData? data = ParseJsonPreset(jsonPreset) ?? throw new Exception("Failed to load: Preset data was null or empty.");
-        physicsEngine.Load(data.Sim, data.Bodies);
+        physicsEngine.Import(data.Sim, data.Bodies);
         memoryBufferHandler.WriteViewToMemory(physicsEngine.View);
     }
 
