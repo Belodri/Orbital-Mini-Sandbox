@@ -1,37 +1,28 @@
-using System.Net.Http.Headers;
-using Physics;
-using Physics.Bodies;
 using Physics.Core;
 using Physics.Models;
 
 namespace PhysicsTests;
 
-using static PhysicsTests.TestHelpers;
-
 [TestFixture]
 [DefaultFloatingPointTolerance(1e-12)]
 public class CalculatorTests
 {
-    private readonly double DEFAULT_G = Calculator.GravitationalConstant_DEFAULT;
-    private readonly double DEFAULT_THETA = Calculator.THETA_DEFAULT;
-    private readonly double DEFAULT_EPSILON = Calculator.EPSILON_DEFAULT;
-    private readonly IntegrationAlgorithm DEFAULT_ALGORITHM = Calculator.IntegrationAlgorithm_DEFAULT;
+    Calculator _calc = new();
+
+    [SetUp]
+    public void BeforeEachTest() => _calc = new Calculator();
 
     #region Constructor
 
     [Test]
     public void Constructor_WithoutCustomValues_InitializesWithDefaultValues()
     {
-        // Arrange & Act
-        var calculator = new Calculator();
-
         // Assert
         Assert.Multiple(() =>
         {
-            Assert.That(calculator.GravitationalConstant, Is.EqualTo(DEFAULT_G));
-            Assert.That(calculator.Theta, Is.EqualTo(DEFAULT_THETA));
-            Assert.That(calculator.Epsilon, Is.EqualTo(DEFAULT_EPSILON));
-            Assert.That(calculator.IntegrationAlgorithm, Is.EqualTo(DEFAULT_ALGORITHM));
+            Assert.That(_calc.G_SI, Is.EqualTo(Calculator.G_SI_DEFAULT));
+            Assert.That(_calc.Theta, Is.EqualTo(Calculator.THETA_DEFAULT));
+            Assert.That(_calc.Epsilon, Is.EqualTo(Calculator.EPSILON_DEFAULT));
         });
     }
 
@@ -42,23 +33,68 @@ public class CalculatorTests
         const double customG = 1.0;
         const double customTheta = 0.8;
         const double customEpsilon = 10.0;
-        const IntegrationAlgorithm customAlgorithm = IntegrationAlgorithm.RungeKutta4;
 
         // Act
         var calculator = new Calculator(
-            gravitationalConstant: customG,
+            g_SI: customG,
             theta: customTheta,
-            epsilon: customEpsilon,
-            algorithm: customAlgorithm
+            epsilon: customEpsilon
         );
 
         // Assert
         Assert.Multiple(() =>
         {
-            Assert.That(calculator.GravitationalConstant, Is.EqualTo(customG));
+            Assert.That(calculator.G_SI, Is.EqualTo(customG));
             Assert.That(calculator.Theta, Is.EqualTo(customTheta));
             Assert.That(calculator.Epsilon, Is.EqualTo(customEpsilon));
-            Assert.That(calculator.IntegrationAlgorithm, Is.EqualTo(customAlgorithm));
+        });
+    }
+
+    [Test]
+    public void Constructor_WithInvalidParameters_ThrowsException()
+    {
+        // Act & Assert
+        Assert.Multiple(() =>
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => new Calculator(theta: Calculator.THETA_MIN - 0.5));
+            Assert.Throws<ArgumentOutOfRangeException>(() => new Calculator(theta: Calculator.THETA_MAX + 0.5));
+            Assert.Throws<ArgumentOutOfRangeException>(() => new Calculator(epsilon: Calculator.EPSILON_MIN - 0.5));
+        });
+    }
+
+    #endregion
+
+    #region Pre-Calculated Properties
+
+    [Test]
+    public void PreCalculatedProperties_InitializeOrUpdate_Correctly()
+    {
+        // Assert initialization
+        Assert.Multiple(() =>
+        {
+            Assert.That(_calc.G_AC, Is.EqualTo(_calc.G_SI / Calculator.G_SI_PER_AC_FACTOR));    // correct unit conversion
+            Assert.That(_calc.ThetaSquared, Is.EqualTo(_calc.Theta * _calc.Theta));
+            Assert.That(_calc.EpsilonSquared, Is.EqualTo(_calc.Epsilon * _calc.Epsilon));
+        });
+
+        // Arrange
+        var newG_SI = 2.0;
+        var newTheta = 0.7;
+        var newEpsilon = 1.0;
+
+        // Act
+        _calc.Update(
+            g_SI: newG_SI,
+            theta: newTheta,
+            epsilon: newEpsilon
+        );
+
+        // Assert updates
+        Assert.Multiple(() =>
+        {
+            Assert.That(_calc.G_AC, Is.EqualTo(newG_SI / Calculator.G_SI_PER_AC_FACTOR));    // correct unit conversion
+            Assert.That(_calc.ThetaSquared, Is.EqualTo(newTheta * newTheta));
+            Assert.That(_calc.EpsilonSquared, Is.EqualTo(newEpsilon * newEpsilon));
         });
     }
 
@@ -71,84 +107,174 @@ public class CalculatorTests
     public void Update_CorrectlyChangesSingleAndMultipleProperties()
     {
         // Arrange
-        var calculator = new Calculator(); // Start with default values
         const double newG = 2.5;
-        const IntegrationAlgorithm newAlgorithm = IntegrationAlgorithm.SymplecticEuler;
+        const double newTheta = 0.9;
+
+        double prevEpsilon = _calc.Epsilon;
 
         // Act
-        // We are updating G and the algorithm, but leaving Theta and Epsilon unchanged.
-        calculator.Update(
-            gravitationalConstant: newG,
-            integrationAlgorithm: newAlgorithm
+        _calc.Update(
+            g_SI: newG,
+            theta: newTheta,
+            epsilon: null
         );
 
         // Assert
         Assert.Multiple(() =>
         {
-            // Verify changed properties
-            Assert.That(calculator.GravitationalConstant, Is.EqualTo(newG));
-            Assert.That(calculator.IntegrationAlgorithm, Is.EqualTo(newAlgorithm));
-
-            // Verify unchanged properties
-            Assert.That(calculator.Theta, Is.EqualTo(DEFAULT_THETA));
-            Assert.That(calculator.Epsilon, Is.EqualTo(DEFAULT_EPSILON));
+            Assert.That(_calc.G_SI, Is.EqualTo(newG));
+            Assert.That(_calc.Theta, Is.EqualTo(newTheta));
+            Assert.That(_calc.Epsilon, Is.EqualTo(prevEpsilon));
         });
     }
 
     [Test]
-    public void Update_WithAllNullParameters_DoesNotChangeProperties()
+    public void Update_WithInvalidParameters_ThrowsException()
     {
-        // Arrange
-        var calculator = new Calculator(
-            gravitationalConstant: 1, theta: 0.7, epsilon: 5, algorithm: IntegrationAlgorithm.RungeKutta4
-        );
-
-        var initialG = calculator.GravitationalConstant;
-        var initialTheta = calculator.Theta;
-        var initialEpsilon = calculator.Epsilon;
-        var initialAlgorithm = calculator.IntegrationAlgorithm;
-
-        // Act
-        calculator.Update(); // Call with all default null parameters
-
-        // Assert
-        Assert.Multiple(() =>
-        {
-            Assert.That(calculator.GravitationalConstant, Is.EqualTo(initialG));
-            Assert.That(calculator.Theta, Is.EqualTo(initialTheta));
-            Assert.That(calculator.Epsilon, Is.EqualTo(initialEpsilon));
-            Assert.That(calculator.IntegrationAlgorithm, Is.EqualTo(initialAlgorithm));
-        });
-    }
-
-    [Test]
-    public void Update_WithInvalidParameters_ClampsToValidRange()
-    {
-        // Arrange
-        var calculator = new Calculator();
-        // Assumes these consts exist on Calculator, matching your description.
-        // We'll use reflection if they are private, or hard-code if they are stable.
-        const double THETA_MIN = Calculator.THETA_MIN;
-        const double THETA_MAX = Calculator.THETA_MAX;
-        const double EPSILON_MIN = Calculator.EPSILON_MIN;
-
         // Act & Assert
         Assert.Multiple(() =>
         {
-            // Test Theta clamping
-            calculator.Update(theta: THETA_MAX + 1); // Above max
-            Assert.That(calculator.Theta, Is.EqualTo(THETA_MAX));
-
-            calculator.Update(theta: THETA_MIN - 1); // Below min
-            Assert.That(calculator.Theta, Is.EqualTo(THETA_MIN));
-
-            // Test Epsilon clamping
-            calculator.Update(epsilon: EPSILON_MIN - 1); // Below min
-            Assert.That(calculator.Epsilon, Is.EqualTo(EPSILON_MIN));
+            Assert.Throws<ArgumentOutOfRangeException>(() => _calc.Update(theta: Calculator.THETA_MIN - 0.5));
+            Assert.Throws<ArgumentOutOfRangeException>(() => _calc.Update(theta: Calculator.THETA_MAX + 0.5));
+            Assert.Throws<ArgumentOutOfRangeException>(() => _calc.Update(epsilon: Calculator.EPSILON_MIN - 0.5));
         });
     }
 
     #endregion
+
+    #region DistanceSquaredSoftened
+
+    [Test]
+    public void DistanceSquaredSoftened_AddsSofteningFactor()
+    {
+        // Arrange
+        Vector2D p1 = new(1, 1);
+        Vector2D p2 = new(5, 5);
+
+        // Act
+        double dist_sq = p1.DistanceToSquared(p2);
+        double dist_sq_soft = _calc.DistanceSquaredSoftened(p1, p2);
+        double diff = Math.Abs(dist_sq_soft - dist_sq);
+
+        // Assert
+        Assert.That(diff, Is.EqualTo(_calc.EpsilonSquared));
+    }
+
+    #endregion
+
+    #region Acceleration
+
+    [Test]
+    public void Acceleration_Calculation_ShouldBeCorrect()
+    {
+        // Arrange
+        Vector2D m1_pos = new(1, 2);
+        Vector2D m2_pos = new(4, 6);
+        double m2_mass = 100;
+
+        // Manual calculations
+        double dist_sq = m1_pos.DistanceToSquared(m2_pos);
+        double dist_sq_soft = dist_sq + _calc.EpsilonSquared;
+
+        // F = G * m1 * m2 / (d^2 + e^2)
+        // a = F / m1
+        // simplified: a = G * m2 / (d^2 + e^2)
+        double a = _calc.G_AC * m2_mass / dist_sq_soft;
+
+        // Vector from target to source, then normalize to get direction
+        Vector2D direction = (m2_pos - m1_pos).Normalized;
+
+        Vector2D accVector = a * direction;
+
+        Assert.Multiple(() =>
+        {
+            // Without passing pre-squared-softened distance
+            Assert.That(_calc.Acceleration(m1_pos, m2_pos, m2_mass), Is.EqualTo(accVector));
+            // With passing pre-squared-softened distance
+            Assert.That(_calc.Acceleration(m1_pos, m2_pos, m2_mass, dist_sq_soft), Is.EqualTo(accVector));
+        });
+    }
+    
+    [Test]
+    public void Acceleration_Calculation_ShouldBeCorrect_Manual()
+    {
+        /*  Initial conditions
+
+            p1 = {1,2}  // in units of astronomical units
+            p2 = {4,6}  // in units of astronomical units
+            m2 = 1      // in units of solar masses
+            e = 0.001
+            G_SI = 6.6743e-11   // in units of m³/kg/s²
+            => G_AC ≈ 2.9591312e-4  // in units of au³/M☉/d²
+        */
+        Vector2D p1 = new(1, 2);
+        Vector2D p2 = new(4, 6);
+        double m2 = 1;
+        _calc.Update(g_SI: 6.6743e-11, epsilon: 0.001);
+
+        /*  Calculate distance
+            dx = p1.x - p2.x 
+                = 1 - 4 
+                = -3
+            dy = p1.y - p2.y 
+                = 2 - 6 
+                = -4
+            d = sqrt(dx^2 + dy^2) 
+                = sqrt(-3 * -3 + -4 * -4) 
+                = sqrt(9 + 16) 
+                = sqrt(25) 
+                = 5
+        */
+        double d = p1.DistanceTo(p2);
+        Assert.That(d, Is.EqualTo(5));
+
+        /*  Calculate force magnitude
+            a = G_AC * m2 / (d^2 + e^2)
+                = 2.9591312e-4 * 1 / ( 5^2 + 0.001^2 )
+                = 2.9591312e-4 / ( 25 + 0.000001 ) 
+                = 2.9591312e-4 / 25.000001
+                = 1.18365243e-5
+        */
+        double a = _calc.G_AC * m2 / (d * d + _calc.Epsilon * _calc.Epsilon);
+        Assert.That(a, Is.EqualTo(1.18365243e-5));
+
+        /*  Get direction vector
+            vec_diff = (p2 - p1)
+                = { (4-1) - (6-2) }
+                = { 3, 4 }
+
+            vec_dir = { vec_diff.x / d, vec_diff.y / d}
+                = {3/5, 4/5}
+                = {0.6, 0.8}
+        */
+
+        Vector2D vec_dir = new(0.6, 0.8);
+
+        /*  Calculate acceleration vector
+            vec_a = vec_dir * a
+                = {0.6, 0.8} * 1.18365243e-5
+                = { 7.10191458e-6, 9.46921944e-6 }
+        */
+
+        Vector2D vec_a = vec_dir * a;
+        Vector2D compareVec = new (7.10191458e-6, 9.46921944e-6);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(vec_a.X, Is.EqualTo(compareVec.X));
+            Assert.That(vec_a.Y, Is.EqualTo(compareVec.Y));
+
+            // Make sure that manually calculated acceleration vector is equal to the calculator method.
+            Vector2D calcAcc = _calc.Acceleration(p1, p2, m2);
+            Assert.That(vec_a.X, Is.EqualTo(calcAcc.X));
+            Assert.That(vec_a.Y, Is.EqualTo(calcAcc.Y));
+        });
+    }
+
+    #endregion
+}
+
+/*  OLD TESTS
 
 
     #region EvaluateBody - Basic Evaluations
@@ -158,7 +284,7 @@ public class CalculatorTests
     {
         // Arrange
         var calculator = new Calculator();
-        CelestialBody body = CreateBody(0);
+        ICelestialBody body = CreateBody(0);
         body.Update(mass: 1e6, position: new Vector2D(100, 100));
 
         // The "universe" is represented by the quadtree.
@@ -182,17 +308,17 @@ public class CalculatorTests
         // Arrange
         // Use G_SI that converts to G_AC = 1.0.
         // Initialize with epsilon=0.0, knowing it will be clamped to EPSILON_MIN by the constructor.
-        var gInSiUnits = Calculator.G_SI_PER_AC_FACTOR;
+        var gInSiUnits = Calculator_New.G_SI_PER_AC_FACTOR;
         var calculator = new Calculator(gravitationalConstant: gInSiUnits, epsilon: 0.0);
 
         // Get the actual epsilon value the calculator is using after clamping.
         var actualEpsilon = calculator.Epsilon;
-        Assert.That(actualEpsilon, Is.EqualTo(Calculator.EPSILON_MIN)); // Verify our assumption
+        Assert.That(actualEpsilon, Is.EqualTo(Calculator_New.EPSILON_MIN)); // Verify our assumption
 
-        CelestialBody body1 = CreateBody(1);
+        ICelestialBody body1 = CreateBody(1);
         body1.Update(mass: 6.0, position: new Vector2D(0, 0)); // mass in M☉, position in au
 
-        CelestialBody body2 = CreateBody(2); // The body we will evaluate
+        ICelestialBody body2 = CreateBody(2); // The body we will evaluate
         body2.Update(mass: 1.0, position: new Vector2D(3, 0)); // mass in M☉, position in au
 
 
@@ -236,7 +362,7 @@ public class CalculatorTests
     public void EvaluateBody_EpsilonSoftening_ReducesForceAtCloseRange()
     {
         // Arrange
-        var gInSiUnits = Calculator.G_SI_PER_AC_FACTOR; // G_AC = 1.0
+        var gInSiUnits = Calculator_New.G_SI_PER_AC_FACTOR; // G_AC = 1.0
 
         // Calculator 1: Uses a significant epsilon for softening.
         var calculatorWithSoftening = new Calculator(gravitationalConstant: gInSiUnits, epsilon: 1.0);
@@ -284,7 +410,7 @@ public class CalculatorTests
     public void EvaluateBody_BarnesHutTheta_AffectsForceApproximation()
     {
         // Arrange
-        var gInSiUnits = Calculator.G_SI_PER_AC_FACTOR; // G_AC = 1.0
+        var gInSiUnits = Calculator_New.G_SI_PER_AC_FACTOR; // G_AC = 1.0
 
         // Calculator 1: The "accurate" one. Theta = 0 forces it to visit every node,
         // equivalent to a direct N-Body summation.
@@ -493,9 +619,9 @@ public class CalculatorTests
     public void EvaluateBody_IntegrationAlgorithm_SymplecticEuler_IsCorrect()
     {
         // Arrange
-        var gInSiUnits = Calculator.G_SI_PER_AC_FACTOR; // G_AC = 1.0
+        var gInSiUnits = Calculator_New.G_SI_PER_AC_FACTOR; // G_AC = 1.0
         var calculator = new Calculator(
-            gravitationalConstant: gInSiUnits, 
+            gravitationalConstant: gInSiUnits,
             algorithm: IntegrationAlgorithm.SymplecticEuler
         );
         var actualEpsilon = calculator.Epsilon;
@@ -529,7 +655,7 @@ public class CalculatorTests
 
         // 3. Calculate new position: p₁ = p₀ + v₁ * dt
         var expectedPos = initialPos + expectedVel * deltaTime;
-        
+
         // Act
         var result = calculator.EvaluateBody(orbitingBody, deltaTime, grid.Root);
         Assert.That(result, Is.Not.Null);
@@ -545,65 +671,5 @@ public class CalculatorTests
 
 
     #endregion
-}
-
-
-/*
-6. EvaluateBody_InUniverseWithOnlySelf_ReturnsNull (Tests both "empty universe" and "no self-force" concepts)
-7. EvaluateBody_TwoBodyProblem_CalculatesCorrectGravitationalAcceleration
-8. EvaluateBody_EpsilonSoftening_ReducesForceAtCloseRange
-9. EvaluateBody_BarnesHutTheta_AffectsForceApproximation
-10. EvaluateBody_AtCenterOfSymmetricSystem_ReturnsNull
-12. EvaluateBody_WithNegativeDeltaTime_IntegratesBackwardsInTime
-13. EvaluateBody_IntegrationAlgorithm_SymplecticEuler_IsCorrect
-14. EvaluateBody_IntegrationAlgorithm_RungeKutta4_IsCorrect
-15. EvaluateBody_IntegrationAlgorithm_VelocityVerlet_IsCorrect
-
-Constructor_WithoutCustomValues_InitializesWithDefaultValues
-    Verifies that creating a Calculator with no arguments sets the public properties (GravitationalConstant, Theta, Epsilon, IntegrationAlgorithm) to their default values.
-
-Constructor_WithCustomValues_InitializesPropertiesCorrectly
-    Verifies that the constructor correctly accepts and assigns custom values provided by the user.
-
-Update_Method_UpdatesSingleAndMultipleProperties
-    Verifies that the update method correctly modifies the state.
-
-Update_WithAllNullParameters_DoesNotChangeAnyProperties
-    Verifies that calling Update with all null arguments results in no changes to the calculator's state. This is a crucial test for the intended behavior of the optional parameters.
-
-EvaluateBody_InEmptyUniverse_ReturnsNull
-    Verifies that a body with other gravitational forces acting on it experiences zero net acceleration. 
-    According to the XML documentation, this should result in a null return.
-
-EvaluateBody_TwoBodyProblem_CalculatesCorrectGravitationalAcceleration
-    Verifies that the core implementation of Newton's Law of Universal Gravitation is correct by checking against a manually calculated result.
-
-EvaluateBody_EpsilonSoftening_ReducesForceAtCloseRange
-    Verifies that the softening factor Epsilon correctly reduces the gravitational force when two bodies are extremely close (potential division by 0 is handled within the QuadTree itself).
-
-EvaluateBody_BarnesHutTheta_AffectsForceApproximation
-    Verifies that the Theta parameter correctly controls the trade-off between accuracy and approximation in the Barnes-Hut algorithm.
-
-EvaluateBody_AtCenterOfSymmetricSystem_ReturnsNull
-    Tests a zero net-force scenario. By placing a body at the exact center of a symmetrical arrangement of other bodies (e.g., at the origin with four identical masses at (+-X, 0) and (0, +-Y)), the net gravitational force should be zero. This should also result in a null return.
-
-EvaluateBody_WithZeroDeltaTime_ReturnsCurrentStateWithCalculatedAcceleration
-    Verifies that a zero time step results in no change to position or velocity, but still returns the correctly calculated instantaneous acceleration. The method should not return null unless the net force is truly zero.
-    The method should return an EvaluationResult where:
-        - Position is the same as the body's starting position.
-        - Velocity is the same as the body's starting velocity.
-        - Acceleration is the non-zero, correctly calculated gravitational acceleration at that instant.
-
-EvaluateBody_WithNegativeDeltaTime_IntegratesBackwardsInTime
-    Verifies that providing a negative deltaTime correctly simulates the system backward. The resulting velocity should be adjusted in the opposite direction compared to a positive deltaTime, and the position should integrate "into the past."
-
-EvaluateBody_IntegrationAlgorithm_SymplecticEuler_IsCorrect
-    Verifies that a given integration algorithm is used correctly. Done via manual calculation of a simple two-body system.
-
-EvaluateBody_IntegrationAlgorithm_RuttaKunge4_IsCorrect
-    Verifies that a given integration algorithm is used correctly. Done via manual calculation of a simple two-body system.
-
-EvaluateBody_IntegrationAlgorithm_VelocityVerlet_IsCorrect
-    Verifies that a given integration algorithm is used correctly. Done via manual calculation of a simple two-body system.
 
 */
