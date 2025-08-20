@@ -98,10 +98,9 @@ export default class AppShell {
     /**
      * Requests the creation of a new body in the simulation.
      * 
-     * The promise will resolve after the next simulation tick, once the new body
-     * has been created in the physics engine, its state has been propagated
-     * back to the application, and its corresponding metadata and visual
-     * representation have been initialized.
+     * The promise will resolve once the new body has been created in the physics engine,
+     * its state has been propagated back to the application,
+     * and its corresponding metadata and visual representation have been initialized.
      * @returns {Promise<number>}   A promise that resolves with the unique ID of the new body.
      */
     static async createBody() {
@@ -111,9 +110,8 @@ export default class AppShell {
     /**
      * Requests the deletion of a body from the simulation.
      * 
-     * The promise will resolve after the next simulation tick, guaranteeing that
-     * the body has been fully removed from the physics engine, its metadata store,
-     * and the renderer.
+     * The promise will resolve after the body has been fully removed 
+     * from the physics engine, its metadata store, and the renderer.
      * 
      * @param {number} id               The unique ID of the body to delete.
      * @returns {Promise<boolean>}      A promise that resolves with `true` on success, or `false` if it wasn't found.
@@ -123,16 +121,14 @@ export default class AppShell {
     }
 
     /**
-     * Queues an update for a body's physical state and/or metadata.
+     * Requests an update for a body's physical state and/or metadata.
      * 
      * This method provides a guarantee of eventual consistency. All updates submitted
      * within the same event loop cycle are merged, with later calls overriding
      * earlier ones for the same properties (last-write-wins).
      * 
-     * The returned promise resolves after the next simulation tick. At that point,
-     * the final, merged state will have been applied in the physics engine, and
-     * all corresponding changes to metadata and the rendered view will be complete,
-     * ensuring the entire application is in a consistent state.
+     * The returned promise resolves after the body has been updated (or the update has been rejected)
+     * in the physics engine and/or metadata store, and the rendered view.
      * 
      * @param {number} id                                       The unique ID of the body to update.
      * @param {Partial<BodyStateData & BodyMetaData>} updates   An object with the properties to change.
