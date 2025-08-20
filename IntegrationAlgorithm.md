@@ -1,301 +1,255 @@
-# Goal - Integration Algorithm
-The goal of this exercise is to find an algorithm for integrating Newtonian equations of motion in an n-body simulation of point-mass object particles which uses a Quad-Tree (Barnes-Hut) for spatial partitioning - generally but also in the context of my **Orbital Mini-Sandbox** project.
-The final algorithm must meet all of the following criteria:
+# Overview
 
-1. Second-order accuracy in time (local truncation error of `O(Δt³`), global error of `O(Δt²)`)
-2. Symplectic (to the extend allowed by the Barnes-Hut algorithm)
-3. Time-reversable
-4. Allows for variable time steps
-5. Accurate reading of position, velocity, and acceleration at the same time step
-6. Optimized for computational efficiency, assuming variations in time step size are rare
-7. Atomic particle updates with clear Read/Write separation
+The **Orbital Mini-Sandbox** is a real-time n-body simulation of point-mass bodies which uses a Quad-Tree (Barnes-Hut) for spatial partitioning and implements the **Velocity-Verlet** algorithm for integrating Newtonian equations of motion. Rather than a tool for scientific work, the project aims to be a sandbox for both entertainment and education, letting users set up, explore, and manipulate "what-if" scenarios of orbital mechanics. 
 
-Meanwhile the following aspects are explicity not taken into consideration:
-- Thread Safety and multithreading
+This document explores the mathematical basis for the simulation - the integration algorithm. What specific requirements and constraints this project poses, how the chosen **Velocity-Verlet** works, how it was implemented, and an overview of possible alternative options.
 
-# Starting Point: Velocity-Verlet
-The Velocity-Verlet algorithm will be used as the basis of this work because it can already meet the mathematical criteria (1, 2, 3, 4, and 5) if implemented correctly. 
-A single, full step of the common Kick-Drift-Kick (KDK) form of the Velocity-Verlet algorithm works as follows:
+*The documentation for the project's overall design and architecture documentation can be found in [PDD.md](PDD.md).*
 
-1. (Half-)Kick: Calculate `v(t + Δt/2) = v(t) + (a(t)Δt)/2`
-2. Drift: Calculate `x(t + Δt) = x(t) + v(t + Δt/2)Δt`
-3. Derive `a(t+Δt) = F(x(t + Δt))/m`
-4. (Half-)Kick: Calculate `v(t + Δt) = v(t + Δt/2) + a(t + Δt)Δt/2`
+# Requirements & Constraints
+It is important to recognize that the **Orbital Mini-Sandbox** is designed to run in real-time and in a single-threaded environment. As such, it has to prioritize certain aspects such as performance and stability, over accuracy, even though that is still a highly important factor. 
 
-## The Problems
-While the KDK algorithm looks simple on paper, a direct implementation of it isn't ideal in the context of a simulation that uses a Quad-Tree for spatial partitioning. The complication the Quad-Tree introduces is the fact that it must be rebuild in the middle of the time step - after `x(t+Δt)` is calculated but before `a(t+Δt)` can be derived.
-This necessitates two separate loops over the point-mass objects:
+- **Performance:** The **Orbital Mini-Sandbox** must maintain minimum stable frame rate of 60 fps at 100 simulated bodies.
+- **Stability:** Numerical stability is more important than physical accuracy. To avoid drifting orbits, the simulation's total energy must be conserved across many time steps.
+- **Determinism:** To make sharable presets useful, the simulation must be perfectly deterministic (outside of floating-point errors).
+- **Full-Step State:** To provide a coherent and accurate reading of the true simulation state, the evaluated properties of each body (such as position, velocity, and accuracy) must be synchronized and calculated (not predicted) at integer time steps.
+- **Accuracy:** The simulation should aim for the highest degree of accuracy possible within these constraints.
+
+
+# Velocity-Verlet
+The Velocity-Verlet algorithm is implemented in it's common Kick-Drift-Kick format, which defines a single full-step as follows:
+
+1. **(Half-)Kick** $v(t + \frac{\Delta t}{2}) = v(t) + a(t) \frac{\Delta t}{2} $
+2. **Drift** $x(t + \Delta t) = x(t) + v(t + \frac{\Delta t}{2}) \Delta t$
+3. **Derive** $a(t + \Delta t) = \frac{F(x(t + \Delta t))}{m}$
+4. **(Half-)Kick** $v(t + \Delta t) = v(t + \frac{\Delta t}{2}) + a(t + \Delta t) \frac{\Delta t}{2}$
+
+## Strengths
+- **Performance:** Because the position is only calculated once per time-step, the Quad-Tree must be rebuilt only once per time step. Since this is one of - if not the - most computationally expensive operation in the simulation's hot path, limiting its rebuild frequency to once per time-step is vital for performance.
+- **Algorithmic Symplecticity:** While the Barnes-Hut approximations prevent true symplecticity of the simulation as a whole (depending on the chosen value for Theta $\theta$), a symplectic integration algorithm is nevertheless vital to prevent runaway energy-drift in a long-running simulation.
+- **Algorithmic Time-Reversibility:** Assuming the simulation's other parameters aren't externally modified, this algorithm is time-reversable by setting a negative $\Delta t$. Note that the Barnes-Hut approximations can prevent true time-reversibility of the simulation as a whole.
+- **2nd-Order Accuracy:** With a global error of $O(\Delta t^2)$ (and a local truncation error of $O(\Delta t^3)$), this algorithm provides a clear improvement over common first-order accurate integration methods such as Symplectic Euler.
+- **Full-Step State:** Since the evaluated properties (such as position, velocity, and accuracy) of all bodies are synchronized at integer time steps, this algorithm provides a coherent and accurate reading of the true simulation state.
+
+## The Quad-Tree Problem
+The implementation of this rather straightforward algorithm is complicated by the need to account for the Quad-Tree for spacial partitioning, which requires the tree to be rebuilt in the middle of the time step - after $x(t + \Delta t)$ is calculated but before $a(t + \Delta t)$ can be derived.
+This necessitates two separate loops over the bodies, which breaks strict read/write separation as each body must be altered twice in each time step - once before the tree is rebuilt, and once afterwards.
 
 ```pseudocode
-function step_function_kdk(particles, dt, tree):
-	foreach P of particles:
-		calculate v(t + Δt/2)
-			P.v_half = P.v + P.a * dt/2
-		calculate x(t+Δt)
-			P.x = P.x + P.v_half * dt
+function step_function(bodies, dt, tree):
+	foreach B of bodies:
+		// Calculate v(t + Δt/2)
+		B.v_half = B.v + B.a * dt/2
+		// Calculate x(t+Δt)
+		B.x = B.x + B.v_half * dt
 		
-	rebuild tree using P.x
-		tree.Rebuild(particles)
+	// rebuild tree using B.x
+	tree.Rebuild(bodies)
 	
-	foreach P of particles:
-		derive a(t+Δt)
-			P.a = tree.CalcAcceleration(P.x)
-		calculate v(t+Δt)
-			P.v = P.v_half + P.a * dt/2
+	foreach B of bodies:
+		// Derive a(t+Δt)
+		B.a = tree.CalcAcceleration(B.x)
+		// Calculate v(t+Δt)
+		B.v = B.v_half + B.a * dt/2
 			
-return particles
+return bodies
 ```
 
-This breaks read/write separation as each particle must be altered twice in each time step - once before the tree is rebuilt, and once afterwards.
+Separating read/write steps would require either a different integration algorithm such as the **Leapfrog** method, a swappable read-write buffer of bodies, or a complete redesign of the Quad-Tree to encode the properties of the bodies directly instead of simply storing references.
+All come with their own downsides however:
+- The issues with the **Leapfrog** algorithm are explored in great detail below in the section of the same name.
+- The swappable read-write buffer would nearly double the memory requirements of the simulation and introduce a whole host of potential state synchronization issues such as for update calls.
+- The redesign of the Quad-Tree would increase the complexity of an already very complex component that must be highly performant.
 
-# Alternative: Position-Verlet
-The Position-Verlet is a variation of the Velocity-Verlet algorithm that promises to solve the previously discussed problem by shifting the order of operations. Instead of usual Kick-Drift-Kick order, this algorithm uses a Force-Kick-Drift (FKD) order:
+While this separation - and thus the integrator itself - would be a major problem in a multi-threaded environment, in the single-threaded context of this project, it can be viewed more as an academic flaw rather than a practical one. As such, these workarounds have been deemed unnecessary for the **Orbital Mini-Sandbox** in favour of a simpler approach with 2 distinct read-write steps.
 
-1. Force: Derive `a(t) = F(x(t))/m`
-2. (Full-)Kick: Calculate `v(t + Δt/2) = v(t - Δt/2) + a(t) * Δt`
-3. Drift: Calculate `x(t + Δt) = x(t) + v(t + Δt/2) * Δt`
 
-This order neatly shifts the tree rebuild to the start of the time step, allowing for all particle calculations to be done within a single loop:
+
+## Full Implementation
+To illustrate how this algorithm maps directly to the project's architecture, the final C# implementation - from `src/Physics/Core/Simulation.cs` - is provided below. Further context and details can be found in the project's PDD.
+
+```csharp
+/// <summary>
+/// Advances the simulation by a single timestep.
+/// Calculates the forces on all enabled bodies and updates their properties like position, velocity and acceleration.
+/// </summary>
+public void StepFunction_VelocityVerlet()
+{
+    int bodyCount = _enabledBodies.Count;
+
+    if (bodyCount == 0)
+    {
+        Timer.AdvanceSimTime();
+        return;
+    }
+
+    double minX = 0;
+    double minY = 0;
+    double maxX = 0;
+    double maxY = 0;
+
+    for (int i = 0; i < bodyCount; i++)
+    {
+        var body = _enabledBodies[i];
+
+        // Step 1: Half-Kick
+        // v(t + Δt/2) = v(t) + (a(t)Δt)/2
+        var v_half = body.Velocity + body.Acceleration * Timer.DeltaTimeHalf;
+
+        // Step 2: Drift
+        // x(t + Δt) = x(t) + v(t + Δt/2)Δt
+        var x = body.Position + v_half * Timer.DeltaTime;
+
+        // Update body directly
+        body.Update(position: x, velocityHalfStep: v_half);
+
+        // Get boundaries for quad-tree
+        minX = Math.Min(minX, x.X);
+        minY = Math.Min(minY, x.Y);
+        maxX = Math.Max(maxX, x.X);
+        maxY = Math.Max(maxY, x.Y);
+    }
+
+    // Rebuild and evaluate the tree with the new body positions.
+    QuadTree.Reset(minX, minY, maxX, maxY, _enabledBodies.Count);
+    for (int i = 0; i < bodyCount; i++) QuadTree.InsertBody(_enabledBodies[i]);
+    QuadTree.Evaluate();
+
+    for (int i = 0; i < bodyCount; i++)
+    {
+        var body = _enabledBodies[i];
+
+        // Step 3: Force
+        // a(t+Δt) = F(x(t + Δt))/m
+        var a = QuadTree.CalcAcceleration(body, Calculator);
+
+        // Step 4: Half-Kick
+        // v(t + Δt) = v(t + Δt/2) + a(t + Δt)Δt/2
+        var v = body.VelocityHalfStep + a * Timer.DeltaTimeHalf;
+
+        body.Update(acceleration: a, velocity: v);
+    }
+
+    Timer.AdvanceSimTime();
+}
+```
+
+# Alternatives: Leapfrog
+Also called the Position-Verlet method is a variation of the Velocity-Verlet algorithm that promises to solve the previously discussed problem by shifting the order of operations. Instead of usual Kick-Drift-Kick order, this algorithm uses a Force-Kick-Drift order:
+
+1. **Force** $a(t) = \frac{F(x(t))}{m}$
+2. **(Full-)Kick** $v(t + \frac{\Delta t}{2}) = v(t - \frac{\Delta t}{2}) + a(t) \Delta t$
+3. **Drift** $x(t + \Delta t) = x(t) + v(t + \frac{\Delta t}{2}) \Delta t$
+
+This order neatly shifts the tree rebuild to the start of the time step, allowing for all body calculations to be done within a single loop:
 
 ```pseudocode
-function step_function_fkd(particles, dt, tree):
-	rebuild tree using P.x
-		tree.Rebuild(particles)
+function step_function(bodies, dt, tree):
+	rebuild tree using B.x
+		tree.Rebuild(bodies)
 	
-	foreach P of particles:
+	foreach B of bodies:
 		derive a(t)
-			P.a = tree.CalcAcceleration(P.x)
+			B.a = tree.CalcAcceleration(B.x)
 		calculate v(t + Δt/2)
-			P.v_half = P.v_half + P.a * dt
+			B.v_half = B.v_half + P.a * dt
 		calculate x(t + Δt)
-			P.x = P.x + P.v_half * dt
+			B.x = B.x + B.v_half * dt
 	
-return particles
+return bodies
 ```
 
-With only minor modifications, this algorithm can also be made atomic::
+With only minor modifications, this algorithm be easily separated into read and write steps:
 
 ```pseudocode
-function step_function_fkd(particles, dt, tree):
-	rebuild tree using P.x
-		tree.Rebuild(particles)
+function step_function(bodies, dt, tree):
+	rebuild tree using B.x
+		tree.Rebuild(bodies)
 
 	updates = []
 
-	foreach P of particles:
-		a_new = tree.CalcAcceleration(P.x)
-		v_half_new = P.v_half + a_new * dt
-		x_new = P.x + v_half_new * dt
-		updates.add(P, a_new, v_half_new, x_new)
+	foreach B of bodies:
+		a_new = tree.CalcAcceleration(B.x)
+		v_half_new = B.v_half + a_new * dt
+		x_new = B.x + v_half_new * dt
+		updates.add(B, a_new, v_half_new, x_new)
 
-	foreach (P, a_new, v_half_new, x_new) of updates:
-		P.a = a_new
-		P.v_half = v_half_new
-		P.x = x_new
+	foreach (B, a_new, v_half_new, x_new) of updates:
+		B.a = a_new
+		B.v_half = v_half_new
+		B.x = x_new
 		
-return particles
+return bodies
 ```
 
-While this raises the number of loops back to two, this is generally a worthy trade-off for guaranteed atomicity.
+While this algorithm offers guaranteed read-write separation, it also introduces several new and major issues.
 
-## The Problems
-This algorithm introduces several new and major issues however.
-#### 1. Incoherent Particle State
-The values of a particle's individual properties all represent different points in time. While this is a fundamental property of these kinds of "Leapfrog" integrators, it violates one of the set goals. The state variables for a given particle P at time `tₙ` (before the start of the n-th step) are:
+## Incoherent Body State
+The values of a body's individual properties all represent different points in time. While this is a fundamental property of these kinds of "Leapfrog" integrators, it violates one of the set goals. The state variables for a given body at time $t_n$ (the start of the $n$-th step) are:
 
-`Pₙ.x = x(tₙ)`  The particle's position at time step n
-`Pₙ.v_half = v(tₙ - Δtₙ₋₁/2)`   The particle's velocity at the halfway point between time steps n-1 and n
-`Pₙ.a = a(tₙ₋₁)`    The particle's acceleration at time step n - 1
+- $x(t_n)$ The body's position at time step $n$ 
+- $v(t_n - \frac{\Delta t_{n-1}}{2})$ The body's velocity at the halfway point between time steps $n-1$ and $n$
+- $a(t_{n-1})$ The body's acceleration at time step $n-1$
 
-#### 2. Velocity at Integer Time Steps
-Because the velocity is calculated in a single Kick of `Δt`, rather than two separate Kicks of `Δt/2` each, the velocity at integer time steps `v(t + Δt)` is never calculated. 
-Since `v(t+Δt)` depends on `a(t + Δt)`, which in turn depends on `x(t + Δt)`, a calculation of `v(t + Δt)` would require a full, additional rebuild of the quad-tree. The impact on performance this would have makes this a non-option.
+Because the velocity is calculated in a single kick of $\Delta t$, rather than two separate kicks of $\frac{\Delta t}{2}$ each, the velocity at integer time steps $v(t_n)$ is never calculated. And while the acceleration is calculated at integer time steps, it is always one step "behind" the position. 
 
-Instead the `v(t + Δt)` can be estimated through a linear acceleration extrapolation from `a(tₙ₋₁)` with an accuracy of `O(Δt²)`, though this would require  `a(tₙ₋₁)` to be stored on the particle:
+Since $v(t + \Delta t)$ depends on $a(t + \Delta t)$, which in turn depends on $x(t + \Delta t)$, a calculation of $v(t + \Delta t)$ would require a full, additional rebuild of the quad-tree. The impact on performance this would have makes this a non-option.
 
-1. `aₑₛₜ(tₙ + Δtₙ) ≈ a(tₙ) + ( a(tₙ) - a(tₙ₋₁) )`
-2. `vₑₛₜ(tₙ + Δtₙ) ≈ v(tₙ + Δtₙ/2) + aₑₛₜ(tₙ + Δtₙ) * Δtₙ/2`
+Instead the $v(t + \Delta t)$ can be estimated through a linear acceleration extrapolation from $a(t_{n-1})$ with an accuracy of $O(\Delta t^2)$, though this would require $a(t_{n-1})$ to be stored on the body:
 
-A beneficial side effect of this is that it would also estimate the acceleration at time step n, which is otherwise unknown. Note however that since both `aₑₛₜ(tₙ)` and `vₑₛₜ(tₙ)` are only estimates, they cannot be used for future integrations as doing so would introduce a self-accumulating numerical drift.
+1. $a_{est}(t_n + \Delta t_n) \approx 2a(t_n) - a(t_{n-1}) $
+2. $v_{est}(t_n + \Delta t_n) \approx v(t_n + \frac{\Delta t_{n-1}}{2}) + \frac{{\Delta t_n} a_{est}(t_n + \Delta t_n)}{2} $
 
-#### 3. Variable Timestep Kick
-Since the assertion that `Pₙ.v_half = v(tₙ - Δtₙ₋₁/2)` is only true if `Δtₙ₋₁ = Δtₙ`, each time the time step varies, a non-self-accumulating numerical drift is introduced. 
+
+Note however that since both $a_{est}(t_n + \Delta t_n)$ and $v_{est}(t_n + \Delta t_n)$ are only estimates, they cannot be used for future integrations as doing so would introduce a self-accumulating numerical drift.
+
+## Variable Timestep Kick
+Since the assertion that $v(t_n - \frac{\Delta t_{n-1}}{2})$ is only true if $\Delta t_{n-1} = \Delta t_n$, each time the time step varies, a non-self-accumulating numerical drift is introduced. 
+
 That said, this issue can be mitigated entirely through a simple modification of the Kick step:
 
-1. Reset the half-step center, assuming `v(tₙ - Δtₙ₋₁/2)` is stored but `v(tₙ - Δtₙ/2)` is needed.
-   `v(tₙ - Δtₙ/2) = v(tₙ - Δtₙ₋₁/2) + a(tₙ) * (Δtₙ₋₁ - Δtₙ) / 2`
-2. Apply the full step kick.
-   `v(tₙ + Δtₙ/2) = v(tₙ - Δtₙ/2) + a(tₙ) * Δtₙ`
+1. Reset the half-step center, assuming $v(t_n - \frac{\Delta t_{n-1}}{2})$ is stored but $v(t_n - \frac{\Delta t_n}{2})$ is needed
 
-Simplified, this results in the following equation for the variable time step kick:
+    $v(t_n - \frac{\Delta t_n}{2}) = v(t_n - \frac{\Delta t_{n-1}}{2}) + a(t_n) \frac{\Delta t_{n-1} - \Delta t_n}{2}$
 
-`v(tₙ + Δtₙ/2) = v(tₙ - Δtₙ₋₁/2) + a(tₙ) * (Δtₙ₋₁ + Δtₙ) / 2`
+2. Apply the full step kick
 
-#### 4. Kick-Start
-The Kick step of this FDK algorithm requires the velocity at the previous time step's half-step `v(t - Δt/2)`. As such, the first time any particle in the simulation is ever present in a time step, it must be kick-started to initialize the `v(t - Δt/2)`:
-
-1. Force: Derive `a(tₙ) = F(x(tₙ))/m`
-2. Backwards Half-Kick: Calculate `v(tₙ - Δtₙ₋₁/2) = v(tₙ) - a(tₙ) * Δtₙ₋₁/2`
-3. Kick: Calculate `v(tₙ + Δtₙ/2) = v(tₙ - Δtₙ₋₁/2) + a(tₙ) * (Δtₙ₋₁ + Δtₙ) / 2`
-4. Drift: Calculate `x(tₙ + Δtₙ) = x(tₙ) + v(tₙ + Δtₙ/2) * Δtₙ`
-
-*Note: On the very first time step of a new simulation, `Δtₙ₋₁` is likely not known. In this case `Δtₙ` should be used as a substitude. Because this is essentially a first-order Euler integration step applied backwards in time, the very first step of a new simulation breaks time-reversability.*
-
-While this introduces additional algorithmic complexity, its impact on performance is negligable because of the operation's cheap computational cost and one-time nature per particle.
-
-# The Solution - Thinking Ahead
-It's clear that the Position-Verlet algorithm is anything but the perfect solution. While many of its downsides have workarounds, it still fails to address the core goal of needing to know the precise values for position, velocity and acceleration at integer time steps. The reality is, there is no perfect solution that combines accuracy, symplecticity, time-reversability, time-step-variability, and interger-step state-synchronization - within a single step. 
-
-The core idea behind this approach is to build the current state not only from the known past but also from an estimated future. This would be simple (and unnecessary) in a time-step-invariant context and pointless in a context where the time steps vary wildly and often. But since one of the core assumptions of this project states that "variations in time step size are rare", a computationally efficient implementation of this idea is complex but possible. 
-
-# The Mental Model of State in Time
-Since the mental modeling of a state's progression through time can difficult, counter-intuitive, and riddled with ambiguity at the best of times, let's first establish an exact definitions for "current", "next", and "previous" state in the context of this algorithm. 
-
-## `n` - The Current State
-The current (or present) state is the state of the simulation that can be observed at a given moment. Pausing a simulation essentially means freezing the passage of time to preserve the current state.
-
-In more technical terms, the current state is defined as the state of the simulation at time `tₙ`, which is the result of the previous evaluation of the `step_function` at time `tₙ₋₁`.
-
-The time at the current state is defined as: `tₙ = tₙ₋₁ + Δtₙ₋₁`
-
-It should be noted that the following two concepts can easily be mistaken for being different, even though they're identical and  are both represented by the current state `n`. 
-- the simulation state at the end of the `step_function` that was called with `Δtₙ₋₁` 
-- the simulation state at the start of the `step_function` that is being called with `Δtₙ`
-
-## `n+1` - The Next State
-The next state is the state an observer will be able to observe once they can no longer observe the current state. At this state the simulation that is still unknown to an observer. As long as a simulation is paused, the next state will never be known to an observer.
-
-The next state is defined as the state of the simulation at time `tₙ₊₁`, which will be the result of the evaluation of the `step_function` in the present at time `tₙ`.
-
-The time at the next state is defined as: `tₙ₊₁ = tₙ + Δtₙ`
-
-It is important to understand that the next state only becomes the current state at the end of the `step_function` call at time `tₙ`.
-
-## `n-1` - The Previous State
-The previous state is the state of the simulation that was observable but isn't any longer. 
-
-The previous state is defined as the state of the simulation at time `tₙ₋₁`, which is a the result of the evaluation of the `step_function` at its own step at time `Δtₙ₋₁`. 
-
-The time at the previous state is defined as: `tₙ₋₁ = tₙ - Δtₙ₋₁`
-
-## `n-m` & `n+m` Beyond Previous and Next
-*included for completion's sake*
-While most of work and mental load revolves around the range of states `n-1` to `n+1`, other states before and after naturally exist as well. 
+    $v(t_n + \frac{\Delta t_n}{2}) = v(t_n - \frac{\Delta t_n}{2}) + a(t_n) \Delta t_n$
 
 
-# Temporal Context
-To make this concept of a transient and shifting view of time more intuitive and easier to work with, let a temporal context TC be defined as a collection that holds individual and distinct states of integer steps.
+Simplified, this results in the following equation for the variable time step kick.
 
-*Note that this is a purely mental model and does not represent a concrete data structure.*
-
-```
-...
-TC(n-1): { x(tₙ₋₁), v(tₙ₋₁), a(tₙ₋₁), tₙ₋₁, Δtₙ₋₁ }
-TC(n): { x(tₙ), v(tₙ), a(tₙ), tₙ, Δtₙ }
-TC(n+1): { x(tₙ₊₁), v(tₙ₊₁), a(tₙ₊₁), tₙ₊₁, Δtₙ₊₁ }
-...
-```
-
-Since not all properties can have a value in all states - that depends on the chosen integration algorithm - they can still be thought of as buckets that might or might not contain anything.
-
-The Velocity-Verlet algorithm works with a TC of size 1 - it only contains the state `n`. Since TC(n) contains everything the algorithm needs to evaluate the next state, it doesn't need a larger TC.
-
-The Position-Verlet algorithm on the other hand can vary. In its timestep-invariant form, it also has a TC of size 1. 
-
-In the timestep-variant form however, the algorithm needs a TC of size 2, which contains both `n` and `n-1`. This is because in order to calculate the velocity at the half-step of `n`, it must take the size of the previous half-step `Δt` into account.
-`v(tₙ + Δtₙ/2) = v(tₙ - Δtₙ₋₁/2) + a(tₙ) * (Δtₙ₋₁ + Δtₙ) / 2`
-
-And since the TC can only hold states of integer time steps, the full `n-1` state must be included.
-
-Restriction of the TC might appear like an arbitrary limitation but without it, the ambiguity that this mental model is designed to eliminate begins to creep back in. This becomes abundantly clear when we talk about the boundaries between states and the need for a precise moment when all states shift at the same time.
-
-
----
-# WORK IN PROGRESS SECTIONS
-### Context Shifts
-The contents of the TC shift at the END of the `step_function`. At that moment, the contents of the TC change as follows:
-- TC(n-1) => TC(n-2) and disappears from our context window
-- TC(n) => TC(n-1)
-- TC(n+1) => TC(n)
-- TC(n+2) => TC(n+1)
-
-
-## The Cost of `Δt` Changes
-Since it is assumed that `Δt` rarely changes, this algorithm actually calculates TC(n+1) at time step n while returning TC(n) to callers.
-In the rare cases where at time step n the `Δtₙ` input is different from `Δtₙ₋₁`, which the last time steps's pre-calculation of n was based on, the result of that pre-calculation is discarded and re-computed in-time.
-
-For steps where `Δt` changes, the algorithm must:
-1. Discard the pre-calculated results for TC(n)
-2. Re-calculate TC(n) from TC(n-1) using the new, correct `Δt`
-3. Calculate TC(n+1) from the newly calculated TC(n) 
-
-Since this involves two full integration steps, the impact of `Δt` changes on the algorithm's pure  computational efficiency is straightforward to calculate as:
-`x(y + z)` where `x` is the number of seconds a simulation with `y` steps takes to run if `Δt` changes `z` times. 
-
-
-## TODO - Other topics to explore
-- viability of both the Velocity-Verlet and the Position-Verlet algorithm in this temporal context
-- how both can be implemented (both in theory and in pseudocode)
-- the concessions and considerations of each
-- how the algorithm is bootstrapped
-- how a proper "rewind" system can be implemented efficiently with relative ease (handling time reversability through storing  `tₙ` and `Δtₙ` pairs in a stack (FILO) when `Δtₙ` changes )
-- general concessions such as a memory overhead that scales with the number of particles in the simulation at 2-3x the rate of simple, single-step integrations  
-etc.
-
-
----
-# Calcs
-
-### Velocity-Verlet but starting with the Force-Calculation step
-
-At the start of step `n`, we know:
-- `tₙ` The time at the START of step `n`
-- `Δtₙ` The size of the time step between `tₙ` and `tₙ₊₁`
-- `x(tₙ + Δtₙ)` Position at time `tₙ₊₁` (calculated in the previous step)
-- `v(tₙ + Δtₙ/2)` Velocity at time `tₙ + Δtₙ/2`. Half-step velocity (calculated in the previous step)
-- `m` Mass
-
-At the end of step `n`, we want to know:
-- `tₙ₊₁` The time at the END of step `n`
+$v(t_n + \frac{\Delta t_n}{2}) = v(t_n - \frac{\Delta t_{n-1}}{2}) + a(t_n) \frac{\Delta t_{n-1} + \Delta t_n}{2}$
 
 
 
-- `x(tₙ₊₁ + Δtₙ₊₁)` The position at time `tₙ₊₂` (for the next step)
-- ``
+## Kick-Start
+The kick step of this algorithm requires the velocity at the previous half-step $v(t_{n-1} + \frac{\Delta t_{n-1}}{2})$.
+As such, the first time any body in the simulation is ever present in a time step, it must be kick-started to initialize the $v(t - \frac{\Delta t}{2})$.
 
-At the end of step `n` (which is identical to the start of step `n+1`), the following values are evaluated and carried:
+1. Force $a(t_n) = \frac{F(x(t_n))}{m}$
 
-a) Considered to be the actual, true state and are user-facing:
-- `tₙ₊₁` The time at the END of step `n`. = `tₙ + Δtₙ`
-- `x(tₙ₊₁)` The position at time `tₙ₊₁`. = `x(tₙ + Δtₙ)`
-- `v(tₙ₊₁)` The velocity at time `tₙ₊₁`. = `v(tₙ + Δtₙ)`
-- `a(tₙ₊₁)` The acceleration at time `tₙ₊₁`. = `a(tₙ + Δtₙ)`
+2. Backwards-Half-Kick $v(t_{n-1} + \frac{\Delta t_{n-1}}{2}) = v(t_n) - a(t_n) \frac{\Delta t_{n-1}}{2}$  
 
-b) Purely internal to be used in the next iteration:
-- `v(tₙ + Δtₙ/2)` The velocity at the halfstep between time `tₙ` and `tₙ₊₁`.
-- `x(tₙ₊₂)` The position at time `tₙ₊₂`. This is a
+    Note: $t_{n-1}$ is not required because because $v(t_{n-1} + \frac{\Delta t_{n-1}}{2}) = v(t_n - \frac{\Delta t_{n-1}}{2})$
 
-#### Step-by-Step
+3. Kick $v(t_n + \frac{\Delta t_n}{2}) = v(t_{n-1} + \frac{\Delta t_{n-1}}{2}) + a(t_n) \frac{\Delta t_{n-1} + \Delta t_n}{2}$
 
-0. Check if actual, now known `Δtₙ` equals the previously estimated value. If not, redo 3 & 4 from the previous step but with the corrected value for `Δtₙ`.
+4. Drift $x(t_n + \Delta t_n) = x(t_n) + v(t_n + \frac{\Delta t_n}{2}) \Delta t_n $
 
-1. Rebuild the QuadTree
 
-*Now we can start with the actual integration.*
+*Note: On the very first time step of a new simulation, $\Delta t_{n-1}$ is likely not known. In this case $\Delta t_n$ should be used as a substitute. Because this is essentially a first-order Euler integration step applied backwards in time, the very first step of a new simulation breaks time-reversability.*
 
-2. Force at time `tₙ₊₁`:
-   `a(tₙ + Δtₙ) = F( x(tₙ + Δtₙ) )/m` 
+While this introduces additional algorithmic complexity, its impact on performance is negligable because of the operation's cheap computational cost and one-time nature per body.
 
-3. Velocity at time `tₙ₊₁`:
-   `v(tₙ + Δtₙ) = v(tₙ + Δtₙ/2) + ( a(tₙ + Δtₙ) * Δtₙ )/2`
 
-*At this point, we know `x(tₙ + Δtₙ)`, `v(tₙ + Δtₙ), and a(tₙ + Δtₙ)`. This would be the end of the regular Velocity-Verlet.
+# Non-Alternatives
 
-In this algorithm however, we must continue to set up for the next loop. For this, we assume that `Δtₙ = Δtₙ₊₁`. Because this assumption won't hold in all cases, we must correct this assumption in step 0 if necessary.*
+### Euler Methods
+- **Forward Euler:** One of the most basic and well-known numerical integration methods, its numerical instability and first-order ($O(\Delta t)$) accuracy make this a non-option for this project.
+- **Semi-Implicit Euler:** While this modification of the classic Euler method, also known the Symplectic Euler method, introduces symplecticity and thus solves the original's issues with numerical instability, it retains the $O(\Delta t)$ accuracy.
 
-4. Velocity at time `tₙ₊₁.₅` (half-step velocity):
-   `v(tₙ₊₁ + (Δtₙ₊₁)/2) = v(tₙ + Δtₙ) + ( a(tₙ + Δtₙ) * Δtₙ₊₁ )/2`
+### Runge-Kutta-4
+The most widely known member of the family of numerical integrators known as Runge-Kutta, this is a fourth order method, boasting a global truncation error of $O(\Delta t^4)$ and a local error of $O(\Delta t^4)$. While this level of accuracy is often desired in scientific computing, this method not only leads to numerical drift due to its explicit nature, but its implementation is also very computationally expensive.
 
-5. Position at time `tₙ₊₂`:
-   `x(tₙ₊₁ + Δtₙ₊₁) = x(tₙ + Δtₙ) + v(tₙ₊₁ + (Δtₙ₊₁)/2) * Δtₙ₊₁`
-
+It works by estimating the velocity and acceleration of a body at 4 specific points in time between $t_n$ and $t_n + \Delta t_n$, before determining $x(t_n + \Delta t_n)$ by via the weighted average of these estimations. This means not only a large the number of individual calculations per full time step, but also a total of 4 rebuilds of the Quad-Tree.
