@@ -326,7 +326,7 @@ internal class QuadTree
                 if (Mass != 0) CenterOfMass = weightedPositionSum / Mass;
             }
 
-            // Case 2: External
+            // Case 2: External & has body
             else if (IsLeaf && _body != null)
             {
                 Mass = _body.Mass;
@@ -334,7 +334,7 @@ internal class QuadTree
             }
 
             // Case 3: Internal
-            else
+            else if (!IsLeaf)
             {
                 // Recursively evaluate child nodes.
                 NW_Child.Evaluate();
