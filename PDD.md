@@ -3,6 +3,15 @@
 
 # Revision History
 
+- **19/08/2025**
+    - Updated to reflect recent, large-scale refactors of the `PhysicsEngine`, following deeper understanding of physics and maths, especially regarding integration algorithms and their interactions with the Barnes-Hut algorithm. This refactor includes:
+        - Implementation of the **Velocity-Verlet** integration algorithm
+        - Redesign to a fixed but configurable time-step instead of an internal calculation based on real-world delta time.
+        - Consolidation and rewrite of `Grid` and `QuadTreeNode` into a single, optimized `QuadTree` class.
+        - Redesign of `Calculator` to a stateful utility class which owns math-related constants in addition to functions.
+        - Introduction of a live `SimulationView` for read access, deprecating previous approach using record DTOs.
+    - Minimal refactor of `Bridge` to reflect the `PhysicsEngine` refactor.
+    - Corrected various small errors. 
 - **17/07/2025**
     - Clarified the `PhysicsEngine` API and data contract.
 - **16/07/2025**
@@ -163,7 +172,7 @@ The WebApp is a single-page application built with HTML, CSS, and JavaScript, us
 ### UI Components
 **SimulationControls (left sidebar)**
 Vertically collapsible container with horizontally collapsible individual subsections
-- **Simulation Options:** play/pause, time scaling, time navigation, gravitational constant adjustment
+- **Simulation Options:** play/pause, time scaling, time navigation, gravitational constant adjustment, and other simulation parameters & constants
 - **Visualization Options:** visual rendering options (orbit paths, velocity trails, labels, body scale), and background color customization
 - **Presets:** import/export UI, input validation & error handling
 - **Hotkey** static reference
@@ -230,7 +239,7 @@ A dedicated container area for displaying temporary, non-modal status messages t
         - Handles updates to metadata as instructed by `AppShell`, queue-based updates to existing bodies.
 - **State Ownership:**
     - **metaData**: An object containing application-level metadata
-    - **updateQueue**
+    - **updateQueue**: A store of queued updates for the metadata (last-write-wins system)
 
 `CanvasView`
 - Encapsulates all rendering logic using PIXI.js. Dumb and fully decoupled. 
@@ -272,15 +281,15 @@ Bridge/
 
 ### Shared Memory Architecture
 The `EngineBridge` implements a double/float64 dual-buffer system for efficient data transfer:
-- **SimStateBuffer**: General simulation data and buffer metadata
-- **BodyStateBuffer**: Continuous array of body data blocks
+- **SimStateBuffer**: Static, general simulation data and buffer metadata
+- **BodyStateBuffer**: Dynamic, continuous array of body data blocks
 
 The single source of truth for the layout of these buffers are the records in `LayoutRecords.cs`. This ensures a self-configuring layout on both the C# and the JavaScript sides.
 
 **Memory Management Rules**
 - `Bridge` has exclusive write access to shared buffers
 - `WebApp` has read-only access to shared buffers
-- Buffers are updated synchronously after each `Physics.Tick()`
+- Buffers are updated synchronously after each time step or in demand-adjusted intervals to process queued write operations.
 - Buffer sizes are pre-allocated based on maximum body count (configurable, default: 10 bodies)
 
 ### API Surface
@@ -288,10 +297,8 @@ The `Bridge` exposes a Javascript API (`bridge.mjs`) to the WebApp. The API's ty
 ```typescript
 static initialize(): Promise<void>
 
-static tickEngine(timestamp: number): BodyDiffData;
-
-static setTimeScale(timeScale: number): void;
-static setTimeDirection(isForward: bool): void;
+static tickEngine(): BodyDiffData;
+static updateEngine(Partial<EngineStateData>): Promise<void>;
 
 // Preset Management  
 static getPreset(): string;
@@ -347,9 +354,9 @@ BodyDiffData: {
 - Specialized utility class that decouples immediate method calls from their execution by queuing them as commands.
 - **Responsibilities:**
     - Enqueues PhysicsEngine operations for deferred, batched execution.
-    - Abstracts the creation and lifecycle of Task<T> objects (which become JavaScript Promises) for commands that must return a value.
+    - Abstracts the creation and lifecycle of Task<T> objects (which are marshaled to JavaScript Promises) for commands that must return a value.
     - Manages promise resolution, ensuring tasks are correctly completed with a result or rejected with an exception upon command execution.
-    - Executes all pending commands when processed by the EngineBridge (during a tick).
+    - Executes all pending commands when processed by the EngineBridge (such as during a tick).
     - Allows the queue to be cleared to prevent stale operations after a full state reset (e.g., LoadPreset).
 - **State Ownership:**
     - A Queue of Action<PhysicsEngine> delegates representing the pending commands.
@@ -363,13 +370,12 @@ C#
 3. `EngineBridge` calls `PhysicsEngine.Tick()`
 4. `PhysicsEngine` completes physics calculations
 5. `EngineBridge` calls `MemoryBufferHandler.WriteTickData()`
-6. `EngineBridge` (C#) returns null to `Bridge` (JS) to indicate success, or an error string on a failure
 
 Javascript
-7. `Bridge` 
+6. `Bridge` returns `BodyDiffData`
     - propagates errors marshalled from C# exceptions
     - reads from memory and refreshes the exposed `simState` object
-    - returns an simple diff to `WebApp`
+    - returns an simple diff to `WebApp`, containing the ids of created, deleted, and updated bodies
 
 ### Error Handling Strategy
 **Exception Translation**
@@ -388,85 +394,104 @@ Javascript
 The physics engine is designed as a completely UI-agnostic, self-contained system that provides a clean API boundary for external integration. This separation ensures the computational physics logic remains independent of presentation concerns and can be thoroughly tested in isolation.
 
 ### API
-The PhysicsEngine is accessed by initializing the exposed `PhysicsEngine` class, which implements the `IPhysicsEngine` interface.
+The PhysicsEngine is accessed by initializing the exposed `PhysicsEngine` class.
 ```csharp
-public interface IPhysicsEngine
+public sealed class PhysicsEngine
 {
-    /// <summary>
-    /// Advances the simulation by a single step.
-    /// </summary>
-    /// <param name="realDeltaTimeMs">The elapsed real-world time, in milliseconds, since the last tick was called.</param>
-    /// <remarks>
-    void Tick(double realDeltaTimeMs);
+    // Provides a live, direct, and read-only view into select properties of the simulation's state.
+    SimulationView View { get; }
 
-    /// <summary>
-    /// Loads a simulation with provided bodies from the given base data.
-    /// </summary>
-    /// <param name="sim">The base data for the simulation.</param>
-    /// <param name="bodies">The base data for all the bodies.</param>
-    void Load(SimDataBase sim, List<BodyDataBase> bodies);
+    // Advances the simulation by a single step.
+    void Tick();
 
-    /// <summary>
-    /// Gets a snapshot of the base data that makes up the current simulation.
-    /// Does not contain any derived values.
-    /// </summary>
-    /// <returns>A tuple containing the base simulation data and the base data of all bodies.</returns>
+    // Loads a simulation with provided bodies from the given base data.
+    void Load(
+        SimDataBase sim,            // The base data for the simulation.
+        List<BodyDataBase> bodies   // The base data for all the bodies.
+    );
+
+    // Gets a snapshot of the base data that makes up the current simulation.
     (SimDataBase sim, List<BodyDataBase> bodies) GetBaseData();
 
-    /// <summary>
-    /// Gets a snapshot of the full data of the current simulation.
-    /// Contains both the base data as well as derived values.
-    /// </summary>
-    /// <returns>A tuple containing the full simulation data and the full data of all bodies.</returns>
-    (SimDataFull sim, List<BodyDataFull> bodies) GetFullData();
-
-    /// <summary>
-    /// Creates a new celestial body in the simulation.
-    /// </summary>
-    /// <returns>The unique Id of the created body.</returns>
+    // Creates a new celestial body in the simulation.
+    // Returns the unique Id of the created body.
     int CreateBody();
 
-    /// <summary>
-    /// Deletes a celestial body from the simulation.
-    /// </summary>
-    /// <param name="id">The unique id of the body to delete.</param>
-    /// <returns><c>true</c> if the specified body instance was found and removed; otherwise <c>false</c>.</returns>
-    bool DeleteBody(int id);
+    // Deletes a celestial body from the simulation.
+    // Returns true if the specified body instance was found and removed, or false otherwise
+    bool DeleteBody(
+        int id          // The unique id of the body to delete.
+    );
 
-    /// <summary>
-    /// Atomically updates a celestial body in the simulation.
-    /// </summary>
-    /// <param name="id">The unique id of the body to update.</param>
-    /// <param name="updates">
-    /// The new values for properties to be updated.
-    /// Unspecified (<c>null</c>) parameters will be ignored and their corresponding properties will remain unchanged.
-    /// </param>
-    /// <returns><c>true</c> if the update was successful, <c>false</c> if not or if the body wasn't found.</returns>
-    bool UpdateBody(int id, BodyDataUpdates updates);
+    // Atomically updates a celestial body in the simulation.
+    // Returns true if the update was successful, or false otherwise.
+    bool UpdateBody(
+        int id,                     // The unique id of the body to update.
+        BodyDataUpdates updates     // The new values for properties to be updated.
+    );
 
-    /// <summary>
-    /// Atomically updates the simulation.
-    /// </summary>
-    /// <param name="updates">
-    /// The new values for properties to be updated.
-    /// Unspecified (<c>null</c>) parameters will be ignored and their corresponding properties will remain unchanged.
-    /// </param>
-    void UpdateSimulation(SimDataUpdates updates);
+    // Atomically updates the parameters of the simulation.
+    void UpdateSimulation(
+        SimDataUpdates updates      // The new values for properties to be updated.
+    );
 }
 ```
 
-Additionally the `Physics` namespace exposes the following records for data transfer.
+`SimulationView` provides a live, direct, and read-only view into select properties of the simulation's state. This data is transient, represents the current simulation state, and its values should not be cached.
+```csharp
+public sealed class SimulationView
+{
+    // The current timestamp of the simulation time in units of days (d).
+    public double SimulationTime { get; }
 
+    // The amount of time that passes in a single simulation step. In units of days (d). A negative timestep makes the simulation step backwards in time.
+    public double TimeStep { get; }
+
+    // The gravitational constant, in units of m³/kg/s².
+    public double G_SI { get; }
+
+    // The opening-angle parameter (theta, θ) for the Barnes-Hut algorithm.
+    // A smaller theta value results in higher accuracy but more calculations, as tree nodes must be closer to be treated as a single mass. 
+    // A larger theta value is faster but less accurate.
+    // Default value is 0.5.
+    public double Theta { get; }
+
+    // The softening factor (epsilon, ε) used to prevent numerical instability.
+    // Prevents the gravitational force from approaching infinity when two bodies get extremely close,
+    // which would otherwise lead to simulation errors and unphysically large accelerations. 
+    // Default value is 0.001.
+    public double Epsilon { get; }
+
+    // Provides a read-only list of views for every celestial body currently in the simulation.
+    // Each BodyView in this list acts as a lightweight, live proxy to a body within the simulation.
+    public abstract IReadOnlyList<BodyView> Bodies { get; }
+}
+
+// Provides a live, direct, and read-only view into select properties of a single celestial body's state.
+// This data is transient, represents the current simulation state, and its values should not be cached.
+public readonly struct BodyView
+{
+    // Unique ID of the body, which is always an integer >= 0
+    public readonly int Id { get; }
+    // A disabled body will be ignored by physics calculations.
+    public readonly bool Enabled { get; }
+    // The mass of the body in Solar Masses (M☉).
+    public readonly double Mass { get; }
+    // The position of the body in Astronomical Units (au).
+    public readonly Vector2D Position { get; }
+    // The velocity vector of the body in Astronomical Units per day (au/d).
+    public readonly Vector2D Velocity { get; }
+    // The acceleration vector of the body in Astronomical Units per day squared (au/d²).
+    public readonly Vector2D Acceleration { get; }
+}
+```
+
+Additionally the `Physics` namespace exposes the following records for write operations.
 ```csharp
 /// <summary>
 /// The base data that defines a celestial body.
 /// </summary>
 public record BodyDataBase(int Id, bool Enabled, double Mass, double PosX, double PosY, double VelX, double VelY);
-
-/// <summary>
-/// The base data that that defines a celestial body plus any derived properties of the body.
-/// </summary>
-public record BodyDataFull(int Id, bool Enabled, double Mass, double PosX, double PosY, double VelX, double VelY);  // Note: Which  derived properties will be added are yet to be determined. 
 
 /// <summary>
 /// Partial data to update a celestial body. Null values are ignored. 
@@ -477,36 +502,25 @@ public record BodyDataUpdates(
     double? PosX = null,
     double? PosY = null,
     double? VelX = null,
-    double? VelY = null
+    double? VelY = null,
+    double? AccX = null,
+    double? AccY = null
 );
 
 /// <summary>
 /// The base data that defines a simulation.
 /// </summary>
 public record SimDataBase(
-    // Timer
-    double SimulationTime, double TimeScale, bool IsTimeForward, int TimeConversionFactor,
-    // Calculator
-    double Theta, double GravitationalConstant, double Epsilon
+    double SimulationTime, double TimeStep, double Theta, double G_SI, double Epsilon
 );
-
-/// <summary>
-/// The base data that defines a simulation plus any derived properties.
-/// </summary>
-public record SimDataFull(
-    double SimulationTime, double TimeScale, bool IsTimeForward, int TimeConversionFactor,
-    double Theta, double GravitationalConstant, double Epsilon
-);  // Note: Which  derived properties will be added are yet to be determined. 
 
 /// <summary>
 /// Partial data to update a simulation. Null values are ignored. 
 /// </summary>
 public record SimDataUpdates(
-    double? TimeScale = null,
-    bool? IsTimeForward = null,
-    int? TimeConversionFactor = null,
+    double? TimeStep = null,
     double? Theta = null,
-    double? GravitationalConstant = null,
+    double? G_SI = null,
     double? Epsilon = null
 );
 
@@ -518,93 +532,75 @@ Physics/
 ├── PhysicsEngine.cs              # Public class - single entry point
 ├── Core/
 │   ├── Simulation.cs             # Main simulation coordinator
-│   ├── Timer.cs                  # Time management and simulation speed
+│   ├── Timer.cs                  # Simulation time manager
 |   ├── Calculator.cs             # Physics calculations per body per timestep
-│   ├── Grid.cs                   # Spatial partitioning (QuadTree)
-|   └── QuadTreeNode.cs           # Utility class for Grid
+│   ├── QuadTree.cs               # Spatial partitioning (QuadTree)
 ├── Bodies/
 │   └── CelestialBody.cs          # Individual body state and behavior
 └── Models/
     ├── Vector2D.cs               # Mathematical primitives
-    └── AABB.cs                   # Axis-aligned bounding box for Grid
+    └── AABB.cs                   # Axis-aligned bounding box for QuadTree
 ```
 ### Classes
 `PhysicsEngine`
 - Serves as the single facade interface for external systems to interact with the physics engine. This enforces architectural boundaries by preventing direct access to internal physics components.
 - Each instance represents an independent physics engine state; consumer is expected to manage different instances if they choose to instantiate multiple at once
 - Responsibilities
-	- Manages the current simulation instance lifecycle
+	- Manages lifecycle of the current simulation instance
 	- Provides preset loading/exporting functionality
-	- Exposes selective methods from internal simulation components
-	- Manages locking and unlocking to prevent external updates during calculation
+	- Exposes select methods to interact with internal simulation components
+    - Exposes a read-only view of the live simulation state via `SimulationView`
 - State Ownership
-	- Current simulation instance
-	- locked state
+	- `Simulation` instance
+    - `SimulationView` instance
 
 `Simulation`
 - Coordinates all simulation components and manages the overall simulation state. Acts as the central orchestrator that ensures all physics components work together cohesively.
+- Implements the step function using the **Velocity-Verlet** integration algorithm. Details on this integration algorithm, why it was chosen over others, and the challenges, assumptions, and trade-offs regarding its implementation are found in [IntegrationAlgorithm.md](IntegrationAlgorithm.md).
 - Responsibilities
-	- Orchestrates physics calculations through component coordination
+	- Orchestrates physics calculations, partly through component coordination
 	- Maintains the collection of celestial bodies
 	- Manages the lifecycle of all owned simulation components
 - State Ownership
-	- `timer` - Timer instance
-	- `bodies` - Collection of CelestialBody instances
-	- `calculator` - Calculator instance
-	- `grid` - Grid instance
+	- `Timer` instance
+	- `Bodies` Collection of CelestialBody instances
+	- `Calculator` instance
+	- `QuadTree` instance
 
 `Timer`
-- Manages the temporal aspects of the simulation including speed, direction, and execution timing. Calculates the simulation delta time for each calculation step.
-- Responsibilities
-	- Controls simulation execution speed and time direction
-	- Maintains the current simulation time
-	- Calculates simulation delta time for each calculation step
+- Small utility class that owns and manages the simulation time and the time step (deltaT).
 - State Ownership
-	- Current simulation timestamp
-	- Time direction (forward/backward)
-	- Simulation speed multiplier
+	- `SimulationTime`The current timestamp of the simulation time in units of days (d).
+	- `TimeStep` The amount of time that passes in a single simulation step. In units of days (d).
 
 `Calculator`
-- Performs the core physics calculations for each simulation timestep. Handles all gravitational force computations and calculates updates for celestial bodies. Optimized for performance as it executes during every simulation tick.
-- Responsibilities
-	- Calculates gravitational forces between celestial bodies
-	- Creates update DTOs for celestial bodies with new velocities and positions based on physics calculations
-	- Utilizes spatial partitioning for efficient proximity queries
+- Utility class that provides the owns and manages various constants and provides a set of utility functions to perform the core physics calculations.
+- State Ownership
+	- `G_SI` The gravitational constant, in units of m³/kg/s².
+	- `Theta` The opening-angle parameter (theta, θ) for the Barnes-Hut algorithm.
+    - `Epsilon` The softening factor (epsilon, ε) used to prevent numerical instability.
 
-`Grid`
-- Provides spatial partitioning functionality through QuadTree implementation to optimize gravitational force calculations. Reduces computational complexity from O(n²) to more efficient spatial queries.
+`QuadTree`
+- Provides spatial partitioning through QuadTree implementation to optimize gravitational force calculations, reducing computational complexity from O(n²) to O(n log n).
+- Operates as a state machine which enforces the flow `Reset()` => `Insert()` => `Evaluate()` => `Calc...()`
+- Optimized for computational efficiency via a pool of mutable node structs for improved data locality zero heap allocations (after an initial warm-up) across tree rebuilds.
 - Responsibilities
-	- Implements QuadTree spatial data structure for celestial body positioning
-	- Serves as the foundational spatial framework for all calculations
-	- Maintains spatial index of celestial body positions
+	- Provide a clean surface that abstracts away the implementation details of the QuadTree and the Barnes-Hut algorithm
 - State Ownership
 	- QuadTree spatial data structure
-	- Spatial partitioning configuration parameters
 
 `CelestialBody`
-- Encapsulates the complete state and behavior of individual celestial bodies.
+- Encapsulates the complete state of individual celestial bodies.
 - Responsibilities
 	- Maintains all physical properties of a celestial body
-	- Provides getters for computed properties derived from its own state
 - State Ownership
 	- int Id (readonly)
+    - double Mass
+	- bool Enabled
 	- Vector2D Position (x, y)
 	- Vector2D Velocity (x, y)
-	- double Mass
-	- bool Enabled
-
-### PhysicsEngine.Tick() workflow
-Core workflow when Tick(deltaTime) is called on an instance of PhysicsEngine
-1. `PhysicsEngine` Enables syncLock (also prevents further PhysicsEngine.Tick() calls)
-2. `PhysicsEngine` Calls simulation.Tick(deltaTime)
-3. `Simulation` Gets double simTimeDelta = Timer.GetSimTimeDelta(deltaTime)
-4. `Timer` Calculates simTimeDelta from deltaTime, simulationTime, timeScale, and timeDirection and returns the result
-5. `Simulation` Calls Timer.UpdateSimTime(simTimeDelta) to update the simulation time; This is safe as only simTimeDelta is used for the rest of the tick calculations
-6. `Simulation` calls grid.rebuild(enabledBodies)
-7. `Simulation` loops over enabled bodies,calls Calculator.EvaluateBody(body, simTimeDelta, Grid.Root) for each; stores the update DTOs for each body in a cache; can be parallelized safely
-8. `Calculator` calculates the changes to the given body and returns a DTO with update data
-9. `Simulation` Updates the bodies with the update data DTOs
-10. `PhysicsEngine` Disables syncLock
+    - Vector2D Acceleration (x, y)
+    - ...other properties yet to be determined
 
 ---
 
