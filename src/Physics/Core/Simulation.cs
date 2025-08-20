@@ -69,7 +69,7 @@ internal interface ISimulation
     /// Advances the simulation by a single timestep.
     /// Calculates the forces on all enabled bodies and updates their properties like position, velocity and acceleration.
     /// </summary>
-    void Tick();
+    void StepFunction_VelocityVerlet();
 }
 
 internal class Simulation : ISimulation
@@ -212,7 +212,7 @@ internal class Simulation : ISimulation
     // properties x, v, and a to be in sync with one another.
 
     /// <inheritdoc/>
-    public void Tick()
+    public void StepFunction_VelocityVerlet()
     {
         int bodyCount = _enabledBodies.Count;
 

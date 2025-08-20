@@ -96,7 +96,7 @@ public sealed class PhysicsEngine : PhysicsEngineBase
 
     public override SimulationView View { get; private protected set; }
 
-    public override void Tick() => Simulation.Tick();
+    public override void Tick() => Simulation.StepFunction_VelocityVerlet();
 
     public override void Load(SimDataBase sim, List<BodyDataBase> bodies)
     {
@@ -165,8 +165,7 @@ public sealed class PhysicsEngine : PhysicsEngineBase
 /// Provides a live, direct, and read-only view into select properties of the simulation's state.
 /// </summary>
 /// <remarks>
-/// The data exposed is transient and represents the state at the end of the most 
-/// recent <see cref="Tick()"/> call and its values should not be cached across ticks.
+/// This data is transient, represents the current simulation state, and its values should not be cached.
 /// </remarks>
 public abstract class SimulationViewBase
 {
@@ -240,8 +239,7 @@ public sealed class SimulationView : SimulationViewBase
 /// Provides a live, direct, and read-only view into select properties of a single celestial body's state.
 /// </summary>
 /// <remarks>
-/// The data exposed is transient and represents the state at the end of the most 
-/// recent <see cref="Tick()"/> call and its values should not be cached across ticks.
+/// This data is transient, represents the current simulation state, and its values should not be cached.
 /// </remarks>
 public readonly partial struct BodyView
 {

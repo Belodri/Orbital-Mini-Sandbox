@@ -5,7 +5,7 @@ namespace Physics.Core;
 internal interface ICalculator
 {
     /// <summary>
-    /// The gravitational constant, in units of m³/kg/s²..
+    /// The gravitational constant, in units of m³/kg/s².
     /// </summary>
     double G_SI { get; }
     /// <summary>
