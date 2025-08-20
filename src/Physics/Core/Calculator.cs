@@ -85,18 +85,35 @@ internal class Calculator : ICalculator
 
     public const double MIN_DISTANCE_SQUARED = 1e-12;
 
-    // Unit Conversions 
+    #region Unit Conversions 
+
     public const double METERS_PER_AU = 149597870700;
     public const double SECONDS_PER_DAY = 86400;
     public const double KILOGRAM_PER_SOLAR_MASS = 1.988416e30;
 
+    /*
+        Unit conversion m³/kg/s² => au³/M☉/d²
+
+        x [au³ * M☉⁻¹ * d⁻²] = 1 [m³ * kg⁻¹ * s⁻²]
+        x = [au⁻³ * M☉ * d²] * [m³ * kg⁻¹ * s⁻²]
+        x = METERS_PER_AU⁻³ [m⁻³] * KILOGRAM_PER_SOLAR_MASS [kg] * SECONDS_PER_DAY² [s²] * 1 [m³] * 1 [kg⁻¹] * 1 [s⁻²]
+        x = METERS_PER_AU⁻³ * KILOGRAM_PER_SOLAR_MASS * SECONDS_PER_DAY²
+    */
+
     /// <summary>
-    /// Conversion factor for G between SI and AC units. <c>1 au³/M☉/d²</c>(AC) = <c>0.01948746035 m³/kg/s²</c>(SI)
+    /// Conversion factor for G from SI to AC units. <c>1 m³/kg/s²</c>(SI) = <c>4.43362031e6 au³/M☉/d²</c>(AC)
     /// </summary>
-    public const double G_SI_PER_AC_FACTOR =
-        METERS_PER_AU * METERS_PER_AU * METERS_PER_AU   // au³ => m³
-        / KILOGRAM_PER_SOLAR_MASS                       // M☉ => kg
-        / (SECONDS_PER_DAY * SECONDS_PER_DAY);          // d² => s²
+    public const double G_AC_PER_SI_FACTOR =
+        1 / (METERS_PER_AU * METERS_PER_AU * METERS_PER_AU)
+        * KILOGRAM_PER_SOLAR_MASS
+        * SECONDS_PER_DAY * SECONDS_PER_DAY;
+
+    /// <summary>
+    /// Conversion factor for G from AC to SI units. <c>1 au³/M☉/d²</c>(AC) = <c>2.2554931e-7 m³/kg/s²</c>(SI)
+    /// </summary>
+    public const double G_SI_PER_AC_FACTOR = 1 / G_AC_PER_SI_FACTOR;
+
+    #endregion
 
     /// <inheritdoc/>
     public double G_SI { get; private set; }
@@ -164,6 +181,7 @@ internal class Calculator : ICalculator
         double accelerationMagnitude = G * m2Mass / d_sq;
 
         // Vector from target to source, then normalize to get direction
+        // vector pointing from m1Position to m2Position
         Vector2D direction = (m2Position - m1Position).Normalized;
 
         return direction * accelerationMagnitude;
