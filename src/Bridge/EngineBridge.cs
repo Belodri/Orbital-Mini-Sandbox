@@ -21,8 +21,12 @@ partial class PresetJSONSerializerContext : JsonSerializerContext { }
 
 public static partial class EngineBridge
 {
-
-    private static readonly PhysicsEngine physicsEngine;
+    #if DEBUG
+    internal static PhysicsEngine physicsEngine;
+    #else
+    private static PhysicsEngine physicsEngine;
+    #endif
+    
     private static readonly MemoryBufferHandler memoryBufferHandler;
     private static readonly CommandQueue commandQueue;
 
@@ -133,7 +137,7 @@ public static partial class EngineBridge
     public static void LoadPreset(string jsonPreset)
     {
         commandQueue.ClearQueue(); // Ensure prior commands cannot interfere with the newly loaded state.
-        PresetData? data = ParseJsonPreset(jsonPreset) ?? throw new Exception("Failed to load: Preset data was null or empty.");
+        PresetData? data = ParseJsonPreset(jsonPreset) ?? throw new ArgumentException("Failed to load: Preset data was null or empty.", nameof(jsonPreset));
         physicsEngine.Import(data.Sim, data.Bodies);
         memoryBufferHandler.WriteViewToMemory(physicsEngine.View);
     }
