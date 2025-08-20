@@ -38,8 +38,11 @@ internal interface ITimer
     void AdvanceSimTime();
 }
 
-internal class Timer(double simulationTime = 0.0, double timeStep = 1.0) : ITimer
+internal class Timer(double simulationTime = Timer.SIMULATION_TIME_DEFAULT, double timeStep = Timer.TIME_STEP_DEFAULT) : ITimer
 {
+    public const double SIMULATION_TIME_DEFAULT = 0.0;
+    public const double TIME_STEP_DEFAULT = 1.0;
+
     /// <inheritdoc />
     public double SimulationTime { get; private set; } = simulationTime;
 
