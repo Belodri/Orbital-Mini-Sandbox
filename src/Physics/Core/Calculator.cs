@@ -119,9 +119,10 @@ internal class Calculator : ICalculator
 
     /// <inheritdoc/>
     public void Update(
-        double? g_SI,
-        double? theta,
-        double? epsilon)
+        double? g_SI = null,
+        double? theta = null,
+        double? epsilon = null
+    )
     {
         if (g_SI is double newG_SI)
         {
