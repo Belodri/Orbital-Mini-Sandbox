@@ -25,17 +25,10 @@ public record SimStateLayoutRec(
     /// </summary>
     int simulationTime,
     /// <summary>
-    /// A multiplier for how much the simulationTime advances during each simulation tick. Default = 1; Min = 0.001; Max = 1000;
+    /// The amount of time that passes in a single simulation step in units of days (d). Negative timestep to simulate backwards in time.
+    /// Altering the timestep of a running simulation breaks time-reversability!
     /// </summary>
-    int timeScale,
-    /// <summary>
-    /// Determines direction of simulationTime. Forward = 1; Backward = 0; 
-    /// </summary>
-    int timeIsForward,
-    /// <summary>
-    /// The conversion factor for simulation time (in d) to real time (in s). Default is 1. Must be positive.
-    /// </summary>
-    int timeConversionFactor,
+    int timeStep,
     /// <summary>
     /// The total number of bodies in the simulation, including disabled ones.
     /// </summary>

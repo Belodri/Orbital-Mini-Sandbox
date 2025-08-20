@@ -55,18 +55,23 @@ public static partial class EngineBridge
     #region Publicly exposed methods
 
     [JSExport]
-    public static void Tick(double realDeltaTimeMs)
+    public static void Tick()
     {
         // Process queued commands
         commandQueue.ProcessAll(physicsEngine);
         // Let the engine do its calculations
-        physicsEngine.Tick(realDeltaTimeMs);
-        // Get the tick data
-
-        (SimDataFull sim, List<BodyDataFull> bodies) = physicsEngine.GetFullData();
+        physicsEngine.Tick();
         // Write the resulting state into the shared memory
-        memoryBufferHandler.WriteTickData(sim, bodies);
+        memoryBufferHandler.WriteViewToMemory(physicsEngine.View);
         // Resolve the queued commands
+        commandQueue.ResolveProcessed();
+    }
+
+    [JSExport]
+    public static void ProcessQueueNoTick()
+    {
+        commandQueue.ProcessAll(physicsEngine);
+        memoryBufferHandler.WriteViewToMemory(physicsEngine.View);
         commandQueue.ResolveProcessed();
     }
 
@@ -85,10 +90,10 @@ public static partial class EngineBridge
     [JSExport]
     public static Task<bool> UpdateBody(
         int id,
-        bool? enabled, double? mass,
-        double? posX, double? posY,
-        double? velX, double? velY,
-        double? accX, double? accY)
+        bool? enabled = null, double? mass = null,
+        double? posX  = null, double? posY  = null,
+        double? velX  = null, double? velY  = null,
+        double? accX  = null, double? accY  = null)
     {
         return commandQueue.EnqueueTask(engine =>
         {
@@ -130,7 +135,7 @@ public static partial class EngineBridge
         commandQueue.ClearQueue(); // Ensure prior commands cannot interfere with the newly loaded state.
         PresetData? data = ParseJsonPreset(jsonPreset) ?? throw new Exception("Failed to load: Preset data was null or empty.");
         physicsEngine.Load(data.Sim, data.Bodies);
-        Tick(0);
+        memoryBufferHandler.WriteViewToMemory(physicsEngine.View);
     }
 
     internal static PresetData? ParseJsonPreset(string jsonPreset)

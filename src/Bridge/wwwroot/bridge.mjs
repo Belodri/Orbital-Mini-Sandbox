@@ -95,12 +95,11 @@ export default class Bridge {
 
     /**
      * Ticks the engine and refreshes the simState data.
-     * @param {number} timestamp The timestamp from `requestAnimationFrame()`
      * @returns {BodyDiffData} 
      */
-    static tickEngine(timestamp) {
+    static tickEngine() {
         this.#cancelPromiseTimeoutLoop();
-        this.#EngineBridge.Tick(timestamp);
+        this.#EngineBridge.Tick();
         this.#refreshSimState();
         this.#callOnTickCallback(this.#diffCache);
         return this.#diffCache;
@@ -131,15 +130,25 @@ export default class Bridge {
 
     static #startPromiseTimeoutLoop() {
         if(this.#promiseFlushTimeoutId) return;
-        // TickEngine(0) tells the engine to process the queued commands
+        // Tell the engine to only process the queued commands, 
         // which resolves the pending promises.
         this.#promiseFlushTimeoutId = setTimeout(() => {
             try {
-                this.tickEngine(0);
+                this.#processQueueNoTick();
             } finally {
                 this.#promiseFlushTimeoutId = null;
             }
         }, this.#pausedPromiseInterval);
+    }
+
+    /**
+     * Process the queue but skip any time-step calculations.
+     */
+    static #processQueueNoTick() {
+        this.#cancelPromiseTimeoutLoop();
+        this.#EngineBridge.ProcessQueueNoTick();
+        this.#refreshSimState();
+        this.#callOnTickCallback(this.#diffCache);
     }
 
     static #cancelPromiseTimeoutLoop() {

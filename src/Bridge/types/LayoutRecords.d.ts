@@ -7,17 +7,9 @@ export interface SimStateLayout {
      */
     readonly simulationTime: number;
     /**
-     * A multiplier for how much the simulationTime advances during each simulation tick. Default = 1; Min = 0.001; Max = 1000;
+     * The amount of time that passes in a single simulation step in units of days (d). Negative timestep to simulate backwards in time. Altering the timestep of a running simulation breaks time-reversability!
      */
-    readonly timeScale: number;
-    /**
-     * Determines direction of simulationTime. Forward = 1; Backward = 0;
-     */
-    readonly timeIsForward: number;
-    /**
-     * The conversion factor for simulation time (in d) to real time (in s). Default is 1. Must be positive.
-     */
-    readonly timeConversionFactor: number;
+    readonly timeStep: number;
     /**
      * The total number of bodies in the simulation, including disabled ones.
      */

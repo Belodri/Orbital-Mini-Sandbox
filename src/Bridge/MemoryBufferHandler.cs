@@ -122,34 +122,31 @@ internal class MemoryBufferHandler : IDisposable
 
     #region Data Writing
 
-    internal void WriteTickData(SimDataFull sim, List<BodyDataFull> bodies)
+    internal void WriteViewToMemory(SimulationView view)
     {
         // Resize if needed and ensure that _bodyStateBufferPtr
         // and _bodyStateBufferSizeInBytes are up to date
-        var bodyCount = bodies.Count;
-        EnsureBodyCapacity(bodyCount);
-
-        WriteSimState(sim, bodyCount);
-        WriteBodyState(bodies);
+        EnsureBodyCapacity(view.Bodies.Count);
+        WriteFixedBuffer(view);
+        WriteDynamicBuffer(view.Bodies);
     }
 
-    private unsafe void WriteSimState(SimDataFull sim, int bodyCount)
+    private unsafe void WriteFixedBuffer(SimulationView view)
     {
         double* pSimState = (double*)_simBufferPtr;
 
         pSimState[SimStateLayout._bodyBufferPtr] = _bodyBufferPtr;
         pSimState[SimStateLayout._bodyBufferSize] = _bodyBufferSizeInBytes;
-        pSimState[SimStateLayout.simulationTime] = sim.SimulationTime;
-        pSimState[SimStateLayout.timeScale] = sim.TimeScale;
-        pSimState[SimStateLayout.timeIsForward] = Convert.ToDouble(sim.IsTimeForward);
-        pSimState[SimStateLayout.bodyCount] = bodyCount;
-        pSimState[SimStateLayout.timeConversionFactor] = sim.TimeConversionFactor;
-        pSimState[SimStateLayout.theta] = sim.Theta;
-        pSimState[SimStateLayout.gravitationalConstant] = sim.GravitationalConstant;
-        pSimState[SimStateLayout.epsilon] = sim.Epsilon;
+
+        pSimState[SimStateLayout.simulationTime] = view.SimulationTime;
+        pSimState[SimStateLayout.timeStep] = view.TimeStep;
+        pSimState[SimStateLayout.bodyCount] = view.Bodies.Count;
+        pSimState[SimStateLayout.theta] = view.Theta;
+        pSimState[SimStateLayout.gravitationalConstant] = view.G_SI;
+        pSimState[SimStateLayout.epsilon] = view.Epsilon;
     }
 
-    private unsafe void WriteBodyState(List<BodyDataFull> bodies)
+    public unsafe void WriteDynamicBuffer(IReadOnlyList<BodyView> bodies)
     {
         int bodyCount = bodies.Count;
         if (bodyCount == 0) return;
@@ -162,18 +159,18 @@ internal class MemoryBufferHandler : IDisposable
 
         for (int i = 0; i < bodyCount; i++)
         {
-            BodyDataFull body = bodies[i];
+            BodyView body = bodies[i];
             var bodySlice = allBodiesData.Slice(i * bodyStride, bodyStride);
 
             bodySlice[BodyStateLayout.id] = body.Id;
             bodySlice[BodyStateLayout.enabled] = Convert.ToDouble(body.Enabled);
             bodySlice[BodyStateLayout.mass] = body.Mass;
-            bodySlice[BodyStateLayout.posX] = body.PosX;
-            bodySlice[BodyStateLayout.posY] = body.PosY;
-            bodySlice[BodyStateLayout.velX] = body.VelX;
-            bodySlice[BodyStateLayout.velY] = body.VelY;
-            bodySlice[BodyStateLayout.accX] = body.AccX;
-            bodySlice[BodyStateLayout.accY] = body.AccY;
+            bodySlice[BodyStateLayout.posX] = body.Position.X;
+            bodySlice[BodyStateLayout.posY] = body.Position.Y;
+            bodySlice[BodyStateLayout.velX] = body.Velocity.X;
+            bodySlice[BodyStateLayout.velY] = body.Velocity.Y;
+            bodySlice[BodyStateLayout.accX] = body.Acceleration.X;
+            bodySlice[BodyStateLayout.accY] = body.Acceleration.Y;
         }
 
         fixed (double* pSource = allBodiesData)
