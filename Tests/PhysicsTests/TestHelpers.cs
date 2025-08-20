@@ -9,34 +9,38 @@ namespace PhysicsTests;
 
 internal static class TestHelpers
 {
-    public static readonly SimDataBase SimDataBasePreset1 = new(123.45, 1.5, true, 123456, 0.5, 7.89e-11, 0.01, IntegrationAlgorithm.SymplecticEuler);
-    public static readonly SimDataBase SimDataBasePreset2 = new(1000, 1, false, 6000000, 0.8, 1, 1, IntegrationAlgorithm.VelocityVerlet);
-
-    public static readonly SimDataFull SimDataFullPreset1 = new(123.45, 1.5, true, 123456, 0.5, 7.89e-11, 0.01, IntegrationAlgorithm.SymplecticEuler);
-    public static readonly SimDataFull SimDataFullPreset2 = new(1000, 1, false, 6000000, 0.8, 1, 1, IntegrationAlgorithm.VelocityVerlet);
-
-    public static readonly BodyDataBase BodyDataBasePreset = new(1, true, 10, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6);
-    public static readonly BodyDataBase BodyDataBasePresetInvalid = new(-1, true, 10, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6);    // negaive body id is invalid
-
-    public static readonly BodyDataFull BodyDataFullPreset = new(1, true, 10, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6);
-    public static readonly BodyDataFull BodyDataFullPresetInvalid = new(-1, true, 10, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6);    // negaive body id is invalid
-
-    public static readonly ICalculator DefaultCalculator = new Calculator();
-    public static readonly ITimer DefaultTimer = new Timer();
-    public static readonly IGrid DefaultGrid = new Grid();
-    public static readonly ISimulation DefaultSimulation = new Simulation(
+    public static ICalculator Calculator_New => new Calculator();
+    public static ITimer Timer_New => new Timer();
+    public static QuadTree QuadTree_New => new();
+    public static ISimulation Simulation_New => new Simulation(
         timer: new Timer(),
-        grid: new Grid(),
+        quadTree: new(),
         calculator: new Calculator()
     );
-    public static readonly CelestialBody DefaultCelestialBody = new(0);
+    public static ICelestialBody CelestialBody_New => new CelestialBody(0);
 
-    public static readonly SimDataBase DefaultSimDataBase = DefaultSimulation.ToSimDataBase();
-    public static readonly SimDataFull DefaultSimDataFull = DefaultSimulation.ToSimDataFull();
+    public static readonly SimDataBase SimDataBase_Preset = new(
+        SimulationTime: 10,
+        TimeStep: 1,
+        Theta: 0.5,
+        G_SI: 6.6743e-11,
+        Epsilon: 0.001
+    );
 
-    public static readonly BodyDataBase DefaultBodyDataBase = DefaultCelestialBody.ToBodyDataBase();
-    public static readonly BodyDataFull DefaultBodyDataFull = DefaultCelestialBody.ToBodyDataFull();
+    public static readonly BodyDataBase BodyDataBase_Preset = new(
+        Id: 1,
+        Enabled: true,
+        Mass: 10,
+        PosX: 1.1,
+        PosY: 1.2,
+        VelX: 1.3,
+        VelY: 1.4,
+        AccX: 1.5,
+        AccY: 1.6
+    );
 
+    public static readonly SimDataBase SimDataBase_Default = Simulation_New.ToSimDataBase();
+    public static readonly BodyDataBase BodyDataBase_Default = CelestialBody_New.ToBodyDataBase();
     public static BodyDataBase GetBodyDataBase(int id) => new(
         Id: id,
         Enabled: true,
@@ -49,9 +53,8 @@ internal static class TestHelpers
         AccY: id + 0.6
     );
 
-    public static CelestialBody CreateBody(BodyDataBase baseData) => baseData.ToCelestialBody();
-
-    public static CelestialBody CreateBody(int id) => new (id);
+    public static ICelestialBody CreateBody(BodyDataBase baseData) => baseData.ToCelestialBody();
+    public static ICelestialBody CreateBody(int id) => new CelestialBody(id);
 
     /// <summary>
     /// Uses reflection to get the value of a private field from an object.
