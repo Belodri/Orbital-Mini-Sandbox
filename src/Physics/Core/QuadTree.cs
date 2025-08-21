@@ -317,8 +317,9 @@ internal class QuadTree
             if (IsCrowded)
             {
                 Vector2D weightedPositionSum = Vector2D.Zero;
-                foreach (var body in CrowdedBodies)
+                for (int i = 0; i < CrowdedBodies.Count; i++)
                 {
+                    var body = CrowdedBodies[i];
                     Mass += body.Mass;
                     weightedPositionSum += body.Position * body.Mass;
                 }
