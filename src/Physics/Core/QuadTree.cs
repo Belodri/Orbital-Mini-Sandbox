@@ -361,40 +361,72 @@ internal class QuadTree
 
         public readonly Vector2D CalcAcceleration(ICelestialBody body, ICalculator calc)
         {
+            /*  
+                LOGIC FLOW
+
+                1. A node with 0 mass cannot accelerate anything
+                2. A leaf node cannot accelerate the only body it contains directly
+                
+                Barnes-Hut evaluation to determine if this node  
+                is considered far from the body being accelerated.
+
+                3. An internal node is treated as a single point-mass if it is both far away,
+                    and doesn't contain the body being accelerated within its bounds. 
+                    Otherwise it recurses into its child nodes and accumulates the results.
+                
+                4. A leaf node that is crowded and either close to the body 
+                    or far away from it but contains it within its bounds,
+                    iterates through its bodies and accumulates their individual results,
+                    excluding the body that's being accelerated from the process.
+                
+                5. A leaf node is treated as a single point-mass if it is either not crowded,
+                    or crowded and either far away from the body or does not contain it within its bounds.
+            */
+
             if (Mass == 0) return Vector2D.Zero;
             if (IsLeaf && _body?.Id == body.Id) return Vector2D.Zero;   // Ensure to never include self.
-
             double d_sq_softened = calc.DistanceSquaredSoftened(body.Position, CenterOfMass);
             // s / d < θ
             bool isFar = Bounds_MaxDimension_sq / d_sq_softened < calc.ThetaSquared;
 
-            // Case A: Node is far away => simply treat the node itself as a single point mass
-            if (isFar) return calc.Acceleration(body.Position, CenterOfMass, Mass, d_sq_softened);
-
-            // Case B: Node is a Leaf
-            if (IsLeaf)
+            // Internal node 
+            // => Recurse into children and accumulate the results
+            if (!IsLeaf)
             {
-                // Case B_1: Leaf Node is crowded => Iterate through the crowded bodies and accumulate the results
-                if (IsCrowded)
-                {
-                    Vector2D finalAcc = Vector2D.Zero;
-                    foreach (var _crowdedBody in CrowdedBodies)
-                    {
-                        if (_crowdedBody.Id != body.Id) finalAcc += calc.Acceleration(body.Position, _crowdedBody.Position, _crowdedBody.Mass);
-                    }
-                    return finalAcc;
-                }
+                #if DEBUG
+                if (IsCrowded) throw new InvalidOperationException("Internal leaf nodes should never be crowded.");
+                #endif
 
-                // Case B_2: Leaf Node is not crowded => use the single body
-                // Distance to node center of mass is same as distance to body so we can pass that along to avoid expensive recalculation.
-                if (_body != null) return calc.Acceleration(body.Position, _body.Position, _body.Mass, d_sq_softened);
+                if (isFar && !Bounds.Contains(body)) return calc.Acceleration(body.Position, CenterOfMass, Mass, d_sq_softened);
+
+                return NW_Child_RO.CalcAcceleration(body, calc)
+                    + NE_Child_RO.CalcAcceleration(body, calc)
+                    + SW_Child_RO.CalcAcceleration(body, calc)
+                    + SE_Child_RO.CalcAcceleration(body, calc);
             }
 
-            // Case C: Node is Internal => Recurse into children and accumulate the results
-            return NW_Child_RO.CalcAcceleration(body, calc)
-                + NE_Child_RO.CalcAcceleration(body, calc)
-                + SW_Child_RO.CalcAcceleration(body, calc)
-                + SE_Child_RO.CalcAcceleration(body, calc);
+            // --- IsLeaf == true ---
+
+            // Crowded leaf is one of:
+            // a) close
+            // b) far and contains the body within its bounds
+            // => Iterate through bodies and accumulate the results
+            if (IsCrowded && (!isFar || Bounds.Contains(body)))
+            {
+                Vector2D finalAcc = Vector2D.Zero;
+                for (int i = 0; i < CrowdedBodies.Count; i++)
+                {
+                    var _crowdedBody = CrowdedBodies[i];
+                    if (_crowdedBody.Id != body.Id) finalAcc += calc.Acceleration(body.Position, _crowdedBody.Position, _crowdedBody.Mass);
+                }
+                return finalAcc;
+            }
+
+            // Leaf that is one of:
+            // a) Crowded + far away || does not contain the body within its bounds
+            // b) not crowded + close or far + does not represent the body (tested at the start of the function)
+            // => Treat as node as point-mass
+            return calc.Acceleration(body.Position, CenterOfMass, Mass, d_sq_softened);
         }
 
         #endregion
