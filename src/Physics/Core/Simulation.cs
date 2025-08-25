@@ -101,7 +101,7 @@ internal class Simulation : ISimulation
 
     #region Consts & Config
 
-    private const int MAX_BODIES = 1000;
+    internal const int MAX_BODIES = 1000;
 
     #endregion
 
