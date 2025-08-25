@@ -61,9 +61,9 @@ internal class QuadTree
     /// <param name="maxY">North-Boundary. The maximum Y position the tree should be capable of accepting.</param>
     /// <param name="expectedBodies">The number of bodies in this simulation step.</param>
     public void Reset(double minX, double minY, double maxX, double maxY, int expectedBodies = 64)
-    {
-        if (minX >= maxX || minY >= maxY) throw new ArgumentException("Invalid boundary dimensions.");
+    {   
         if (expectedBodies <= 0) throw new ArgumentException("Expected bodies must be positive.", nameof(expectedBodies));
+        if (minX > maxX || minY > maxY) throw new ArgumentException("Invalid boundary dimensions.");
 
         // Reserve extra capacity to avoid list resizing while holding refs.
         _nodes.EnsureCapacity(expectedBodies * 4 + 16);

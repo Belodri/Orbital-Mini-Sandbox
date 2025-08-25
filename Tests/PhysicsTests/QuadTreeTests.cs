@@ -61,9 +61,7 @@ public class QuadTreeTestsBlackBox
     #region Reset
 
     [Test]
-    [TestCase(10, 0, 10, 10)] // minX == maxX
     [TestCase(11, 0, 10, 10)] // minX > maxX
-    [TestCase(0, 10, 10, 10)] // minY == maxY
     [TestCase(0, 11, 10, 10)] // minY > maxY
     public void Reset_WithInvalidBoundaries_ThrowsArgumentException(double minX, double minY, double maxX, double maxY)
         => Assert.Throws<ArgumentException>(() => _tree.Reset(minX, minY, maxX, maxY));
