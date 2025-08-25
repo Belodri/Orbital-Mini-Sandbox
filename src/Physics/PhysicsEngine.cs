@@ -96,7 +96,7 @@ public sealed class PhysicsEngine : PhysicsEngineBase
 
     public override SimulationView View { get; private protected set; }
 
-    public override void Tick() => Simulation.StepFunction_VelocityVerlet();
+    public override void Tick() => Simulation.StepFunction();
 
     public override void Import(SimDataBase sim, List<BodyDataBase> bodies)
     {

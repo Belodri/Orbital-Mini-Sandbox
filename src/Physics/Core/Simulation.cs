@@ -69,7 +69,7 @@ internal interface ISimulation
     /// Advances the simulation by a single timestep.
     /// Calculates the forces on all enabled bodies and updates their properties like position, velocity and acceleration.
     /// </summary>
-    void StepFunction_VelocityVerlet();
+    void StepFunction();
 }
 
 internal class Simulation : ISimulation
@@ -202,7 +202,10 @@ internal class Simulation : ISimulation
     #endregion
 
 
-    #region Tick Management
+    #region Step Function
+
+    /// <inheritdoc/>
+    public void StepFunction() => StepFunction_VelocityVerlet();
 
     // Step function using Velocity-Verlet
     // 
@@ -211,7 +214,6 @@ internal class Simulation : ISimulation
     // Leapfrog is not ideal because we want the calculated 
     // properties x, v, and a to be in sync with one another.
 
-    /// <inheritdoc/>
     public void StepFunction_VelocityVerlet()
     {
         int bodyCount = _enabledBodies.Count;
