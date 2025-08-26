@@ -33,44 +33,18 @@ internal interface ICelestialBody
     /// </summary>
     Vector2D Acceleration { get; }
     /// <summary>
-    /// An event raised after the body's Enabled status has changed.
-    /// </summary>
-    /// <remarks>
-    /// This event only fires if the property's value is different after the update.
-    /// </remarks>
-    event Action<ICelestialBody>? EnabledChanged;
-    /// <summary>
     /// Atomically updates one or more properties of the celestial body.
-    /// Unspecified (<c>null</c>) parameters will be ignored and their corresponding properties will remain unchanged.
     /// </summary>
-    /// <param name="enabled">The new value for the <see cref="Enabled"/> property. If null, the current value is not changed.</param>
-    /// <param name="mass">The new value for the <see cref="Mass"/> property. If null, the current value is not changed.</param>
-    /// <param name="posX">The new X component for the <see cref="Position"/> vector. If null, the X component is not changed.</param>
-    /// <param name="posY">The new Y component for the <see cref="Position"/> vector. If null, the Y component is not changed.</param>
-    /// <param name="velX">The new X component for the <see cref="Velocity"/> vector. If null, the X component is not changed.</param>
-    /// <param name="velY">The new Y component for the <see cref="Velocity"/> vector. If null, the Y component is not changed.</param>
-    /// <param name="velX_half">The new X component for the <see cref="VelocityHalfStep"/> vector. If null, the X component is not changed.</param>
-    /// <param name="velY_half">The new Y component for the <see cref="VelocityHalfStep"/> vector. If null, the Y component is not changed.</param>
-    /// <param name="accX">The new X component for the <see cref="Acceleration"/> vector. If null, the X component is not changed.</param>
-    /// <param name="accY">The new Y component for the <see cref="Acceleration"/> vector. If null, the Y component is not changed.</param>
-    void Update(
-        bool? enabled = null,
-        double? mass = null,
-        double? posX = null,
-        double? posY = null,
-        double? velX = null,
-        double? velY = null,
-        double? velX_half = null,
-        double? velY_half = null,
-        double? accX = null,
-        double? accY = null
-    );
-
-    /// <inheritdoc cref="Update(bool?, double?, double?, double?, double?, double?, double?, double?, double?, double?)"/>
+    /// <param name="updates">Partial data to update a celestial body. Null values are ignored.</param>
+    void Update(BodyDataUpdates updates);
+    /// <inheritdoc cref="Update(BodyDataUpdates)"/>
     /// <param name="position">The new value for the <see cref="Position"/> vector. If null, the current value is not changed.</param>
     /// <param name="velocity">The new value for the <see cref="Velocity"/> vector. If null, the current value is not changed.</param>
     /// <param name="velocityHalfStep">The new value for the <see cref="VelocityHalfStep"/> vector. If null, the current value is not changed.</param>
     /// <param name="acceleration">The new value for the <see cref="Acceleration"/> vector. If null, the current value is not changed.</param>
+    /// <remarks>
+    /// Unspecified (<c>null</c>) parameters will be ignored and their corresponding properties will remain unchanged.
+    /// </remarks>
     void Update(
         bool? enabled = null,
         double? mass = null,
@@ -92,7 +66,8 @@ internal class CelestialBody : ICelestialBody
         Vector2D? position = null,
         Vector2D? velocity = null,
         Vector2D? velocityHalfStep = null,
-        Vector2D? acceleration = null)
+        Vector2D? acceleration = null
+    )
     {
         if (id < 0) throw new ArgumentOutOfRangeException(nameof(id), "Id must not be negative.");
         Id = id;
@@ -129,18 +104,7 @@ internal class CelestialBody : ICelestialBody
     /// <inheritdoc />
     public int Id { get; init; }
     /// <inheritdoc />
-    public bool Enabled
-    {
-        get;
-        private set
-        {
-            if (value != field)
-            {
-                field = value;
-                EnabledChanged?.Invoke(this);
-            }
-        }
-    }
+    public bool Enabled { get; private set; }
     /// <inheritdoc />
     public double Mass { get; private set; }
     /// <inheritdoc />
@@ -154,31 +118,7 @@ internal class CelestialBody : ICelestialBody
 
     #endregion
 
-    /// <inheritdoc />
-    public event Action<ICelestialBody>? EnabledChanged;
-
     #region Updates
-
-    /// <inheritdoc />
-    public void Update(
-        bool? enabled = null,
-        double? mass = null,
-        double? posX = null,
-        double? posY = null,
-        double? velX = null,
-        double? velY = null,
-        double? velX_half = null,
-        double? velY_half = null,
-        double? accX = null,
-        double? accY = null)
-    {
-        Enabled = enabled ?? Enabled;
-        Mass = mass ?? Mass;
-        Position = Position.With(posX, posY);
-        Velocity = Velocity.With(velX, velY);
-        VelocityHalfStep = VelocityHalfStep.With(velX_half, velY_half);
-        Acceleration = Acceleration.With(accX, accY);
-    }
 
     /// <inheritdoc />
     public void Update(
@@ -195,6 +135,16 @@ internal class CelestialBody : ICelestialBody
         Velocity = Velocity.With(velocity);
         VelocityHalfStep = VelocityHalfStep.With(velocityHalfStep);
         Acceleration = Acceleration.With(acceleration);
+    }
+
+    /// <inheritdoc />
+    public void Update(BodyDataUpdates updates)
+    {
+        Enabled = updates.Enabled ?? Enabled;
+        Mass = updates.Mass ?? Mass;
+        Position = Position.With(updates.PosX, updates.PosY);
+        Velocity = Velocity.With(updates.VelX, updates.VelY);
+        Acceleration = Acceleration.With(updates.AccX, updates.AccY);
     }
 
     #endregion
