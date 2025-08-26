@@ -62,10 +62,10 @@ internal class Timer(double simulationTime = Timer.SIMULATION_TIME_DEFAULT, doub
     public double DeltaTime => TimeStep;
 
     /// <inheritdoc />
-    public double DeltaTimeHalf { get; private set; }
+    public double DeltaTimeHalf { get; private set; } = timeStep / 2;
 
     /// <inheritdoc />
-    public double DeltaTimeSquared { get; private set; }
+    public double DeltaTimeSquared { get; private set; } = timeStep * timeStep;
 
     /// <inheritdoc />
     public void AdvanceSimTime() => SimulationTime += TimeStep;
