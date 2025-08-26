@@ -1,3 +1,4 @@
+using Physics;
 using Physics.Bodies;
 using Physics.Core;
 using Physics.Models;
@@ -16,8 +17,7 @@ public record MockBody(int Id, double Mass, Vector2D Position) : ICelestialBody
     Vector2D ICelestialBody.Velocity => throw new NotImplementedException();
     Vector2D ICelestialBody.VelocityHalfStep => throw new NotImplementedException();
     Vector2D ICelestialBody.Acceleration => throw new NotImplementedException();
-    event Action<ICelestialBody>? ICelestialBody.EnabledChanged { add { } remove { } }
-    void ICelestialBody.Update(bool? enabled, double? mass, double? posX, double? posY, double? velX, double? velY, double? velX_half, double? velY_half, double? accX, double? accY) => throw new NotImplementedException();
+    public void Update(BodyDataUpdates updates) => throw new NotImplementedException();
     void ICelestialBody.Update(bool? enabled, double? mass, Vector2D? position, Vector2D? velocity, Vector2D? velocityHalfStep, Vector2D? acceleration) => throw new NotImplementedException();
 }
 
