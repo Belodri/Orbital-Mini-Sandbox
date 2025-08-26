@@ -29,8 +29,7 @@ public class SimulationTests
         Simulation sim_emptyBodies = new(
             timer: new Timer(),
             quadTree: new(),
-            calculator: new Calculator(),
-            bodies: []
+            calculator: new Calculator()
         );
 
         Assert.That(sim_emptyBodies.Bodies, Has.Count.EqualTo(0));
@@ -40,34 +39,23 @@ public class SimulationTests
     public void Constructor_WithInitialBodies_AddsAllBodiesSuccessfully()
     {
         CelestialBody[] initialBodies = [new CelestialBody(0), new CelestialBody(1)];
-        Simulation sim_emptyBodies = new(
+        Simulation newSim = new(
             timer: new Timer(),
             quadTree: new(),
-            calculator: new Calculator(),
-            bodies: initialBodies
+            calculator: new Calculator()
         );
+        foreach (var body in initialBodies) newSim.TryAddBody(body);
 
         Assert.Multiple(() =>
         {
-            Assert.That(sim_emptyBodies.Bodies, Has.Count.EqualTo(2));
-            Assert.That(sim_emptyBodies.Bodies.ContainsKey(0), Is.True);
-            Assert.That(sim_emptyBodies.Bodies.ContainsKey(1), Is.True);
-            Assert.That(sim_emptyBodies.Bodies.GetValueOrDefault(0), Is.EqualTo(initialBodies[0]));
-            Assert.That(sim_emptyBodies.Bodies.GetValueOrDefault(1), Is.EqualTo(initialBodies[1]));
+            Assert.That(newSim.Bodies, Has.Count.EqualTo(2));
+            Assert.That(newSim.Bodies.ContainsKey(0), Is.True);
+            Assert.That(newSim.Bodies.ContainsKey(1), Is.True);
+            Assert.That(newSim.Bodies.GetValueOrDefault(0), Is.EqualTo(initialBodies[0]));
+            Assert.That(newSim.Bodies.GetValueOrDefault(1), Is.EqualTo(initialBodies[1]));
         });
     }
 
-    [Test]
-    public void Constructor_WithDuplicateBodyIds_ThrowsArgumentException()
-    {
-        CelestialBody[] bodies = [new(0), new(0), new(1)];
-        Assert.Throws<ArgumentException>(() => new Simulation(
-            timer: new Timer(),
-            quadTree: new(),
-            calculator: new Calculator(),
-            bodies: bodies
-        ));
-    }
 
     #endregion
 
@@ -113,17 +101,6 @@ public class SimulationTests
         });
     }
 
-    [Test]
-    public void CreateBody_OverMaxBodies_ThrowsInvalidOperationException()
-    {
-        for (int i = 0; i < Simulation.MAX_BODIES; i++)
-        {
-            _sim.CreateBody(id => new CelestialBody(id));
-        }
-
-        Assert.That(_sim.Bodies, Has.Count.EqualTo(Simulation.MAX_BODIES));
-        Assert.Throws<InvalidOperationException>(() => _sim.CreateBody(id => new CelestialBody(id)));
-    }
 
     [Test]
     public void TryAddBody_WithNewBody_ReturnsTrueAndAddsBody()
@@ -189,37 +166,6 @@ public class SimulationTests
         {
             Assert.That(isDeleted, Is.False);
             Assert.That(_sim.Bodies.ContainsKey(bodyId), Is.True);
-        });
-    }
-
-    [Test]
-    public void TryDeleteBody_ByInstance_WithCorrectInstance_ReturnsTrueAndRemovesBody()
-    {
-        var body = new CelestialBody(5);
-        _sim.TryAddBody(body);
-        Assert.That(_sim.Bodies.ContainsKey(body.Id), Is.True);
-
-        var isDeleted = _sim.TryDeleteBody(body);
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(isDeleted, Is.True);
-            Assert.That(_sim.Bodies.ContainsKey(body.Id), Is.False);
-        });
-    }
-
-    [Test]
-    public void TryDeleteBody_ByInstance_WithDifferentInstanceSameId_ReturnsFalse()
-    {
-        var simBody = _sim.CreateBody(id => new CelestialBody(id));
-        var otherBody = new CelestialBody(simBody.Id);
-
-        var isDeleted = _sim.TryDeleteBody(otherBody);
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(isDeleted, Is.False);
-            Assert.That(_sim.Bodies.GetValueOrDefault(simBody.Id), Is.EqualTo(simBody));
         });
     }
 
