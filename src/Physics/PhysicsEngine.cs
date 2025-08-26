@@ -74,8 +74,7 @@ public sealed class PhysicsEngine : PhysicsEngineBase
         Simulation = new(
             timer: new Timer(),
             quadTree: new QuadTree(),
-            calculator: new Calculator(),
-            bodies: null
+            calculator: new Calculator()
         );
     }
 
@@ -100,15 +99,16 @@ public sealed class PhysicsEngine : PhysicsEngineBase
 
     public override void Import(SimDataBase sim, List<BodyDataBase> bodies)
     {
-        List<CelestialBody> bodiesList = [];
-        foreach (var bodyData in bodies) bodiesList.Add(bodyData.ToCelestialBody());
-
         Simulation newSimulation = new(
             timer: sim.ToTimer(),
             quadTree: new QuadTree(),
-            calculator: sim.ToCalculator(),
-            bodies: bodiesList
+            calculator: sim.ToCalculator()
         );
+        foreach (var bodyData in bodies)
+        {
+            if (!newSimulation.TryAddBody(bodyData.ToCelestialBody()))
+                throw new InvalidOperationException("Unable to add bodies with identical IDs to the simulation.");
+        }
 
         Simulation = newSimulation;
     }
@@ -127,23 +127,7 @@ public sealed class PhysicsEngine : PhysicsEngineBase
 
     public override bool DeleteBody(int id) => Simulation.TryDeleteBody(id);
 
-    public override bool UpdateBody(int id, BodyDataUpdates updates)
-    {
-        if (!Simulation.Bodies.TryGetValue(id, out var body)) return false;
-
-        body.Update(
-            enabled: updates.Enabled,
-            mass: updates.Mass,
-            posX: updates.PosX,
-            posY: updates.PosY,
-            velX: updates.VelX,
-            velY: updates.VelY,
-            accX: updates.AccX,
-            accY: updates.AccY
-        );
-
-        return true;
-    }
+    public override bool UpdateBody(int id, BodyDataUpdates updates) => Simulation.TryUpdateBody(id, updates);
 
     public override void UpdateSimulation(SimDataUpdates updates)
     {
