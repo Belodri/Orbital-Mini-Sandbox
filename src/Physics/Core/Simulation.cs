@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using Physics.Bodies;
 
 namespace Physics.Core;
@@ -44,27 +45,27 @@ internal interface ISimulation
     /// <returns>The newly created and added celestial body instance.</returns>
     ICelestialBody CreateBody(Func<int, ICelestialBody> bodyFactory);
     /// <summary>
-    /// Attempts to add a pre-existing celestial body to the simulation.
+    /// Try to add an existing body to the simulation.
     /// </summary>
-    /// <param name="body">The celestial body to add. Its ID must not already exist in the simulation.</param>
-    /// <returns><c>true</c> if the body was added successfully; <c>false</c> if a body with the same ID already exists.</returns>
+    /// <param name="body">The body to add.</param>
+    /// <returns><c>true</c> if the body was added, <c>false</c> otherwise, meaning the simulation already has a body with the same ID.</returns>
     bool TryAddBody(ICelestialBody body);
     /// <summary>
-    /// Attempts to remove a celestial body from the simulation using its ID.
+    /// Removes a celestial body from the simulation using its ID. Does nothing if no body with that ID is found.
     /// </summary>
-    /// <param name="id">The unique ID of the body to remove.</param>
+    /// <param name="id">The ID of the body to remove.</param>
     /// <returns><c>true</c> if a body with the specified ID was found and removed; otherwise <c>false</c>.</returns>
     bool TryDeleteBody(int id);
     /// <summary>
-    /// Attempts to remove a specific celestial body instance from the simulation.
+    /// Try to update a celestial body in the simulation.
     /// </summary>
-    /// <param name="body">The celestial body instance to remove.</param>
-    /// <returns><c>true</c> if the specified body instance was found and removed; otherwise <c>false</c>.</returns>
+    /// <param name="id">The ID of the body to update.</param>
+    /// <param name="updates">Partial data to update the body.</param>
+    /// <returns><c>true</c> if the update was successful, <c>false</c> if the body wasn't found.</returns>
     /// <remarks>
-    /// This overload is more specific than deleting by ID. It ensures that the exact object reference passed is the
-    /// one being removed, which can prevent accidental deletion in complex scenarios involving stale references.
+    /// This should be the ONLY way to update a body within a simulation!
     /// </remarks>
-    bool TryDeleteBody(ICelestialBody body);
+    public bool TryUpdateBody(int id, BodyDataUpdates updates);
     /// <summary>
     /// Advances the simulation by a single timestep.
     /// Calculates the forces on all enabled bodies and updates their properties like position, velocity and acceleration.
@@ -72,166 +73,117 @@ internal interface ISimulation
     void StepFunction();
 }
 
-internal class Simulation : ISimulation
+
+internal sealed class Simulation(ITimer timer, QuadTree quadTree, ICalculator calculator) : ISimulation
 {
-    #region Constructors
-
-    internal Simulation(
-        ITimer timer,
-        QuadTree quadTree,
-        ICalculator calculator,
-        IEnumerable<ICelestialBody>? bodies = null)
+    private class BodySet : KeyedCollection<int, ICelestialBody>
     {
-        Timer = timer;
-        QuadTree = quadTree;
-        Calculator = calculator;
-
-        if (bodies != null)
-        {
-            foreach (var body in bodies)
-            {
-                bool added = TryAddBody(body);
-                if (!added) throw new ArgumentException($"Contains contains more than one body with Id '{body.Id}'.", nameof(bodies));
-            }
-        }
+        public IReadOnlyList<ICelestialBody> AsList => (IReadOnlyList<ICelestialBody>)Items;
+        protected override int GetKeyForItem(ICelestialBody body) => body.Id;
     }
 
-    #endregion
 
+    /// <summary>
+    /// Flag to indicate whether a resynchronization of the simulation state 
+    /// is necessary before the next time step.
+    /// </summary>
+    private bool _queueSync = true;
+    private int _nextBodyId = 0;
+    private readonly Dictionary<int, ICelestialBody> _bodies = [];
+    private readonly BodySet _enabledBodies = [];
 
-    #region Consts & Config
-
-    internal const int MAX_BODIES = 1000;
-
-    #endregion
-
-
-    #region Fields & Properties
-
-    readonly Dictionary<int, ICelestialBody> _bodies = [];
-    readonly List<ICelestialBody> _enabledBodies = [];
-
+    public ITimer Timer { get; init; } = timer;
+    public QuadTree QuadTree { get; init; } = quadTree;
+    public ICalculator Calculator { get; init; } = calculator;
+    public IReadOnlyDictionary<int, ICelestialBody> Bodies => _bodies;
     public event Action<ICelestialBody>? BodyAdded;
     public event Action<int>? BodyRemoved;
 
-    /// <inheritdoc/>
-    public ITimer Timer { get; private set; }
-    /// <inheritdoc/>
-    public QuadTree QuadTree { get; private set; }
-    /// <inheritdoc/>
-    public ICalculator Calculator { get; private set; }
-    /// <inheritdoc/>
-    public IReadOnlyDictionary<int, ICelestialBody> Bodies => _bodies;
-
-    #endregion
-
-
-    #region Body Management
-
-    int _nextAvailableId = 0;
-
-    /// <inheritdoc/>
     public ICelestialBody CreateBody(Func<int, ICelestialBody> bodyFactory)
     {
-        if (_bodies.Count >= MAX_BODIES) throw new InvalidOperationException($"Cannot exceed maximum number of bodies: {MAX_BODIES}.");
+        while (_bodies.ContainsKey(_nextBodyId)) _nextBodyId++;
+        int id = _nextBodyId;
+        _nextBodyId++;
 
-        var id = GetAvailableBodyId();
         ICelestialBody body = bodyFactory(id);
-        AddBodyWorker(body);
+        if (!TryAddBody(body)) throw new InvalidOperationException($"Failed to add body created by {nameof(bodyFactory)}.");
         return body;
     }
 
-    private int GetAvailableBodyId()
-    {
-        while (_bodies.ContainsKey(_nextAvailableId)) _nextAvailableId++;
-        var id = _nextAvailableId;
-        _nextAvailableId++;
-        return id;
-    }
-
-    /// <inheritdoc/>
     public bool TryAddBody(ICelestialBody body)
     {
-        if (_bodies.ContainsKey(body.Id)) return false;
-        AddBodyWorker(body);
+        if (!_bodies.TryAdd(body.Id, body)) return false;
+
+        if (body.Enabled)
+        {
+            _enabledBodies.Add(body);
+            _queueSync = true;
+        }
+        BodyAdded?.Invoke(body);
+
         return true;
     }
 
-    private void AddBodyWorker(ICelestialBody body)
-    {
-        _bodies.Add(body.Id, body);
-        BodyAdded?.Invoke(body);
-        if (body.Enabled) _enabledBodies.Add(body);
-        body.EnabledChanged += OnBodyEnabledToggle;
-    }
-
-    /// <inheritdoc/>
     public bool TryDeleteBody(int id)
     {
         if (!_bodies.TryGetValue(id, out var body)) return false;
-        DeleteBodyWorker(body);
+
+        _bodies.Remove(id);
+        if (body.Enabled)
+        {
+            _enabledBodies.Remove(body);
+            _queueSync = true;
+        }
+        BodyRemoved?.Invoke(id);
+
         return true;
     }
 
-    /// <inheritdoc/>
-    public bool TryDeleteBody(ICelestialBody body)
+    public bool TryUpdateBody(int id, BodyDataUpdates updates)
     {
-        if (!_bodies.TryGetValue(body.Id, out var existingBody)) return false;
-        if (existingBody != body) return false;
-        DeleteBodyWorker(body);
+        if (!_bodies.TryGetValue(id, out var body)) return false;
+
+        body.Update(updates);
+
+        var containedInEnabled = _enabledBodies.Contains(id);
+        // Queue a resync if the body was in the list of enabled bodies or if its enabled after the update.
+        if (containedInEnabled || body.Enabled) _queueSync = true;
+        // Then add or remove it from the list of enabled bodies as needed.
+        if (body.Enabled && !containedInEnabled) _enabledBodies.Add(body);
+        else if(!body.Enabled && containedInEnabled) _enabledBodies.Remove(body.Id);
+
         return true;
     }
 
-    private void DeleteBodyWorker(ICelestialBody body)
+    public void StepFunction()
     {
-        body.EnabledChanged -= OnBodyEnabledToggle;
-        if (body.Enabled) _enabledBodies.Remove(body);
-        _bodies.Remove(body.Id);
-        BodyRemoved?.Invoke(body.Id);
+        VelocityVerletStep();
+        Timer.AdvanceSimTime();
     }
 
-    private void OnBodyEnabledToggle(ICelestialBody body)
+    private void VelocityVerletStep()
     {
-        if (body.Enabled == true && !_enabledBodies.Contains(body))
+        if (_enabledBodies.Count == 0) return;
+
+        if (_queueSync)
         {
-            _enabledBodies.Add(body);
-        }
-        else if (body.Enabled == false) _enabledBodies.Remove(body);
-    }
+            // If a resynchronization of the system is necessary
+            // (on initial step or after a body has been added/deleted/modified externally),
+            // re-evaluate the forces at time t.
+            RebuildQuadTree();
+            for (int i = 0; i < _enabledBodies.Count; i++)
+            {
+                var body = _enabledBodies.AsList[i];
+                var a = QuadTree.CalcAcceleration(body, Calculator);
+                body.Update(acceleration: a);
+            }
 
-    #endregion
-
-
-    #region Step Function
-
-    /// <inheritdoc/>
-    public void StepFunction() => StepFunction_VelocityVerlet();
-
-    // Step function using Velocity-Verlet
-    // 
-    // Separating read/write steps would require either a different integration algorithm
-    // (i.e. Leapfrog-Verlet), or a rewrite of QuadTree to accept DTOs instead of actual bodies.
-    // Leapfrog is not ideal because we want the calculated 
-    // properties x, v, and a to be in sync with one another.
-
-    public void StepFunction_VelocityVerlet()
-    {
-        int bodyCount = _enabledBodies.Count;
-
-        if (bodyCount == 0)
-        {
-            Timer.AdvanceSimTime();
-            return;
+            _queueSync = false;
         }
 
-        double minX = 0;
-        double minY = 0;
-        double maxX = 0;
-        double maxY = 0;
-
-        for (int i = 0; i < bodyCount; i++)
+        for (int i = 0; i < _enabledBodies.Count; i++)
         {
-            var body = _enabledBodies[i];
+            var body = _enabledBodies.AsList[i];
 
             // Step 1: Half-Kick
             // v(t + Δt/2) = v(t) + (a(t)Δt)/2
@@ -241,24 +193,14 @@ internal class Simulation : ISimulation
             // x(t + Δt) = x(t) + v(t + Δt/2)Δt
             var x = body.Position + v_half * Timer.DeltaTime;
 
-            // Update body directly
             body.Update(position: x, velocityHalfStep: v_half);
-
-            // Get boundaries for quad-tree
-            minX = Math.Min(minX, x.X);
-            minY = Math.Min(minY, x.Y);
-            maxX = Math.Max(maxX, x.X);
-            maxY = Math.Max(maxY, x.Y);
         }
 
-        // Rebuild and evaluate the tree with the new body positions.
-        QuadTree.Reset(minX, minY, maxX, maxY, _enabledBodies.Count);
-        for (int i = 0; i < bodyCount; i++) QuadTree.InsertBody(_enabledBodies[i]);
-        QuadTree.Evaluate();
+        RebuildQuadTree();
 
-        for (int i = 0; i < bodyCount; i++)
+        for (int i = 0; i < _enabledBodies.Count; i++)
         {
-            var body = _enabledBodies[i];
+            var body = _enabledBodies.AsList[i];
 
             // Step 3: Force
             // a(t+Δt) = F(x(t + Δt))/m
@@ -270,9 +212,25 @@ internal class Simulation : ISimulation
 
             body.Update(acceleration: a, velocity: v);
         }
-
-        Timer.AdvanceSimTime();
     }
 
-    #endregion
+    private void RebuildQuadTree()
+    {
+        double minX = double.MaxValue;
+        double minY = double.MaxValue;
+        double maxX = double.MinValue;
+        double maxY = double.MinValue;
+
+        for (int i = 0; i < _enabledBodies.Count; i++)
+        {
+            var body = _enabledBodies.AsList[i];
+            minX = Math.Min(minX, body.Position.X);
+            minY = Math.Min(minY, body.Position.Y);
+            maxX = Math.Max(maxX, body.Position.X);
+            maxY = Math.Max(maxY, body.Position.Y);
+        }
+        QuadTree.Reset(minX, minY, maxX, maxY, _enabledBodies.Count);
+        for (int i = 0; i < _enabledBodies.Count; i++) QuadTree.InsertBody(_enabledBodies.AsList[i]);
+        QuadTree.Evaluate();
+    }
 }
