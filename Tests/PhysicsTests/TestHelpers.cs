@@ -15,7 +15,8 @@ internal static class TestHelpers
     public static ISimulation Simulation_New => new Simulation(
         timer: new Timer(),
         quadTree: new(),
-        calculator: new Calculator()
+        calculator: new Calculator(),
+        bodyManager: new BodyManager()
     );
     public static ICelestialBody CelestialBody_New => new CelestialBody(0);
 
