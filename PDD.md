@@ -3,8 +3,10 @@
 
 # Revision History
 
+- **27/08/2025**
+    - Added `BodyManager` class to `PhysicsEngine`.
 - **20/08/2025**
-    - Rename `PhysicsEngine` methods `Load()` to `Import()`, `GetBaseData()` to `Export()` for clarity.
+    - Renamed `PhysicsEngine` methods `Load()` to `Import()`, `GetBaseData()` to `Export()` for clarity.
 - **19/08/2025**
     - Updated to reflect recent, large-scale refactors of the `PhysicsEngine`, following deeper understanding of physics and maths, especially regarding integration algorithms and their interactions with the Barnes-Hut algorithm. This refactor includes:
         - Implementation of the **Velocity-Verlet** integration algorithm
@@ -535,8 +537,9 @@ Physics/
 ├── Core/
 │   ├── Simulation.cs             # Main simulation coordinator
 │   ├── Timer.cs                  # Simulation time manager
-|   ├── Calculator.cs             # Physics calculations per body per timestep
+|   ├── Calculator.cs             # Physics calculations and constants
 │   ├── QuadTree.cs               # Spatial partitioning (QuadTree)
+│   └── BodyManager.cs            # Collection and manager for bodies
 ├── Bodies/
 │   └── CelestialBody.cs          # Individual body state and behavior
 └── Models/
@@ -561,13 +564,23 @@ Physics/
 - Implements the step function using the **Velocity-Verlet** integration algorithm. Details on this integration algorithm, why it was chosen over others, and the challenges, assumptions, and trade-offs regarding its implementation are found in [IntegrationAlgorithm.md](IntegrationAlgorithm.md).
 - Responsibilities
 	- Orchestrates physics calculations, partly through component coordination
-	- Maintains the collection of celestial bodies
 	- Manages the lifecycle of all owned simulation components
 - State Ownership
 	- `Timer` instance
-	- `Bodies` Collection of CelestialBody instances
 	- `Calculator` instance
 	- `QuadTree` instance
+    - `BodyManager` instance
+
+`BodyManager`
+- Specialized container and manager for `CelestialBody` instances that offers optimized access both for random access via ID, and dense, sequential iteration over enabled bodies.
+- Responsibilities
+    - Manages lifecycle and ensures uniqueness of `CelestialBody` instances in the simulation. 
+    - Provides amortized O(1) create, read, update, and delete operations.
+    - Offers a densely-packed, cache-friendly list of enabled bodies for efficient iteration in the main simulation loop.
+    - Notifies subscribers of select changes to the body collection via events.
+- State Ownership
+	- `AllBodies` Read-only dictionary of all celestial bodies (both enabled and disabled), keyed by their unique ID.
+	- `EnabledBodies` Read-only list containing only the enabled bodies.
 
 `Timer`
 - Small utility class that owns and manages the simulation time and the time step (deltaT).
