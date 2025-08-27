@@ -50,7 +50,7 @@ internal interface ICalculator
     /// <remarks>
     /// Altering the properties of a running simulation breaks time-reversability!
     /// </remarks> 
-    void Update(double? g_SI, double? theta, double? epsilon);
+    void Update(double? g_SI = null, double? theta = null, double? epsilon = null);
     /// <summary>
     /// Calculates the acceleration an object m1 experiences from a mass m2. 
     /// </summary>
