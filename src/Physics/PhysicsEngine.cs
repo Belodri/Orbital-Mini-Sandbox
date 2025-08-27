@@ -74,7 +74,8 @@ public sealed class PhysicsEngine : PhysicsEngineBase
         Simulation = new(
             timer: new Timer(),
             quadTree: new QuadTree(),
-            calculator: new Calculator()
+            calculator: new Calculator(),
+            bodyManager: new BodyManager()
         );
     }
 
@@ -102,11 +103,12 @@ public sealed class PhysicsEngine : PhysicsEngineBase
         Simulation newSimulation = new(
             timer: sim.ToTimer(),
             quadTree: new QuadTree(),
-            calculator: sim.ToCalculator()
+            calculator: sim.ToCalculator(),
+            bodyManager: new BodyManager()
         );
         foreach (var bodyData in bodies)
         {
-            if (!newSimulation.TryAddBody(bodyData.ToCelestialBody()))
+            if (!newSimulation.Bodies.TryAddBody(bodyData.ToCelestialBody()))
                 throw new InvalidOperationException("Unable to add bodies with identical IDs to the simulation.");
         }
 
@@ -117,17 +119,17 @@ public sealed class PhysicsEngine : PhysicsEngineBase
     {
         var sim = Simulation.ToSimDataBase();
 
-        List<BodyDataBase> bodies = new(Simulation.Bodies.Count);
-        foreach (var body in Simulation.Bodies.Values) bodies.Add(body.ToBodyDataBase());
+        List<BodyDataBase> bodies = new(Simulation.Bodies.BodyCount);
+        foreach (var body in Simulation.Bodies.AllBodies.Values) bodies.Add(body.ToBodyDataBase());
 
         return (sim, bodies);
     }
 
-    public override int CreateBody() => Simulation.CreateBody((id) => new CelestialBody(id)).Id;
+    public override int CreateBody() => Simulation.Bodies.CreateBody((id) => new CelestialBody(id)).Id;
 
-    public override bool DeleteBody(int id) => Simulation.TryDeleteBody(id);
+    public override bool DeleteBody(int id) => Simulation.Bodies.TryDeleteBody(id);
 
-    public override bool UpdateBody(int id, BodyDataUpdates updates) => Simulation.TryUpdateBody(id, updates);
+    public override bool UpdateBody(int id, BodyDataUpdates updates) => Simulation.Bodies.TryUpdateBody(id, updates);
 
     public override void UpdateSimulation(SimDataUpdates updates)
     {
@@ -186,15 +188,15 @@ public sealed class SimulationView : SimulationViewBase
         if (_sim != null)   // Reset and clear existing event subscriptions
         {
             _bodyViews.Clear();
-            _sim.BodyAdded -= AddBodyView;
-            _sim.BodyRemoved -= DeleteBodyView;
+            _sim.Bodies.BodyAdded -= AddBodyView;
+            _sim.Bodies.BodyRemoved -= DeleteBodyView;
         }
 
         _sim = sim;
 
-        foreach (var (_, body) in _sim.Bodies) AddBodyView(body);
-        _sim.BodyAdded += AddBodyView;
-        _sim.BodyRemoved += DeleteBodyView;
+        foreach (var (_, body) in _sim.Bodies.AllBodies) AddBodyView(body);
+        _sim.Bodies.BodyAdded += AddBodyView;
+        _sim.Bodies.BodyRemoved += DeleteBodyView;
     }
 
     internal void AddBodyView(ICelestialBody body) => _bodyViews.Add(new(body));
