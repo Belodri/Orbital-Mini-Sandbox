@@ -23,7 +23,8 @@ public class SimulationCalcTests()
             calculator: new Calculator(
                 g_SI: Calculator.G_SI_DEFAULT,  // Regular G
                 theta: 0
-            )
+            ),
+            bodyManager: new BodyManager()
         );
     }
 
@@ -37,16 +38,16 @@ public class SimulationCalcTests()
         Assert.That(_sim.Timer.SimulationTime, Is.EqualTo(1));
 
         // Add disabled bodies
-        _sim.CreateBody(id => new CelestialBody(id));
-        _sim.CreateBody(id => new CelestialBody(id));
+        _sim.Bodies.CreateBody(id => new CelestialBody(id));
+        _sim.Bodies.CreateBody(id => new CelestialBody(id));
 
         _sim.StepFunction();
 
         Assert.That(_sim.Timer.SimulationTime, Is.EqualTo(2));
 
         // Add enabled bodies
-        _sim.CreateBody(id => new CelestialBody(id, enabled: true));
-        _sim.CreateBody(id => new CelestialBody(id, enabled: true));
+        _sim.Bodies.CreateBody(id => new CelestialBody(id, enabled: true));
+        _sim.Bodies.CreateBody(id => new CelestialBody(id, enabled: true));
 
         _sim.StepFunction();
 
@@ -56,9 +57,9 @@ public class SimulationCalcTests()
     [Test]
     public void StepFunction_UpdatesEnabledBodies_IgnoresDisabled()
     {
-        var centerBody = _sim.CreateBody(id => new CelestialBody(id, enabled: true, mass: 10, position: new(0, 0)));
-        var bodyEast = _sim.CreateBody(id => new CelestialBody(id, enabled: true, mass: 1, position: new(1, 0)));
-        var bodyNorth_Disabled = _sim.CreateBody(id => new CelestialBody(id, enabled: false, mass: 1, position: new(0, 1)));
+        var centerBody = _sim.Bodies.CreateBody(id => new CelestialBody(id, enabled: true, mass: 10, position: new(0, 0)));
+        var bodyEast = _sim.Bodies.CreateBody(id => new CelestialBody(id, enabled: true, mass: 1, position: new(1, 0)));
+        var bodyNorth_Disabled = _sim.Bodies.CreateBody(id => new CelestialBody(id, enabled: false, mass: 1, position: new(0, 1)));
 
         _sim.StepFunction();
 

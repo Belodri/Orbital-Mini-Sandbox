@@ -17,7 +17,8 @@ public class SimulationTests
         _sim = new(
             timer: new Timer(),
             quadTree: new(),
-            calculator: new Calculator()
+            calculator: new Calculator(),
+            bodyManager: new BodyManager()
         );
     }
 
@@ -29,10 +30,11 @@ public class SimulationTests
         Simulation sim_emptyBodies = new(
             timer: new Timer(),
             quadTree: new(),
-            calculator: new Calculator()
+            calculator: new Calculator(),
+            bodyManager: new BodyManager()
         );
 
-        Assert.That(sim_emptyBodies.Bodies, Has.Count.EqualTo(0));
+        Assert.That(sim_emptyBodies.Bodies.AllBodies, Has.Count.EqualTo(0));
     }
 
     [Test]
@@ -42,17 +44,19 @@ public class SimulationTests
         Simulation newSim = new(
             timer: new Timer(),
             quadTree: new(),
-            calculator: new Calculator()
+            calculator: new Calculator(),
+            bodyManager: new BodyManager()
         );
-        foreach (var body in initialBodies) newSim.TryAddBody(body);
+        foreach (var body in initialBodies) newSim.Bodies.TryAddBody(body);
 
         Assert.Multiple(() =>
         {
-            Assert.That(newSim.Bodies, Has.Count.EqualTo(2));
-            Assert.That(newSim.Bodies.ContainsKey(0), Is.True);
-            Assert.That(newSim.Bodies.ContainsKey(1), Is.True);
-            Assert.That(newSim.Bodies.GetValueOrDefault(0), Is.EqualTo(initialBodies[0]));
-            Assert.That(newSim.Bodies.GetValueOrDefault(1), Is.EqualTo(initialBodies[1]));
+            Assert.That(newSim.Bodies.AllBodies, Has.Count.EqualTo(2));
+            Assert.That(newSim.Bodies.HasBody(0), Is.True);
+            Assert.That(newSim.Bodies.HasBody(1), Is.True);
+
+            Assert.That(newSim.Bodies.GetBodyOrNull(0), Is.EqualTo(initialBodies[0]));
+            Assert.That(newSim.Bodies.GetBodyOrNull(1), Is.EqualTo(initialBodies[1]));
         });
     }
 
@@ -64,21 +68,21 @@ public class SimulationTests
     [Test]
     public void CreateBody_WhenCalled_GeneratesUniqueIdAndAddsBody()
     {
-        var addedBody = _sim.CreateBody(id => new CelestialBody(id));
+        var addedBody = _sim.Bodies.CreateBody(id => new CelestialBody(id));
 
         Assert.Multiple(() =>
         {
             Assert.That(addedBody.Id, Is.EqualTo(0));
-            Assert.That(_sim.Bodies, Has.Count.EqualTo(1));
-            Assert.That(_sim.Bodies.GetValueOrDefault(0), Is.EqualTo(addedBody));
+            Assert.That(_sim.Bodies.AllBodies, Has.Count.EqualTo(1));
+            Assert.That(_sim.Bodies.GetBodyOrNull(0), Is.EqualTo(addedBody));
         });
     }
 
     [Test]
     public void CreateBody_WhenCalledMultipleTimes_GeneratesUniqueIds()
     {
-        var body0 = _sim.CreateBody(id => new CelestialBody(id));
-        var body1 = _sim.CreateBody(id => new CelestialBody(id));
+        var body0 = _sim.Bodies.CreateBody(id => new CelestialBody(id));
+        var body1 = _sim.Bodies.CreateBody(id => new CelestialBody(id));
 
         Assert.That(body0.Id, Is.Not.EqualTo(body1.Id));
     }
@@ -86,12 +90,12 @@ public class SimulationTests
     [Test]
     public void CreateBody_AfterAddingBodyWithSkippedId_GeneratesNextAvailableId()
     {
-        _sim.TryAddBody(new CelestialBody(2));
-        Assert.That(_sim.Bodies.ContainsKey(2), Is.True);
+        _sim.Bodies.TryAddBody(new CelestialBody(2));
+        Assert.That(_sim.Bodies.HasBody(2), Is.True);
 
-        var body0 = _sim.CreateBody(id => new CelestialBody(id));
-        var body1 = _sim.CreateBody(id => new CelestialBody(id));
-        var body3 = _sim.CreateBody(id => new CelestialBody(id));
+        var body0 = _sim.Bodies.CreateBody(id => new CelestialBody(id));
+        var body1 = _sim.Bodies.CreateBody(id => new CelestialBody(id));
+        var body3 = _sim.Bodies.CreateBody(id => new CelestialBody(id));
 
         Assert.Multiple(() =>
         {
@@ -106,30 +110,30 @@ public class SimulationTests
     public void TryAddBody_WithNewBody_ReturnsTrueAndAddsBody()
     {
         var body = new CelestialBody(7);
-        var returnValue = _sim.TryAddBody(body);
+        var returnValue = _sim.Bodies.TryAddBody(body);
 
         Assert.Multiple(() =>
         {
             Assert.That(returnValue, Is.True);
-            Assert.That(_sim.Bodies.GetValueOrDefault(7), Is.EqualTo(body));
+            Assert.That(_sim.Bodies.GetBodyOrNull(7), Is.EqualTo(body));
         });
     }
 
     [Test]
     public void TryAddBody_WithExistingId_ReturnsFalseAndDoesNotAddBody()
     {
-        var body0 = _sim.CreateBody(id => new CelestialBody(id, mass: 1));
+        var body0 = _sim.Bodies.CreateBody(id => new CelestialBody(id, mass: 1));
         Assert.Multiple(() =>
         {
-            Assert.That(_sim.Bodies, Has.Count.EqualTo(1));
-            Assert.That(_sim.Bodies.GetValueOrDefault(0), Is.EqualTo(body0));
+            Assert.That(_sim.Bodies.AllBodies, Has.Count.EqualTo(1));
+            Assert.That(_sim.Bodies.GetBodyOrNull(0), Is.EqualTo(body0));
         });
 
-        var returnValue = _sim.TryAddBody(new CelestialBody(0, mass: 5));
+        var returnValue = _sim.Bodies.TryAddBody(new CelestialBody(0, mass: 5));
         Assert.Multiple(() =>
         {
             Assert.That(returnValue, Is.False);
-            Assert.That(_sim.Bodies.GetValueOrDefault(0), Is.EqualTo(body0));
+            Assert.That(_sim.Bodies.GetBodyOrNull(0), Is.EqualTo(body0));
         });
     }
 
@@ -141,31 +145,31 @@ public class SimulationTests
     [Test]
     public void TryDeleteBody_ById_WithExistingId_ReturnsTrueAndRemovesBody()
     {
-        var bodyId = _sim.CreateBody(id => new CelestialBody(id)).Id;
-        Assert.That(_sim.Bodies.ContainsKey(bodyId), Is.True);
+        var bodyId = _sim.Bodies.CreateBody(id => new CelestialBody(id)).Id;
+        Assert.That(_sim.Bodies.HasBody(bodyId), Is.True);
 
-        var isDeleted = _sim.TryDeleteBody(bodyId);
+        var isDeleted = _sim.Bodies.TryDeleteBody(bodyId);
 
         Assert.Multiple(() =>
         {
             Assert.That(isDeleted, Is.True);
-            Assert.That(_sim.Bodies.ContainsKey(bodyId), Is.False);
+            Assert.That(_sim.Bodies.HasBody(bodyId), Is.False);
         });
     }
 
     [Test]
     public void TryDeleteBody_ById_WithNonExistentId_ReturnsFalse()
     {
-        var bodyId = _sim.CreateBody(id => new CelestialBody(id)).Id;
-        Assert.That(_sim.Bodies.ContainsKey(bodyId), Is.True);
+        var bodyId = _sim.Bodies.CreateBody(id => new CelestialBody(id)).Id;
+        Assert.That(_sim.Bodies.HasBody(bodyId), Is.True);
 
         int nonExistentId = bodyId + 1;
 
-        var isDeleted = _sim.TryDeleteBody(nonExistentId);
+        var isDeleted = _sim.Bodies.TryDeleteBody(nonExistentId);
         Assert.Multiple(() =>
         {
             Assert.That(isDeleted, Is.False);
-            Assert.That(_sim.Bodies.ContainsKey(bodyId), Is.True);
+            Assert.That(_sim.Bodies.HasBody(bodyId), Is.True);
         });
     }
 
@@ -178,8 +182,8 @@ public class SimulationTests
     public void BodyAdded_Event_OnCreateBody_IsRaisedOnSuccessfulAdd()
     {
         List<int> bodyIdsAdded = [];
-        _sim.BodyAdded += body => bodyIdsAdded.Add(body.Id);
-        for (int i = 0; i < 3; i++) _sim.CreateBody(id => new CelestialBody(id));
+        _sim.Bodies.BodyAdded += body => bodyIdsAdded.Add(body.Id);
+        for (int i = 0; i < 3; i++) _sim.Bodies.CreateBody(id => new CelestialBody(id));
 
         Assert.That(bodyIdsAdded, Has.Count.EqualTo(3));
         Assert.That(bodyIdsAdded, Is.EqualTo(new List<int>([0, 1, 2])));
@@ -189,8 +193,8 @@ public class SimulationTests
     public void BodyAdded_Event_OnTryAddBody_IsRaisedOnSuccessfulAdd()
     {
         List<int> bodyIdsAdded = [];
-        _sim.BodyAdded += body => bodyIdsAdded.Add(body.Id);
-        for (int i = 0; i < 3; i++) _sim.TryAddBody(new CelestialBody(i));
+        _sim.Bodies.BodyAdded += body => bodyIdsAdded.Add(body.Id);
+        for (int i = 0; i < 3; i++) _sim.Bodies.TryAddBody(new CelestialBody(i));
 
         Assert.That(bodyIdsAdded, Has.Count.EqualTo(3));
         Assert.That(bodyIdsAdded, Is.EqualTo(new List<int>([0, 1, 2])));
@@ -200,12 +204,12 @@ public class SimulationTests
     public void BodyAdded_Event_IsNotRaisedOnFailedAdd()
     {
         // Add blocking body
-        _sim.TryAddBody(new CelestialBody(1));
+        _sim.Bodies.TryAddBody(new CelestialBody(1));
 
         List<int> bodyIdsAdded = [];
-        _sim.BodyAdded += body => bodyIdsAdded.Add(body.Id);
+        _sim.Bodies.BodyAdded += body => bodyIdsAdded.Add(body.Id);
 
-        for (int i = 0; i < 3; i++) _sim.TryAddBody(new CelestialBody(i));
+        for (int i = 0; i < 3; i++) _sim.Bodies.TryAddBody(new CelestialBody(i));
 
         Assert.That(bodyIdsAdded, Has.Count.EqualTo(2));
         Assert.That(bodyIdsAdded, Is.EqualTo(new List<int>([0, 2])));
@@ -215,12 +219,12 @@ public class SimulationTests
     public void BodyRemoved_Event_IsRaisedOnSuccessfulDelete()
     {
         List<int> bodyIdsRemoved = [];
-        _sim.BodyRemoved += bodyIdsRemoved.Add;
+        _sim.Bodies.BodyRemoved += bodyIdsRemoved.Add;
 
-        for (int i = 0; i < 3; i++) _sim.TryAddBody(new CelestialBody(i));
+        for (int i = 0; i < 3; i++) _sim.Bodies.TryAddBody(new CelestialBody(i));
 
-        _sim.TryDeleteBody(1);
-        _sim.TryDeleteBody(2);
+        _sim.Bodies.TryDeleteBody(1);
+        _sim.Bodies.TryDeleteBody(2);
 
         Assert.That(bodyIdsRemoved, Has.Count.EqualTo(2));
         Assert.That(bodyIdsRemoved, Is.EqualTo(new List<int>([1, 2])));
@@ -230,11 +234,11 @@ public class SimulationTests
     public void BodyRemoved_Event_IsNotRaisedOnFailedDelete()
     {
         List<int> bodyIdsRemoved = [];
-        _sim.BodyRemoved += bodyIdsRemoved.Add;
+        _sim.Bodies.BodyRemoved += bodyIdsRemoved.Add;
 
-        for (int i = 0; i < 3; i++) _sim.TryAddBody(new CelestialBody(i));
+        for (int i = 0; i < 3; i++) _sim.Bodies.TryAddBody(new CelestialBody(i));
 
-        _sim.TryDeleteBody(3);
+        _sim.Bodies.TryDeleteBody(3);
 
         Assert.That(bodyIdsRemoved, Is.Empty);
     }
