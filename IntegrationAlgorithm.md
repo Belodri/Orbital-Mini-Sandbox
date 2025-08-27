@@ -12,7 +12,7 @@ It is important to recognize that the **Orbital Mini-Sandbox** is designed to ru
 - **Performance:** The **Orbital Mini-Sandbox** must maintain minimum stable frame rate of 60 fps at 100 simulated bodies.
 - **Stability:** Numerical stability is more important than physical accuracy. To avoid drifting orbits, the simulation's total energy must be conserved across many time steps.
 - **Determinism:** To make sharable presets useful, the simulation must be perfectly deterministic (outside of floating-point errors).
-- **Full-Step State:** To provide a coherent and accurate reading of the true simulation state, the evaluated properties of each body (such as position, velocity, and accuracy) must be synchronized and calculated (not predicted) at integer time steps.
+- **Full-Step State:** To provide a coherent and accurate reading of the true simulation state, the evaluated properties of each body (such as position, velocity, and acceleration) must be synchronized and calculated (not predicted) at integer time steps.
 - **Accuracy:** The simulation should aim for the highest degree of accuracy possible within these constraints.
 
 
@@ -29,7 +29,7 @@ The Velocity-Verlet algorithm is implemented in it's common Kick-Drift-Kick form
 - **Algorithmic Symplecticity:** While the Barnes-Hut approximations prevent true symplecticity of the simulation as a whole (depending on the chosen value for Theta $\theta$), a symplectic integration algorithm is nevertheless vital to prevent runaway energy-drift in a long-running simulation.
 - **Algorithmic Time-Reversibility:** Assuming the simulation's other parameters aren't externally modified, this algorithm is time-reversable by setting a negative $\Delta t$. Note that the Barnes-Hut approximations can prevent true time-reversibility of the simulation as a whole.
 - **2nd-Order Accuracy:** With a global error of $O(\Delta t^2)$ (and a local truncation error of $O(\Delta t^3)$), this algorithm provides a clear improvement over common first-order accurate integration methods such as Symplectic Euler.
-- **Full-Step State:** Since the evaluated properties (such as position, velocity, and accuracy) of all bodies are synchronized at integer time steps, this algorithm provides a coherent and accurate reading of the true simulation state.
+- **Full-Step State:** Since the evaluated properties (such as position, velocity, and acceleration) of all bodies are synchronized at integer time steps, this algorithm provides a coherent and accurate reading of the true simulation state.
 
 ## The Quad-Tree Problem
 The implementation of this rather straightforward algorithm is complicated by the need to account for the Quad-Tree for spacial partitioning, which requires the tree to be rebuilt in the middle of the time step - after $x(t + \Delta t)$ is calculated but before $a(t + \Delta t)$ can be derived.
@@ -63,7 +63,12 @@ All come with their own downsides however:
 
 While this separation - and thus the integrator itself - would be a major problem in a multi-threaded environment, in the single-threaded context of this project, it can be viewed more as an academic flaw rather than a practical one. As such, these workarounds have been deemed unnecessary for the **Orbital Mini-Sandbox** in favour of a simpler approach with 2 distinct read-write steps.
 
+## Kick-Start & Updates
+Evaluation of the half-step velocities $ v(t + \frac{\Delta t}{2}) = v(t) + a(t) \frac{\Delta t}{2} $ requires both the velocity $v(t)$ as well as the acceleration $a(t)$ at the beginning of the timestep - aka the end of the previous time step. When the simulation is initialized, the bodies' positions and velocities are given but because the acceleration depends on the other bodies in the system, it must be evaluated. This leads to a kick-start step, in which the acceleration is derived from the positions at $t=0$, necessitating a full rebuild of the Quad-Tree.
 
+**Kick-Start:** $a(t) = \frac{F(x(t))}{m}$
+
+If the simulation couldn't be modified externally while running, this would be a one-time step. But since the **Orbital Mini-Sandbox** allows user to create new bodies and delete or update existing ones while the simulation is running, this "synchronization" step is necessary before every time-step immediately following such an interaction.
 
 ## Full Implementation
 To illustrate how this algorithm maps directly to the project's architecture, the final C# implementation - from `src/Physics/Core/Simulation.cs` - is provided below. Further context and details can be found in the project's PDD.
@@ -73,24 +78,35 @@ To illustrate how this algorithm maps directly to the project's architecture, th
 /// Advances the simulation by a single timestep.
 /// Calculates the forces on all enabled bodies and updates their properties like position, velocity and acceleration.
 /// </summary>
-public void StepFunction_VelocityVerlet()
+public void StepFunction()
 {
-    int bodyCount = _enabledBodies.Count;
+    VelocityVerletStep();
+    Timer.AdvanceSimTime();
+}
 
-    if (bodyCount == 0)
+private void VelocityVerletStep()
+{
+    if (Bodies.EnabledCount == 0) return;
+
+    if (_queueSync)
     {
-        Timer.AdvanceSimTime();
-        return;
+        // If a resynchronization of the system is necessary
+        // (on initial step or after a body has been added/deleted/modified externally),
+        // re-evaluate the forces at time t.
+        RebuildQuadTree();
+        for (int i = 0; i < Bodies.EnabledCount; i++)
+        {
+            var body = Bodies.EnabledBodies[i];
+            var a = QuadTree.CalcAcceleration(body, Calculator);
+            body.Update(acceleration: a);
+        }
+
+        _queueSync = false;
     }
 
-    double minX = 0;
-    double minY = 0;
-    double maxX = 0;
-    double maxY = 0;
-
-    for (int i = 0; i < bodyCount; i++)
+    for (int i = 0; i < Bodies.EnabledCount; i++)
     {
-        var body = _enabledBodies[i];
+        var body = Bodies.EnabledBodies[i];
 
         // Step 1: Half-Kick
         // v(t + Δt/2) = v(t) + (a(t)Δt)/2
@@ -100,24 +116,14 @@ public void StepFunction_VelocityVerlet()
         // x(t + Δt) = x(t) + v(t + Δt/2)Δt
         var x = body.Position + v_half * Timer.DeltaTime;
 
-        // Update body directly
         body.Update(position: x, velocityHalfStep: v_half);
-
-        // Get boundaries for quad-tree
-        minX = Math.Min(minX, x.X);
-        minY = Math.Min(minY, x.Y);
-        maxX = Math.Max(maxX, x.X);
-        maxY = Math.Max(maxY, x.Y);
     }
 
-    // Rebuild and evaluate the tree with the new body positions.
-    QuadTree.Reset(minX, minY, maxX, maxY, _enabledBodies.Count);
-    for (int i = 0; i < bodyCount; i++) QuadTree.InsertBody(_enabledBodies[i]);
-    QuadTree.Evaluate();
+    RebuildQuadTree();
 
-    for (int i = 0; i < bodyCount; i++)
+    for (int i = 0; i < Bodies.EnabledCount; i++)
     {
-        var body = _enabledBodies[i];
+        var body = Bodies.EnabledBodies[i];
 
         // Step 3: Force
         // a(t+Δt) = F(x(t + Δt))/m
@@ -129,9 +135,8 @@ public void StepFunction_VelocityVerlet()
 
         body.Update(acceleration: a, velocity: v);
     }
-
-    Timer.AdvanceSimTime();
 }
+
 ```
 
 # Alternatives: Leapfrog
@@ -250,6 +255,6 @@ While this introduces additional algorithmic complexity, its impact on performan
 - **Semi-Implicit Euler:** While this modification of the classic Euler method, also known the Symplectic Euler method, introduces symplecticity and thus solves the original's issues with numerical instability, it retains the $O(\Delta t)$ accuracy.
 
 ### Runge-Kutta-4
-The most widely known member of the family of numerical integrators known as Runge-Kutta, this is a fourth order method, boasting a global truncation error of $O(\Delta t^4)$ and a local error of $O(\Delta t^4)$. While this level of accuracy is often desired in scientific computing, this method not only leads to numerical drift due to its explicit nature, but its implementation is also very computationally expensive.
+The most widely known member of the family of numerical integrators known as Runge-Kutta, this is a fourth order method, boasting a global truncation error of $O(\Delta t^4)$ and a local error of $O(\Delta t^5)$. While this level of accuracy is often desired in scientific computing, this method not only leads to numerical drift due to its explicit nature, but its implementation is also very computationally expensive.
 
 It works by estimating the velocity and acceleration of a body at 4 specific points in time between $t_n$ and $t_n + \Delta t_n$, before determining $x(t_n + \Delta t_n)$ by via the weighted average of these estimations. This means not only a large the number of individual calculations per full time step, but also a total of 4 rebuilds of the Quad-Tree.
