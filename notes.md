@@ -49,3 +49,4 @@ https://learn.microsoft.com/en-us/aspnet/core/client-side/dotnet-interop/wasm-br
 - 21/08/2025 - Implement test suite for new QuadTree class; Debug and fix edge-case logic error in the QuadTree.Node's acceleration calculation and improve documentation for acceleration logic;
 - 25/08/2025 - Implement integration test suite for Simulation as a whole; Fix numerous bugs and issues with calculations and state management across the PhysicsEngine;
 - 26/08/2025 - Add further simulation tests; Create dedicated BodyManager class to allow Simulation to focus on orchestration; All tests updated and passed; IMPORTANT: PDD not yet updated with recent architectural changes;
+- 27/08/2025 - Update PDD and IntegrationAlgorithm documents with recent architectural changes; Add test suite for new BodyManager class; Add comprehensive (mostly) black-box integration test suite for Simulation;
