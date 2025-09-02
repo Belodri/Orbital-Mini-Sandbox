@@ -241,6 +241,8 @@ public readonly partial struct BodyView
     public readonly partial Vector2D Velocity { get; }
     /// <inheritdoc cref="ICelestialBody.Acceleration"/>
     public readonly partial Vector2D Acceleration { get; }
+    /// <inheritdoc cref="ICelestialBody.OutOfBounds"/>
+    public readonly partial bool OutOfBounds { get; }
 }
 
 public readonly partial struct BodyView()
@@ -261,6 +263,7 @@ public readonly partial struct BodyView()
     public readonly partial Vector2D Position => Body.Position;
     public readonly partial Vector2D Velocity => Body.Velocity;
     public readonly partial Vector2D Acceleration => Body.Acceleration;
+    public readonly partial bool OutOfBounds => Body.OutOfBounds;
 
     #endregion
 }

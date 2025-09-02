@@ -5,6 +5,11 @@ namespace Physics.Bodies;
 internal interface ICelestialBody
 {
     /// <summary>
+    /// A limit of ~16 million light years in any direction from the origin.
+    /// </summary>
+    /// <remarks>A body beyond this point is considered out of bounds.</remarks>
+    internal const double LIMIT = 1e12;
+    /// <summary>
     /// Unique ID of the body. Must not be negative!
     /// </summary>
     int Id { get; }
@@ -12,6 +17,10 @@ internal interface ICelestialBody
     /// A disabled body will be ignored by physics calculations.
     /// </summary>
     bool Enabled { get; }
+    /// <summary>
+    /// Is the body's position outside the position limit?
+    /// </summary>
+    bool OutOfBounds { get; }
     /// <summary>
     /// The mass of the body in Solar Masses (M☉).
     /// </summary>
@@ -96,6 +105,9 @@ internal class CelestialBody : ICelestialBody
     /// </summary>
     private const double INITIALIZATION_POSITION_OFFSET = 1e-10;
 
+    /// <inheritdoc cref="ICelestialBody.LIMIT"/> 
+    public const double POSITION_LIMIT_ABSOLUTE = ICelestialBody.LIMIT;
+
     #endregion
 
 
@@ -115,6 +127,8 @@ internal class CelestialBody : ICelestialBody
     public Vector2D VelocityHalfStep { get; private set; }
     /// <inheritdoc />
     public Vector2D Acceleration { get; private set; }
+    /// <inheritdoc />
+    public bool OutOfBounds => Math.Abs(Position.X) > POSITION_LIMIT_ABSOLUTE || Math.Abs(Position.Y) > POSITION_LIMIT_ABSOLUTE;
 
     #endregion
 
