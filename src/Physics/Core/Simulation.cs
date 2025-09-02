@@ -53,8 +53,24 @@ internal sealed class Simulation : ISimulation
 
     public void StepFunction()
     {
+        PrepareBodies();
         VelocityVerletStep();
         Timer.AdvanceSimTime();
+    }
+
+    private readonly List<int> EnabledIdsToDisable = [];
+    private void PrepareBodies() // todo: BodyManager should probably be handling this
+    {
+        if (Bodies.EnabledCount == 0) return;
+        EnabledIdsToDisable.Clear();
+
+        // Disable bodies that are out of bounds.
+        for (int i = 0; i < Bodies.EnabledCount; i++)
+        {
+            var body = Bodies.EnabledBodies[i];
+            if (body.OutOfBounds) EnabledIdsToDisable.Add(body.Id);
+        }
+        for (int i = 0; i < EnabledIdsToDisable.Count; i++) Bodies.TryUpdateBody(EnabledIdsToDisable[i], new(Enabled: false));
     }
 
     private void VelocityVerletStep()
@@ -120,6 +136,7 @@ internal sealed class Simulation : ISimulation
         for (int i = 0; i < Bodies.EnabledCount; i++)
         {
             var body = Bodies.EnabledBodies[i];
+
             minX = Math.Min(minX, body.Position.X);
             minY = Math.Min(minY, body.Position.Y);
             maxX = Math.Max(maxX, body.Position.X);
