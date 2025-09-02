@@ -12,8 +12,10 @@ public record MockBody(int Id, double Mass, Vector2D Position) : ICelestialBody
     public int Id { get; } = Id;
     public double Mass { get; } = Mass;
     public Vector2D Position { get; } = Position;
+
     // Boilerplate
     bool ICelestialBody.Enabled => throw new NotImplementedException();
+    public bool OutOfBounds => throw new NotImplementedException();
     Vector2D ICelestialBody.Velocity => throw new NotImplementedException();
     Vector2D ICelestialBody.VelocityHalfStep => throw new NotImplementedException();
     Vector2D ICelestialBody.Acceleration => throw new NotImplementedException();
