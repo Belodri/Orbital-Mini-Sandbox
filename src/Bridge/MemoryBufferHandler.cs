@@ -171,6 +171,7 @@ internal class MemoryBufferHandler : IDisposable
             bodySlice[BodyStateLayout.velY] = body.Velocity.Y;
             bodySlice[BodyStateLayout.accX] = body.Acceleration.X;
             bodySlice[BodyStateLayout.accY] = body.Acceleration.Y;
+            bodySlice[BodyStateLayout.outOfBounds] = Convert.ToDouble(body.OutOfBounds);
         }
 
         fixed (double* pSource = allBodiesData)

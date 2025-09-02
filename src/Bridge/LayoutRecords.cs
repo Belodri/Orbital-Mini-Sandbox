@@ -83,5 +83,9 @@ public record BodyStateLayoutRec(
     /// <summary>
     /// The body's acceleration in the y direction in units of Astronomical Units per day squared (au/d²)
     /// </summary>
-    int accY
+    int accY,
+    /// <summary>
+    /// Is the body considered to be out of bounds? An out of bounds body is automatically disabled.
+    /// </summary>
+    int outOfBounds
 );
