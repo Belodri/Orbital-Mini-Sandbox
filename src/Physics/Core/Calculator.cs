@@ -171,6 +171,7 @@ internal class Calculator : ICalculator
     /// <inheritdoc/>
     public Vector2D Acceleration(Vector2D m1Position, Vector2D m2Position, double m2Mass, double? distanceSquaredSoftened = null)
     {
+        if (m2Mass == 0) return Vector2D.Zero;
         double d_sq = distanceSquaredSoftened ?? DistanceSquaredSoftened(m1Position, m2Position);
         if (d_sq == 0) return Vector2D.Zero;
 

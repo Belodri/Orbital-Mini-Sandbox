@@ -197,6 +197,7 @@ internal class QuadTree
 
         public bool IsEvaluated = false;
         public double Mass { get; private set; } = 0;
+        public bool ContainsNegativeMass { get; private set; } = false;
         public Vector2D CenterOfMass { get; private set; } = Vector2D.Zero;
         public readonly Vector2D WeightedPosition => CenterOfMass * Mass;   // Can be directly calculated as it's usually only used once per node.
 
@@ -242,6 +243,8 @@ internal class QuadTree
 
         public void Insert(ICelestialBody newBody)
         {
+            if (newBody.Mass < 0) ContainsNegativeMass = true;
+
             if (IsCrowded)
             {
                 // List was allocated in the constructor
@@ -384,7 +387,7 @@ internal class QuadTree
                     or crowded and either far away from the body or does not contain it within its bounds.
             */
 
-            if (Mass == 0) return Vector2D.Zero;
+            if (Mass == 0 && !ContainsNegativeMass) return Vector2D.Zero;   // Check for early return; Calculator handles 0 mass otherwise
             if (IsLeaf && _body?.Id == body.Id) return Vector2D.Zero;   // Ensure to never include self.
             double d_sq_softened = calc.DistanceSquaredSoftened(body.Position, CenterOfMass);
             // s / d < θ
