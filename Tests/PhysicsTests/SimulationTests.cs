@@ -241,28 +241,32 @@ public class SimulationTests()
     [Test]
     public void StepFunction_WithNonZeroTheta_UsesApproximation()
     {
+        // Since the QuadTree has its own tests that verify correctness and accuracy, 
+        // this test simply verifies that different theta values have any measurable expected effect in the final simulation.
         TestSetup();
         _sim.Calculator.Update(theta: 0);
-        var center_a = AddEnabled(new(Mass: 10));
-        var close_a = AddEnabled(new(Mass: 1, PosX: 1, VelY: 1));
-        var far_a = AddEnabled(new(Mass: 1, PosX: 100, PosY: 100));
+        var zeroTheta_center = AddEnabled(new(Mass: 10));
+        var zeroTheta_close = AddEnabled(new(Mass: 1, PosX: 1, VelY: 1));
+        var zeroTheta_far = AddEnabled(new(Mass: 1, PosX: 100, PosY: 100));
 
         _sim.StepFunction();
 
         TestSetup();
         _sim.Calculator.Update(theta: 1);
-        var center_b = AddEnabled(new(Mass: 10));
-        var close_b = AddEnabled(new(Mass: 1, PosX: 1, VelY: 1));
-        var far_b = AddEnabled(new(Mass: 1, PosX: 100, PosY: 100));
+        var oneTheta_center = AddEnabled(new(Mass: 10));
+        var oneTheta_close = AddEnabled(new(Mass: 1, PosX: 1, VelY: 1));
+        var oneTheta_far = AddEnabled(new(Mass: 1, PosX: 100, PosY: 100));
 
         _sim.StepFunction();
 
-        var centerDiff = center_b.Acceleration.Magnitude - center_a.Acceleration.Magnitude;
-        var closeDiff = close_b.Acceleration.Magnitude - close_a.Acceleration.Magnitude;
-        var farDiff = far_b.Acceleration.Magnitude - far_a.Acceleration.Magnitude;
+        var centerDiff = Math.Abs(oneTheta_center.Acceleration.Magnitude - zeroTheta_center.Acceleration.Magnitude);
+        var closeDiff = Math.Abs(oneTheta_close.Acceleration.Magnitude - zeroTheta_close.Acceleration.Magnitude);
+        var farDiff = Math.Abs(oneTheta_far.Acceleration.Magnitude - zeroTheta_far.Acceleration.Magnitude);
 
         Assert.Multiple(() =>
         {
+            // The difference in acceleration between theta=0 and theta=1 
+            // should be greater for a faraway body than for closer ones.
             Assert.That(farDiff, Is.GreaterThan(centerDiff));
             Assert.That(farDiff, Is.GreaterThan(closeDiff));
         });
@@ -356,6 +360,109 @@ public class SimulationTests()
         });
     }
 
+    [Test]
+    public void StepFunction_WithOnlyZeroMassBodies_UpdatesCorrectly()
+    {
+        var body_stationary = AddEnabled(new(Mass: 0, PosX: 1, PosY: 1));
+        var body_moving = AddEnabled(new(Mass: 0, PosX: 2, PosY: 2, VelX: 1, VelY: 1));
+        _sim.StepFunction();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(body_stationary.Position.X, Is.EqualTo(1));
+            Assert.That(body_stationary.Position.Y, Is.EqualTo(1));
+            Assert.That(body_moving.Position.X, Is.EqualTo(3));
+            Assert.That(body_moving.Position.Y, Is.EqualTo(3));
+        });
+    }
+
+    [Test]
+    public void StepFunction_TwoBodySystem_OneNegativeMass_CausesRunawayMotion()
+    {
+        var body_positive = AddEnabled(new(Mass: 1, PosX: 1));
+        var body_negative = AddEnabled(new(Mass: -1, PosX: 0));
+        _sim.StepFunction();
+
+        var velX_pos = body_positive.Velocity.X;
+        var velX_neg = body_negative.Velocity.X;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(velX_pos, Is.Positive); // positive mass body is pushed away
+            Assert.That(velX_neg, Is.Positive); // negative mass body follows positive mass body
+
+            Assert.That(body_positive.Velocity.Y, Is.EqualTo(0));
+            Assert.That(body_negative.Velocity.Y, Is.EqualTo(0));
+        });
+
+        _sim.StepFunction();
+
+        var dist = body_negative.Position.DistanceTo(body_positive.Position);
+
+        Assert.Multiple(() =>
+        {   // X velocity of both increases in a runaway motion
+            Assert.That(body_positive.Velocity.X, Is.GreaterThan(velX_pos));
+            Assert.That(body_negative.Velocity.X, Is.GreaterThan(velX_neg));
+            // but distance between them remains identical
+            Assert.That(dist, Is.EqualTo(1));
+        });
+    }
+
+    [Test]
+    public void StepFunction_TwoBodySystem_BothNegativeMass_IsRepulsive()
+    {
+        // Two bodies with identical negative mass on the X axis
+        var bodyA = AddEnabled(new(Mass: -1, PosX: 1));
+        var bodyB = AddEnabled(new(Mass: -1, PosX: 0));
+        _sim.StepFunction();
+
+        var velX_a = bodyA.Velocity.X;
+        var velX_b = bodyB.Velocity.X;
+        var accX_a = bodyA.Acceleration.X;
+        var accX_b = bodyB.Acceleration.X;
+
+        Assert.Multiple(() =>
+        {   
+            // bodies are pushed away from one another
+            Assert.That(velX_a, Is.Positive);
+            Assert.That(velX_b, Is.Negative);
+            // at the same absolute velocity
+            Assert.That(Math.Abs(velX_b), Is.EqualTo(velX_a));
+            // and the same acceleration
+            Assert.That(Math.Abs(accX_b), Is.EqualTo(accX_a));
+            // while the y axis is unaffected
+            Assert.That(bodyA.Velocity.Y, Is.EqualTo(0));
+            Assert.That(bodyB.Velocity.Y, Is.EqualTo(0));
+        });
+
+        _sim.StepFunction();
+
+        Assert.Multiple(() =>
+        {   // absolute acceleration of both decreases
+            Assert.That(bodyA.Acceleration.X, Is.LessThan(accX_a));
+            Assert.That(Math.Abs(bodyB.Acceleration.X), Is.LessThan(Math.Abs(accX_b)));
+            // but remains identical to one another
+            Assert.That(Math.Abs(bodyB.Acceleration.X), Is.EqualTo(bodyA.Acceleration.X));
+        });
+    }
+
+    [Test]
+    public void StepFunction_BodiesWithExtremeCoordinates_HandledCorrectly()
+    {
+        var bodyA = AddEnabled(new(Mass: 1, PosX: double.MaxValue - 1, PosY: double.MaxValue - 1));
+        var bodyB = AddEnabled(new(Mass: 1, PosX: double.MinValue + 1, PosY: double.MinValue + 1));
+
+        _sim.StepFunction();
+
+        Assert.Multiple(() =>
+        {   // At this distance, the acceleration should be near zero.
+            Assert.That(bodyA.Acceleration.X, Is.EqualTo(0));
+            Assert.That(bodyA.Acceleration.Y, Is.EqualTo(0));
+            Assert.That(bodyB.Acceleration.X, Is.EqualTo(0));
+            Assert.That(bodyB.Acceleration.Y, Is.EqualTo(0));
+        });
+    }
+
     #endregion
 
 
@@ -385,6 +492,64 @@ public class SimulationTests()
             Assert.That(p_final.X, Is.EqualTo(p_initial.X));
             Assert.That(p_final.Y, Is.EqualTo(p_initial.Y));
         });
+    }
+
+    [Test]
+    [TestCase(27)]
+    [TestCase(243)]
+    [TestCase(2187)]
+    public void StepFunction_4BodySystem_IsSymmetric_RemainsSymmetric(int iterations)
+    {
+        // clockwise rotating symmetrical system
+        AddEnabled(new(Mass: 1, PosX: 1, PosY: 1, VelY: -1));
+        AddEnabled(new(Mass: 1, PosX: 1, PosY: -1, VelX: -1));
+        AddEnabled(new(Mass: 1, PosX: -1, PosY: -1, VelY: 1));
+        AddEnabled(new(Mass: 1, PosX: -1, PosY: 1, VelX: 1));
+
+        var (bodiesSameDistToCenter_initial, bodiesSameVelMag_initial, centerOfMass_initial) = CalcVars();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(centerOfMass_initial, Is.EqualTo(Vector2D.Zero));
+            Assert.That(bodiesSameDistToCenter_initial, Is.True);
+            Assert.That(bodiesSameVelMag_initial, Is.True);
+        });
+
+        for (int i = 0; i < iterations; i++) _sim.StepFunction();
+
+        var (bodiesSameDistToCenter_after, bodiesSameVelMag_after, centerOfMass_after) = CalcVars();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(centerOfMass_initial, Is.EqualTo(Vector2D.Zero));
+            Assert.That(bodiesSameDistToCenter_after, Is.True);
+            Assert.That(bodiesSameVelMag_after, Is.True);
+        });
+
+        // Helper function for calculations
+        (bool bodiesSameDistToCenter, bool bodiesSameVelMag, Vector2D centerOfMass) CalcVars()
+        {
+            List<double> distsToCenter = [];
+            List<double> velMags = [];
+
+            var weightedPositionSum = Vector2D.Zero;
+            double mass = 0;
+            for (int i = 0; i < _sim.Bodies.EnabledCount; i++)
+            {
+                var body = _sim.Bodies.EnabledBodies[i];
+                mass += body.Mass;
+                weightedPositionSum += body.Position * body.Mass;
+
+                distsToCenter.Add(body.Position.DistanceTo(Vector2D.Zero));
+                velMags.Add(body.Velocity.Magnitude);
+            }
+
+            return (
+                bodiesSameDistToCenter: distsToCenter.Distinct().Count() == 1,
+                bodiesSameVelMag: velMags.Distinct().Count() == 1,
+                centerOfMass: mass != 0 ? weightedPositionSum / mass : Vector2D.Zero
+            );
+        }
     }
 
     #region Energy Conservation
@@ -440,7 +605,7 @@ public class SimulationTests()
         Assert.That(percentDeviation, Is.LessThan(0.01));
     }
 
-    #endregion
+    #endregion    
 
     #endregion
 
@@ -482,14 +647,3 @@ public class SimulationTests()
 
     #endregion
 }
-
-/*
-    Tests to add:
-
-    - zero mass bodies
-    - negative mass bodies
-    - 4 body symmetry
-        - distance of each body to center should remain identical
-        - magnitude of velocities should remain identical
-        - system center of mass should remain identical
-*/
