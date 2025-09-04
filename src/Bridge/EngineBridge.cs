@@ -99,12 +99,21 @@ public static partial class EngineBridge
         double? velX  = null, double? velY  = null,
         double? accX  = null, double? accY  = null)
     {
-        return commandQueue.EnqueueTask(engine =>
-        {
-            return physicsEngine.UpdateBody(
-                id, new(enabled, mass, posX, posY, velX, velY, accX, accY)
-            );
-        });
+        return commandQueue.EnqueueTask(engine => physicsEngine.UpdateBody(
+            id, new(enabled, mass, posX, posY, velX, velY, accX, accY)
+        ));
+    }
+
+    [JSExport]
+    public static Task UpdateSimulation(
+        double? timeStep = null,
+        double? theta = null,
+        double? g_SI = null,
+        double? epsilon = null)
+    {
+        return commandQueue.EnqueueTask(engine => physicsEngine.UpdateSimulation(
+            new(timeStep, theta, g_SI, epsilon)
+        ));
     }
 
     /// <summary>

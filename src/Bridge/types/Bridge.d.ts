@@ -103,6 +103,18 @@ export default class Bridge {
     }>): Promise<boolean>;
 
     /**
+     * Updates the current simulation.
+     * @param values The new values for the simulation parameters.
+     * @returns A promise that resolves when the simulation parameters have been updated successfully.
+     */
+    static updateSimulation(values: PartialPartial<{
+        timeStep: number,
+        theta: number,
+        g_SI: number,
+        epsilon: number
+    }>): Promise<void>;
+
+    /**
      * Registers a function to be called every time the simState has been refreshed.
      * Only one such function can be registered.
      * @param fn        Receives a `BodyDiffData` object as an argument.

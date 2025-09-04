@@ -234,6 +234,27 @@ export default class Bridge {
         );
     }
 
+    /**
+     * Updates the current simulation.
+     * @param {Partial<{
+     *   timeStep: number,
+     *   theta: number,
+     *   g_SI: number,
+     *   epsilon: number
+     * }>} values       The new values for the simulation parameters.
+     * @returns {Promise<void>} A promise that resolves when the simulation 
+     *                          parameters have been updated successfully.
+     */
+    static async updateSimulation({timeStep, theta, g_SI, epsilon}) {
+        this.#startPromiseTimeoutLoop();
+        await this.#EngineBridge.UpdateSimulation(
+            typeof timeStep === "number" ? timeStep : null,
+            typeof theta === "number" ? theta : null,
+            typeof g_SI === "number" ? g_SI : null,
+            typeof epsilon === "number" ? epsilon : null
+        );
+    }
+
     //#endregion
 
 
