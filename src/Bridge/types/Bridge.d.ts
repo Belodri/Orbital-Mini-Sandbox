@@ -107,7 +107,7 @@ export default class Bridge {
      * @param values The new values for the simulation parameters.
      * @returns A promise that resolves when the simulation parameters have been updated successfully.
      */
-    static updateSimulation(values: PartialPartial<{
+    static updateSimulation(values: Partial<{
         timeStep: number,
         theta: number,
         g_SI: number,
