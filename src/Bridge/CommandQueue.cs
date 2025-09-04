@@ -36,6 +36,32 @@ internal class CommandQueue
     }
 
     /// <summary>
+    /// Enqueues a command that does not return a value.
+    /// </summary>
+    /// <param name="taskAction">An action that takes a PhysicsEngine.</param>
+    /// <returns>
+    /// A Task that will be completed when the <see cref="ResolveProcessed"/> is called after the command has been executed during the next tick.
+    /// </returns>
+    internal Task EnqueueTask(Action<PhysicsEngine> taskAction)
+    {
+        var tcs = new TaskCompletionSource();
+        _queue.Enqueue(engine =>
+        {
+            try
+            {
+                taskAction(engine);
+                _pendingResolutions.Enqueue(() => tcs.TrySetResult());
+            }
+            catch (Exception ex)
+            {
+                _pendingResolutions.Enqueue(() => tcs.TrySetException(ex));
+            }
+        });
+
+        return tcs.Task;
+    }
+
+    /// <summary>
     /// Processes all queued Tasks.
     /// </summary>
     /// <param name="engine">The PhysicsEngine instance passed as an argument to the queued Tasks.</param>
