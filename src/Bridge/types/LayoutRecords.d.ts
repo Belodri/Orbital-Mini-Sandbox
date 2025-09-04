@@ -65,4 +65,8 @@ export interface BodyStateLayout {
      * The body's acceleration in the y direction in units of Astronomical Units per day squared (au/d²)
      */
     readonly accY: number;
+    /**
+     * Is the body considered to be out of bounds? An out of bounds body is automatically disabled.
+     */
+    readonly outOfBounds: number;
 }
