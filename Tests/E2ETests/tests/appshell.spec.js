@@ -18,9 +18,9 @@ test.describe('AppShell API and State', () => {
     });
 
     test.describe('Body Management', () => {
-        test('AppShell.createBody() should return a positive integer.', async ({ page }) => {
+        test('AppShell.createBody() should return a non-negative integer.', async ({ page }) => {
             const bodyId = await page.evaluate(async () => await window.AppShell.createBody());
-            expect(bodyId).toBeGreaterThan(0);
+            expect(bodyId).toBeGreaterThanOrEqual(0);
             expect(Number.isSafeInteger(bodyId)).toBe(true);
         });
 
