@@ -40,10 +40,12 @@ export default class Bridge {
 
     /**
      * Initializes the Bridge and the underlying .NET runtime. Must be called once before any other methods.
+     * @param {boolean} [debugMode=false]           If true enables debug logging and exposes the `Bridge` to the `globalThis`.
+     * @param {boolean} [diagnosticsTracing=false]  If "true", writes diagnostic messages during runtime startup and execution to the browser console.
      * @returns A promise that resolves when initialization is complete.
      * @throws {Error} if the Bridge has already been initialized.
      */
-    static initialize(): Promise<void>;
+    static initialize(debugMode: bool = false, diagnosticsTracing: bool = false): Promise<void>;
 
     /**
      * Sets the maximum interval in which promises are handled, 
