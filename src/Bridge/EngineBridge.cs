@@ -125,8 +125,7 @@ public static partial class EngineBridge
         int id,
         bool? enabled = null, double? mass = null,
         double? posX = null, double? posY = null,
-        double? velX = null, double? velY = null,
-        double? accX = null, double? accY = null)
+        double? velX = null, double? velY = null)
     {
         Logger.Entry()
             .WithArg(id)
@@ -136,14 +135,12 @@ public static partial class EngineBridge
             .WithArg(posY)
             .WithArg(velX)
             .WithArg(velY)
-            .WithArg(accX)
-            .WithArg(accY)
             .Log("Task Queued");
 
         return commandQueue.EnqueueTask(engine =>
         {
             var wasUpdated = engine.UpdateBody(
-                id, new(enabled, mass, posX, posY, velX, velY, accX, accY)
+                id, new(enabled, mass, posX, posY, velX, velY)
             );
             Logger.Entry(nameof(UpdateBody))
                 .WithArg(id).WithArg(wasUpdated)

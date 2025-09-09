@@ -221,7 +221,7 @@ export default class Bridge {
      * @returns {Promise<boolean>} Resolves to `true` if the body has been updated successfully, 
      *                              or `false` if it wasn't found.
      */
-    static async updateBody(id, { enabled, mass, posX, posY, velX, velY, accX, accY }={}) {
+    static async updateBody(id, { enabled, mass, posX, posY, velX, velY }={}) {
         this.#startPromiseTimeoutLoop();
         return this.#EngineBridge.UpdateBody(id,
             (typeof enabled === "number" || typeof enabled === "boolean") ? !!enabled : null, // always coerce number into boolean!
@@ -229,9 +229,7 @@ export default class Bridge {
             typeof posX === "number" ? posX : null,
             typeof posY === "number" ? posY : null,
             typeof velX === "number" ? velX : null,
-            typeof velY === "number" ? velY : null,
-            typeof accX === "number" ? accX : null,
-            typeof accY === "number" ? accY : null,
+            typeof velY === "number" ? velY : null
         );
     }
 

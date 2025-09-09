@@ -99,9 +99,7 @@ export default class Bridge {
         posX: number,
         posY: number,
         velX: number,
-        velY: number,
-        accX: number,
-        accY: number
+        velY: number
     }>): Promise<boolean>;
 
     /**
