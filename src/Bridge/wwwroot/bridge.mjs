@@ -254,6 +254,21 @@ export default class Bridge {
         );
     }
 
+    /**
+     * Gets a number of logged entries.
+     * @param {number} [number = -1]  The number of logs to get. -1 (or any other negative number) to get all logs.
+     * @returns {string[]} An array of logged strings, from oldest to newest.
+     */
+    static async getLogs(number = -1) {
+        if(!Number.isSafeInteger(number) || number === 0) return;
+        return this.#EngineBridge.GetLogs(number);
+    }
+
+    /** Clears the currently stored log entries. */
+    static async clearLogs() {
+        this.#EngineBridge.ClearLogs();
+    }
+
     //#endregion
 
 

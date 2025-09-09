@@ -121,4 +121,14 @@ export default class Bridge {
      * @param thisArg   An object to which the this keyword refers inside the callback function.
      */
     static registerOnTickCallback(fn: Function, thisArg: any): void;
+
+    /**
+     * Gets a number of logged entries from the C# side of the bridge.
+     * @param number The number of logs to get. -1 (or any other negative number) to get all logs.
+     * @returns An array of logged strings, from oldest to newest.
+     */
+    static async getLogs(number: number = -1): string[];
+
+    /** Clears the currently stored log entries. */
+    static async clearLogs(): void;
 }
