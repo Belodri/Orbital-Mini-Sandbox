@@ -156,6 +156,19 @@ export default class AppShell {
 
     //#endregion
 
+    //#region Simulation Controls
+
+    /**
+     * Requests an update for the simulation state.
+     * @param {Parameters<(typeof import('../types/Bridge').default)['updateSimulation']>[0]} updates Partial update data.
+     * @returns {Promise<void>} A promise that resolves after the simulation has been updated.
+     */
+    static async updateSimulation(updates={}) {
+        return await this.Bridge.updateSimulation(updates);
+    }
+
+    //#endregion
+
 
     //#region State Management
 
