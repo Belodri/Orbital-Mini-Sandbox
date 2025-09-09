@@ -127,8 +127,8 @@ export default class Bridge {
      * @param number The number of logs to get. -1 (or any other negative number) to get all logs.
      * @returns An array of logged strings, from oldest to newest.
      */
-    static async getLogs(number: number = -1): string[];
+    static getLogs(number: number = -1): string[];
 
     /** Clears the currently stored log entries. */
-    static async clearLogs(): void;
+    static clearLogs(): void;
 }
