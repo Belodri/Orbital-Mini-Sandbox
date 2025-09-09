@@ -68,10 +68,11 @@ export default class Bridge {
     }
 
     /**
-     * Initializes the Bridge. Must be called first!
-     * @param {boolean} [debugMode=false]           If true enables debug logging and exposes the `EngineBridge` to the `globalThis`.
+     * Initializes the Bridge and the underlying .NET runtime. Must be called once before any other methods.
+     * @param {boolean} [debugMode=false]           If true enables debug logging and exposes the `Bridge` to the `globalThis`.
      * @param {boolean} [diagnosticsTracing=false]  If "true", writes diagnostic messages during runtime startup and execution to the browser console.
-     * @returns {Promise<void>}
+     * @returns {Promise<void>}                     A promise that resolves when initialization is complete.
+     * @throws {Error} if the Bridge has already been initialized.
      */
     static async initialize(debugMode=false, diagnosticsTracing=false) {
         Bridge.#CONFIG.DEBUG_MODE = !!debugMode;
@@ -90,7 +91,7 @@ export default class Bridge {
 
         Bridge.#refreshSimState();
 
-        if(DEBUG_MODE) globalThis.EngineBridge = this;
+        if(DEBUG_MODE) globalThis.Bridge = this;
     }
 
     /**
