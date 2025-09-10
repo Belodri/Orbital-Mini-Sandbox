@@ -1,4 +1,4 @@
-import AppShell from './AppShell.mjs';
+import App from './App.mjs';
 
 //#region Fatal Error Handling
 
@@ -24,5 +24,5 @@ window.addEventListener('unhandledrejection', (event) => {
 //#endregion
 
 window.addEventListener("load", async (event) => {
-    await AppShell.initialize();
+    await App.initialize();
 });

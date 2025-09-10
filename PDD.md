@@ -3,6 +3,8 @@
 
 # Revision History
 
+- **10/09/2025**
+    - Rename former `AppShell` to `App` for conciseness and clarity.
 - **27/08/2025**
     - Added `BodyManager` class to `PhysicsEngine`.
 - **20/08/2025**
@@ -22,7 +24,7 @@
     - Simplified and optimized Tick workflow by eliminating the need for double buffering.
 - **09/07/2025**
     - Added `QuadTreeNode.cs` and `AABB.cs` quad tree components to `Physics` structure.
-    - Redefined `AppShell` as an event-based, reactive, unidirectional orchestrator and preset handler.
+    - Redefined `App` as an event-based, reactive, unidirectional orchestrator and preset handler.
     - Refactored `CanvasView` into a fully decoupled, dumb rendering component.
     - Refactored `AppDataManager` into a decoupled data manager with queued updates.
 - **03/07/2025**
@@ -176,7 +178,7 @@ The WebApp is a single-page application built with HTML, CSS, and JavaScript, us
 ### UI Components
 **SimulationControls (left sidebar)**
 Vertically collapsible container with horizontally collapsible individual subsections
-- **Simulation Options:** play/pause, time scaling, time navigation, gravitational constant adjustment, and other simulation parameters & constants
+- **Simulation Options:** play/pause, time step adjustment, gravitational constant adjustment, and other simulation parameters & constants
 - **Visualization Options:** visual rendering options (orbit paths, velocity trails, labels, body scale), and background color customization
 - **Presets:** import/export UI, input validation & error handling
 - **Hotkey** static reference
@@ -220,11 +222,11 @@ A dedicated container area for displaying temporary, non-modal status messages t
 - Application entry point & handler of fatal errors.
 - **Responsibilities:**
     - Serves as the sole script entry point, loaded directly by `index.html`.
-    - Initiates the application by calling `AppShell.initialize()` on window load.
+    - Initiates the application by calling `App.initialize()` on window load.
     - Acts as a global safety net, catching unhandled exceptions and promise rejections.
     - Displays a static fatal error message to the user if the application encounters an unrecoverable state, preventing a blank or broken page.
 
-`AppShell`
+`App`
 - Static orchestrator for the entire application.
 - **Responsibilities:**
     - Instantiates and/or holds references to all core components (Javascript API of `Bridge`, `AppDataManager`, `CanvasView`, `Notifications`, all other UI components).
@@ -240,7 +242,7 @@ A dedicated container area for displaying temporary, non-modal status messages t
 - **Responsibilities:**
     - **Data Handling:** 
         - Maintains a `Map<number, object>` which maintains application-level metadata for each celestial body in the simulation.
-        - Handles updates to metadata as instructed by `AppShell`, queue-based updates to existing bodies.
+        - Handles updates to metadata as instructed by `App`, queue-based updates to existing bodies.
 - **State Ownership:**
     - **metaData**: An object containing application-level metadata
     - **updateQueue**: A store of queued updates for the metadata (last-write-wins system)
@@ -249,7 +251,7 @@ A dedicated container area for displaying temporary, non-modal status messages t
 - Encapsulates all rendering logic using PIXI.js. Dumb and fully decoupled. 
 - **Responsibilities:**
     - Initializes the `PIXI.Application` and attaches it to the DOM.
-    - Signals `AppShell` whenever an animation frame is ready.
+    - Signals `App` whenever an animation frame is ready.
     - Renders the simulation by efficiently updating the properties of PIXI.js display objects from injected data as instructed.
     - Manages all camera logic (zoom, pan, focus tracking).
 - **State Ownership:**
@@ -366,16 +368,19 @@ BodyDiffData: {
     - A Queue of Action<PhysicsEngine> delegates representing the pending commands.
 
 **Tick Flow:**
+
 Javascript
 1. `WebApp` calls `Bridge.tickEngine()`
 2. `Bridge` (JS) calls `EngineBridge.Tick()` (C#)
 
-C#
+C#  
+
 3. `EngineBridge` calls `PhysicsEngine.Tick()`
 4. `PhysicsEngine` completes physics calculations
 5. `EngineBridge` calls `MemoryBufferHandler.WriteTickData()`
 
 Javascript
+
 6. `Bridge` returns `BodyDiffData`
     - propagates errors marshalled from C# exceptions
     - reads from memory and refreshes the exposed `simState` object

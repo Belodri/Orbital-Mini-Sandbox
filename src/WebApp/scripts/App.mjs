@@ -10,7 +10,7 @@ import Notifications from './components/Notifications.mjs';
  */
 
 /** The central orchestrator for the application. */
-export default class AppShell {
+export default class App {
     static #CONFIG = {
         debugMode: true,
     }
@@ -50,7 +50,7 @@ export default class AppShell {
         await this.#initCanvasView();
 
         if(this.#CONFIG.debugMode) {
-            globalThis.AppShell = this;
+            globalThis.App = this;
             globalThis.Scenarios = new Scenarios();
         }
         console.log("Initialization complete.");
@@ -305,14 +305,14 @@ export default class AppShell {
 // TODO: Make into separate file and don't include in release builds
 class Scenarios {
     async FourBodySystemSymmetrical() {
-        const id1 = await AppShell.createBody();
-        const id2 = await AppShell.createBody();
-        const id3 = await AppShell.createBody();
-        const id4 = await AppShell.createBody();
+        const id1 = await App.createBody();
+        const id2 = await App.createBody();
+        const id3 = await App.createBody();
+        const id4 = await App.createBody();
 
-        await AppShell.updateBody(id1, {enabled: 1, mass: 1, posX: 1, posY: 1, velY: -1, name: "1"});
-        await AppShell.updateBody(id2, {enabled: 1, mass: 1, posX: 1, posY: -1, velX: -1, name: "2"});
-        await AppShell.updateBody(id3, {enabled: 1, mass: 1, posX: -1, posY: -1, velY: 1, name: "3"});
-        await AppShell.updateBody(id4, {enabled: 1, mass: 1, posX: -1, posY: 1, velX: 1, name: "4"});
+        await App.updateBody(id1, {enabled: 1, mass: 1, posX: 1, posY: 1, velY: -1, name: "1"});
+        await App.updateBody(id2, {enabled: 1, mass: 1, posX: 1, posY: -1, velX: -1, name: "2"});
+        await App.updateBody(id3, {enabled: 1, mass: 1, posX: -1, posY: -1, velY: 1, name: "3"});
+        await App.updateBody(id4, {enabled: 1, mass: 1, posX: -1, posY: 1, velX: 1, name: "4"});
     }
 }

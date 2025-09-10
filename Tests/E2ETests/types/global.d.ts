@@ -1,13 +1,13 @@
-// 1. Import the AppShell class type directly from its auto-generated file.
+// 1. Import the App class type directly from its auto-generated file.
 //    We use the '@webapp' alias configured in jsconfig.json.
-//    'typeof' is used because AppShell.mjs exports the class itself.
-import type AppShellClass from '@webapp/types/generated/AppShell.mjs';
+//    'typeof' is used because App.mjs exports the class itself.
+import type AppClass from '@webapp/types/generated/App.mjs';
 
 // 2. Tell TypeScript that the global 'window' object will have
-//    a property named 'AppShell' whose type is the AppShell class constructor.
+//    a property named 'App' whose type is the App class constructor.
 declare global {
   interface Window {
-    AppShell: typeof AppShellClass;
+    App: typeof AppClass;
   }
 }
 
