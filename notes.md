@@ -53,3 +53,4 @@ https://learn.microsoft.com/en-us/aspnet/core/client-side/dotnet-interop/wasm-br
 - 03/09/2025 - Add handling of negative mass bodies; Add position bounds for bodies and OutOfBounds getter; Add final planned tests for Simulation;
 - 07/09/2025 - Update Bridge API and fix minor issues; Add C# logging utility to bridge;
 - 09/09/2025 - Update build scripts with `--debug` and `--release` flags; Fix various minor issues with the Bridge; Fix outdated E2ETest case; Remove acceleration parameters from the `updateBody()` API method; Add `updateSimulation()` method to WebApp interface; Remove initial test UI and plan UI implementation;
+- 10/09/2025 - Rename `AppShell` to `App` for clarity and conciseness; Add [UI_Integration.md](UI_Integration.md) to plan UI design and implementation details during early iteration (will be added to PDD once solidified); Add ViewModel and ViewModelMovable base classes for UI components;
