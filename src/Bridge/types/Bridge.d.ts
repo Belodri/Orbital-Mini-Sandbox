@@ -56,10 +56,9 @@ export default class Bridge {
 
     /**
      * Advances the simulation by one step and refreshes the `simState` data.
-     * @param timestamp The high-resolution timestamp, typically from `requestAnimationFrame()`.
      * @returns An object detailing which body IDs were created, updated, or deleted during the tick.
      */
-    static tickEngine(timestamp: number): BodyDiffData;
+    static tickEngine(): BodyDiffData;
 
     /**
      * Serializes the current state of the physics engine simulation into a JSON string.
