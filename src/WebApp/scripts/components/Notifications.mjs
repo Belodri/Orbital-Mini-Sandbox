@@ -14,6 +14,8 @@
 
 
 export default class Notifications {
+    static Z_INDEX_MIN = Number.MAX_SAFE_INTEGER / 2;
+
     /**
      * @typedef {{message: string} & NotificationConfig } QueueItem
      */
@@ -60,6 +62,7 @@ export default class Notifications {
         const container =  document.getElementById(this.#config.containerId);
         if(!container || !(container instanceof HTMLDivElement)) 
             throw new Error(`Invalid container with id '${this.#config.containerId}'.`);
+        container.style.zIndex = String(Notifications.Z_INDEX_MIN);
 
         this.#container = container;
     }
