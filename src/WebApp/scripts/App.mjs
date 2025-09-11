@@ -80,11 +80,11 @@ export default class App {
             onError: this.onError
         });
 
-        this.canvasView.registerCallback("renderFrameReady", (deltaTime) => {
+        this.canvasView.registerCallback("renderFrameReady", () => {
             if(this.paused) return;
 
             try {
-                this.Bridge.tickEngine(deltaTime);
+                this.Bridge.tickEngine();
             } catch (err) {
                 this.togglePause(true);
                 console.error(err);

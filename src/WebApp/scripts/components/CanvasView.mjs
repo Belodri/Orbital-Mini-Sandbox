@@ -123,8 +123,8 @@ export default class CanvasView {
      * 2. NORMAL priority: Processes the rendering queue (creates, deletes, updates sprites).
      */
     #initRenderLoop() {
-        this.#app.ticker.add((ticker) => {
-            this.#callCallback("renderFrameReady", ticker.deltaTime);
+        this.#app.ticker.add(() => {
+            this.#callCallback("renderFrameReady");
         }, this, UPDATE_PRIORITY.HIGH);
 
         this.#app.ticker.add(() => {
