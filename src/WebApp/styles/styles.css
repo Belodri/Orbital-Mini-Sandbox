@@ -1,5 +1,9 @@
-.hidden {
-    display: none !important;
+.hidden { display: none !important; }
+
+.is-dragging { 
+    cursor: grabbing; 
+    user-select: none;
+    -webkit-user-select: none; /* For Safari */
 }
 
 #error-fatal {
@@ -20,7 +24,7 @@
 
 #notifications-container {
     position: fixed;
-    z-index: 100;
+    /* z-index: 100; Set by JS to (1/2 * MAX_SAFE_INTEGER) */
     top: 1%;
     left: 50%;
     transform: translateX(-50%);
@@ -33,3 +37,5 @@
     text-align: center;
     margin: 1em;
 }
+
+.vm-movable { position: absolute; }
