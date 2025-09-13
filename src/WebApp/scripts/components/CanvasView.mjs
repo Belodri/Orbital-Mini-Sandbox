@@ -78,6 +78,9 @@ export default class CanvasView {
         this.#onError = injections.onError;
 
         this.#app = app;
+
+        this.#monkeyPatchPixiRenderer(); // Safe to call here as app has already been initialized.
+
         document.body.appendChild(this.#app.canvas);
         BodyToken.staticInitBodyToken(this.#app.renderer)
         this.#initScene();
@@ -86,6 +89,24 @@ export default class CanvasView {
 
         if(this.#CONFIG.DEBUG) {
             initDevtools({ app: this.#app });
+        }
+    }
+
+    /**
+     * Wraps the `Application.renderer.render()` method to detect the end 
+     * of the rendering process and a call any `renderFinished` callbacks.
+     * This method must be called AFTER the promise from `Application.init()` has resolved!
+     * 
+     * Pixi's `EventRunner` could be used to listen to its internal `postrender` 
+     * event but that would massively increase complexity over a monkeypatch 
+     * for little to no gain. 
+     */
+    #monkeyPatchPixiRenderer() {
+        const initialRendererFunc = this.#app.renderer.render;
+        this.#app.renderer.render = (/** @type {any} */ ...args) => {
+            const ret = initialRendererFunc.call(this.#app.renderer, ...args);
+            this.#callCallback(CanvasView.CallbackEvents.renderFinished);
+            return ret;
         }
     }
 
@@ -124,7 +145,7 @@ export default class CanvasView {
      */
     #initRenderLoop() {
         this.#app.ticker.add(() => {
-            this.#callCallback("renderFrameReady");
+            this.#callCallback(CanvasView.CallbackEvents.renderFrameReady);
         }, this, UPDATE_PRIORITY.HIGH);
 
         this.#app.ticker.add(() => {
@@ -178,25 +199,35 @@ export default class CanvasView {
 
     //#region Callbacks
 
-    /** @type {Map<string, Function>} */
+    /** @enum {string} Callback events that can be registered. */
+    static CallbackEvents = Object.freeze({
+        /** Emitted after Pixi finishes render a frame. */
+        renderFinished: "renderFinished",
+        /** Emitted during Pixi's HIGH priority render loop callback. */
+        renderFrameReady: "renderFrameReady"
+    });
+
+    /** @type {Map<CallbackEvents, Function>} */
     #callbacks = new Map();
 
     /**
      * Registers a callback function for a specific event, allowing this view
-     * to communicate with external systems (like AppShell) without a hard dependency.
-     * @param {"renderFrameReady"} event    The name of the event to listen for.
-     * @param {Function} fn                 The callback function to execute when the event is fired.
+     * to communicate with external systems (like App) without a hard dependency.
+     * Only a single callback function can be registered for each event.
+     * @param {CallbackEvents} event        The name of the callback event to listen for.
+     * @param {Function} fn                     The callback function to execute when the event is fired.
      */
     registerCallback(event, fn) {
         if(typeof fn !== "function") throw new TypeError(`'fn' argument must be typeof "function".`);
         if(this.#callbacks.has(event)) throw new Error(`A callback for the ${event} event has already been registered.`);
+        if(!CanvasView.CallbackEvents.hasOwnProperty(event)) throw new Error(`Invalid event name "${event}".`);
         this.#callbacks.set(event, fn);
     }
 
     /**
      * Invokes a registered callback by its event name.
-     * @param {string} event        The event to fire.
-     * @param  {...any} eventArgs   Arguments to pass to the callback function.
+     * @param {CallbackEvents} event    The event to fire.
+     * @param  {...any} eventArgs           Arguments to pass to the callback function.
      */
     #callCallback(event, ...eventArgs) {
         const fn = this.#callbacks.get(event);
