@@ -197,6 +197,6 @@ internal static class TsGenerator
             builder.AppendLine("     */");
         }
         
-        builder.AppendLine($"    readonly {prop.Name}: number;");
+        builder.AppendLine($"    {prop.Name}: number;");
     }
 }
