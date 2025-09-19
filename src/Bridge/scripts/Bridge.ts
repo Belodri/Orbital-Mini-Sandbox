@@ -109,7 +109,7 @@ export class Bridge {
     static get diff() { return this.#stateManager.diff; }
 
     /**
-     * Advances the simulation by one step and refreshes the `simState` data.
+     * Advances the simulation by one step and refreshes the `state` data.
      */
     static tickEngine() {
         this.#tickEngine();
@@ -129,7 +129,7 @@ export class Bridge {
     static getPreset() { return this.#engineBridge.GetPreset(); }
 
     /**
-     * Loads a preset string into the engine and refreshes simState data.
+     * Loads a preset string into the engine and refreshes state data.
      * @param jsonPreset A string containing the simulation state in JSON format.
      */
     static loadPreset(jsonPreset: string) {
@@ -139,7 +139,10 @@ export class Bridge {
 
     /**
      * Creates a new body with default properties.
-     * @returns Promise that resolves to the id of the created body
+     * 
+     * Promise resolves after state has been written into shared memory but before the Bridge.state has been updated to reflect it! 
+     * 
+     * @returns Promise that resolves to the id of the created body.
      */
     static async createBody() {
         this.#timeoutLoop.start();
@@ -148,6 +151,9 @@ export class Bridge {
 
     /**
      * Deletes an existing body from the simulation.
+     * 
+     * Promise resolves after state has been written into shared memory but before the Bridge.state has been updated to reflect it! 
+     * 
      * @param id The id of the body to delete.
      * @returns Promise that resolves to `true` if the body was deleted, or `false` if it wasn't found.
      */
@@ -165,6 +171,9 @@ export class Bridge {
 
     /**
      * Updates an existing body.
+     * 
+     * Promise resolves after state has been written into shared memory but before the Bridge.state has been updated to reflect it! 
+     * 
      * @param id The id of the body to update.
      * @param data Partial update data for the body.
      * @returns Promise that resolves to `true` if the body has been updated successfully, or `false` if it wasn't found.
@@ -190,6 +199,9 @@ export class Bridge {
     
     /**
      * Updates the current simulation.
+     * 
+     * Promise resolves after state has been written into shared memory but before the Bridge.state has been updated to reflect it! 
+     * 
      * @param data Partial update data for the simulation.
      * @returns Promise that resolves when the simulation has been updated.
      */
