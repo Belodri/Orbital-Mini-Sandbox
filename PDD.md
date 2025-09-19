@@ -3,6 +3,9 @@
 
 # Revision History
 
+- **19/09/2025**
+    - Updated to reflect recent rewrite of JavaScript `Bridge` into TypeScript, including major architectural improvements.
+    - Added Playwright, NUnit, and Vite to dependencies.
 - **10/09/2025**
     - Rename former `AppShell` to `App` for conciseness and clarity.
 - **27/08/2025**
@@ -66,10 +69,12 @@
 **Core Technology Stack**
 - C# physics engine with WebAssembly bridge
 - PIXI.js for simulation rendering
-- HTML/CSS/JavaScript foundation
+- HTML/CSS/JavaScript/TypeScript foundation
 - Pure client-side simulation with no server dependencies
 - Single-page application architecture
 - Static hosting compatible (GitHub Pages deployment)
+- Minimal 3rd-party dependencies preferred 
+- Self-contained codebase without external APIs
 
 **Performance Targets**
 - Support for minimum 100 simultaneous celestial bodies
@@ -81,8 +86,11 @@
 
 **Dependencies**
 - PIXI.js
-- Minimal other external dependencies preferred 
-- Self-contained codebase without external APIs
+- dotnet mono WASM runtime 
+
+**Development Dependencies**
+- **Vite** for build & dev server
+- **Playwright/NUnit** for testing
 
 ---
 
@@ -277,17 +285,20 @@ Bridge/
 ├── MemoryBufferHandler.cs          # Shared Memory manager
 ├── LayoutRecords.cs                # SSOT for shared memory buffer layout
 ├── CommandQueue.cs                 # Manager of Task-based command queue
-├── wwwroot/
-│   ├── bridge.js                   # JS coordinator
+├── scripts/
+│   ├── Bridge.ts                   # Static API and orchestrator
+│   ├── DotNetHandler.ts            # Interface for framework interactions
+│   └── StateManger.ts              # Shared memory reader
+├── wwwroot/                        # Target for build artifacts
 └── types/
-    ├── Bridge.d.ts                 # Type information for the JS Bridge class
+    ├── dotnet.d.ts                 # .NET type information for the DotNetHostBuilder
     ├── LayoutRecords.d.ts          # Auto-generated type information for the simulation properties
-    └── dotnet.d.ts                 # .NET type information for the DotNetHostBuilder
+    └── Bridge.d.ts                 # Auto-generated type information for the module
 ```
 
 ### Shared Memory Architecture
 The `EngineBridge` implements a double/float64 dual-buffer system for efficient data transfer:
-- **SimStateBuffer**: Static, general simulation data and buffer metadata
+- **SimStateBuffer**: Static, general simulation data
 - **BodyStateBuffer**: Dynamic, continuous array of body data blocks
 
 The single source of truth for the layout of these buffers are the records in `LayoutRecords.cs`. This ensures a self-configuring layout on both the C# and the JavaScript sides.
@@ -296,42 +307,42 @@ The single source of truth for the layout of these buffers are the records in `L
 - `Bridge` has exclusive write access to shared buffers
 - `WebApp` has read-only access to shared buffers
 - Buffers are updated synchronously after each time step or in demand-adjusted intervals to process queued write operations.
-- Buffer sizes are pre-allocated based on maximum body count (configurable, default: 10 bodies)
+- Buffer sizes are pre-allocated and grow on demand
 
 ### API Surface
-The `Bridge` exposes a Javascript API (`bridge.mjs`) to the WebApp. The API's type definitions can be found in `types/Bridge.d.ts`
-```typescript
-static initialize(): Promise<void>
+The `Bridge` compiles to a single Javascript module (`Bridge.js`), to be imported by the WebApp. The module's type definitions can be found in `Bridge/types/`.
 
-static tickEngine(): BodyDiffData;
-static updateEngine(Partial<EngineStateData>): Promise<void>;
+### Components - TypeScript
 
-// Preset Management  
-static getPreset(): string;
-static loadPreset(enginePreset: string): BodyDiffData;
-
-// Body Management
-static createBody(Partial<BodyStateData>): Promise<number>;
-static updateBody(Partial<BodyStateData>): Promise<boolean>;
-static deleteBody(id: number): Promise<boolean>;
-
-BodyDiffData: {
-    created: Set<number>,
-    updated: Set<number>,
-    deleted: Set<number>,
-}
-```
-
-### Components
-
-`Bridge.mjs`
-- **Static** coordinator that serves as the sole external-facing API surface
+`Bridge.ts`
+- **Static** coordinator that serves as the sole external-facing API surface.
 - **Responsibilities:**
-    - Abstracts away and hides the implementation details of the C# <-> JavaScript boundry
-    - Provides a clean surface for `WebApp` to interact with
-    - Efficiently reads from the shared memory buffers and provides primitive differential update data
+    - Abstracts away and hides the implementation details of the C# <-> JavaScript boundry and provides a clean surface for `WebApp` to interact with.
+    - Notifies `WebApp` of physics state changes via callback.
+    - Ensures externally awaited write operations are handled and resolved even when the simulation is paused.
+    - Can be initialized in debug mode to expose itself and core private components to the globalThis. 
 - **State Ownership:**
-    - `simState`: The Javascript representation of the current simulation state
+    - `StateManager` instance
+    - `RuntimeAPI` instance, created by `DotNetHandler.ts`
+    - `EngineBridgeAPI` instance, created by `DotNetHandler.ts`
+    - `TimeoutLoop` instance
+
+`StateManager.ts`
+- Coordinator of several subcomponents responsible for reading from and parsing shared WASM memory into clean, accessible, and type-safe `state` and `diff` objects.
+- **Responsibilities:**
+    - Manages the lifecycle of subcomponents.
+    - Exposes readonly `state` and `diff` objects composed from subcomponents.
+    - Orchestrates subcomponents to read and parse data from shared memory. 
+- **Subcomponents:**
+    - `BufferViewHandler` Manages efficient, self-synchronizing view into shared memory.
+    - `StateLayoutHandler` Handles self-configuring, type-safe layout for memory readers.
+    - `BodiesStateReader` Handles efficient reading and parsing of body data from shared memory into typed `state.bodies` and `diff.bodies` objects.
+    - `SimStateReader` Handles efficient reading and parsing of simulation data from shared memory into typed `state.sim` and `diff.sim` objects.
+- **State Ownership:**
+    - `state` The representation of the current simulation state in type-safe, JS readable form
+    - `diff` Differential data of state changes during the most recent state synchronization.
+
+### Components - C#
 
 `EngineBridge.cs`
 - **Static** coordinator that serves as the sole JavaScript interop surface
@@ -381,14 +392,12 @@ C#
 
 Javascript
 
-6. `Bridge` returns `BodyDiffData`
-    - propagates errors marshalled from C# exceptions
-    - reads from memory and refreshes the exposed `simState` object
-    - returns an simple diff to `WebApp`, containing the ids of created, deleted, and updated bodies
+6. `Bridge` instructs `StateManager` to read from shared memory and refresh `state` and `diff` 
+7. `Bridge` informs `WebApp` of the newly refreshed `state` and `diff` via a callback
 
 ### Error Handling Strategy
 **Exception Translation**
-- All C# exceptions are propagated to Javascript via WASM native marshalling to JS Error objects.
+- All C# exceptions are propagated to Javascript via runtime-native marshalling to JS Error objects.
 - Physics validation errors return descriptive error messages
 - System exceptions return generic error indicators
 
@@ -412,6 +421,9 @@ public sealed class PhysicsEngine
 
     // Advances the simulation by a single step.
     void Tick();
+
+    // Recalculates the derived state of the simulation at the current time.
+    public abstract void SyncState();
 
     // Loads a simulation with provided bodies from the given base data.
     void Import(
@@ -497,14 +509,10 @@ public readonly struct BodyView
 
 Additionally the `Physics` namespace exposes the following records for write operations.
 ```csharp
-/// <summary>
-/// The base data that defines a celestial body.
-/// </summary>
+// The base data that defines a celestial body.
 public record BodyDataBase(int Id, bool Enabled, double Mass, double PosX, double PosY, double VelX, double VelY);
 
-/// <summary>
-/// Partial data to update a celestial body. Null values are ignored. 
-/// </summary>
+// Partial data to update a celestial body. Null values are ignored. 
 public record BodyDataUpdates(
     bool? Enabled = null,
     double? Mass = null,
@@ -516,23 +524,18 @@ public record BodyDataUpdates(
     double? AccY = null
 );
 
-/// <summary>
-/// The base data that defines a simulation.
-/// </summary>
+// The base data that defines a simulation.
 public record SimDataBase(
     double SimulationTime, double TimeStep, double Theta, double G_SI, double Epsilon
 );
 
-/// <summary>
-/// Partial data to update a simulation. Null values are ignored. 
-/// </summary>
+// Partial data to update a simulation. Null values are ignored. 
 public record SimDataUpdates(
     double? TimeStep = null,
     double? Theta = null,
     double? G_SI = null,
     double? Epsilon = null
 );
-
 ```
 
 ### Project Structure
