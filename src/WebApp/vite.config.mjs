@@ -22,7 +22,7 @@ export default defineConfig(({ command }) => {
                     entryFileNames: "scripts/main.mjs"
                 },
                 external: [
-                    /^\.\.\/bridge\/Bridge\.mjs$/
+                    /^\.\.\/bridge\/Bridge\.js$/
                 ]
             }
         },
