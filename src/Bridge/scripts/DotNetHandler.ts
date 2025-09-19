@@ -9,7 +9,7 @@ export interface EngineBridgeAPI {
     GetPointerData(): [simBufferPtr: number, simBufferSizeInBytes: number, bodyBufferPtr: number, bodyBufferSizeInBytes: number],
     GetSimStateLayout(): [keyof SimStateLayout],
     GetBodyStateLayout(): [keyof BodyStateLayout],
-    Tick(instantTick: boolean): void,    // TODO: Implement instantTick argument to C# side of the Bridge and to the physics engine
+    Tick(syncOnly: boolean): void,
     CreateBody(): Promise<number>,
     DeleteBody(id: number): Promise<boolean>,
     UpdateBody(id: number, enabled: boolean | null, mass: number | null, posX: number | null, posY: number | null, velX: number | null, velY: number | null): Promise<boolean>,
