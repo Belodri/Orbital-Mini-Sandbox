@@ -26,6 +26,10 @@ internal interface ISimulation
     /// Calculates the forces on all enabled bodies and updates their properties like position, velocity and acceleration.
     /// </summary>
     void StepFunction();
+    /// <summary>
+    /// Recalculates the derived state of the simulation at the current time.
+    /// </summary>
+    void SyncDerivedState();
 }
 
 internal sealed class Simulation : ISimulation
@@ -54,6 +58,7 @@ internal sealed class Simulation : ISimulation
     public void StepFunction()
     {
         PrepareBodies();
+        if (_queueSync) SyncDerivedState();
         VelocityVerletStep();
         Timer.AdvanceSimTime();
     }
@@ -73,25 +78,27 @@ internal sealed class Simulation : ISimulation
         for (int i = 0; i < EnabledIdsToDisable.Count; i++) Bodies.TryUpdateBody(EnabledIdsToDisable[i], new(Enabled: false));
     }
 
-    private void VelocityVerletStep()
+    public void SyncDerivedState()
     {
         if (Bodies.EnabledCount == 0) return;
 
-        if (_queueSync)
+        // If a resynchronization of the system is necessary
+        // (on initial step or after a body has been added/deleted/modified externally),
+        // re-evaluate the forces at time t.
+        RebuildQuadTree();
+        for (int i = 0; i < Bodies.EnabledCount; i++)
         {
-            // If a resynchronization of the system is necessary
-            // (on initial step or after a body has been added/deleted/modified externally),
-            // re-evaluate the forces at time t.
-            RebuildQuadTree();
-            for (int i = 0; i < Bodies.EnabledCount; i++)
-            {
-                var body = Bodies.EnabledBodies[i];
-                var a = QuadTree.CalcAcceleration(body, Calculator);
-                body.Update(acceleration: a);
-            }
-
-            _queueSync = false;
+            var body = Bodies.EnabledBodies[i];
+            var a = QuadTree.CalcAcceleration(body, Calculator);
+            body.Update(acceleration: a);
         }
+
+        _queueSync = false;
+    }
+
+    private void VelocityVerletStep()
+    {
+        if (Bodies.EnabledCount == 0) return;
 
         for (int i = 0; i < Bodies.EnabledCount; i++)
         {
