@@ -1,6 +1,9 @@
 namespace Bridge;
 #pragma warning disable IDE1006 // Naming Styles
 
+// TODO: Remove _bodyBufferPtr and _bodyBufferSize from SimStateLayoutRec
+// TODO: Add proper type data to LayoutRecords.cs and use that to cast from/to number on the respective sides
+
 /* 
     Defines the memory layout structures as strongly-typed records. These records are the
     Single Source of Truth for the entire shared memory layout across both C# and JavaScript.

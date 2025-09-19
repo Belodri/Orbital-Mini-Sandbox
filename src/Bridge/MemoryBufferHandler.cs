@@ -6,6 +6,8 @@ using Physics;
 
 namespace Bridge;
 
+// TODO: Remove _bodyBufferPtr and _bodyBufferSize from simState memory
+
 internal class MemoryBufferHandler : IDisposable
 {
     // Pointers
@@ -115,7 +117,7 @@ internal class MemoryBufferHandler : IDisposable
             pSimState[SimStateLayout._bodyBufferPtr] = _bodyBufferPtr;
             pSimState[SimStateLayout._bodyBufferSize] = _bodyBufferSizeInBytes;
         }
-        
+
         // Setup the staging buffer with the initial capacity
         _bodiesStagingBuffer = new double[_bodyCapacity * BodyStateLayoutArr.Length];
     }
