@@ -1,133 +1,131 @@
-import type { SimStateLayout, BodyStateLayout } from "./LayoutRecords";
-
-/**
- * Represents the state of a single body in the simulation.
- */
-export interface BodyStateData extends BodyStateLayout { }
-
+import type { RuntimeAPI } from '../types/dotnet';
+import type { BodyStateLayout, SimStateLayout } from '../types/LayoutRecords';
+import { type EngineBridgeAPI } from './DotNetHandler.ts';
+import { StateManager } from './StateManager.ts';
+/** Represents the state of a single body in the simulation. */
+export type BodyState = {
+    [Property in keyof BodyStateLayout]: BodyStateLayout[Property];
+};
+export type SimState = {
+    [Property in keyof SimStateLayout]: SimStateLayout[Property];
+};
 /**
  * Represents the entire state of the simulation at a given tick.
  * Contains a map of all bodies and other global simulation properties.
  */
-export interface SimState extends SimStateLayout {
-    /** A map of body IDs to their state data. */
-    readonly bodies: Map<number, BodyStateData>;
-}
-
+export type StateData = {
+    sim: SimState;
+    bodies: Map<BodyState["id"], BodyState>;
+};
 /**
- * Contains information about which bodies were created, updated, or deleted
- * during the last engine tick.
+ * Contains information physics engine state changes* during the last engine tick.
  */
-export interface BodyDiffData {
-    /** The ids of newly created bodies. */
-    created: Set<number>;
-    /** The ids of bodies that were updated. */
-    updated: Set<number>;
-    /** The ids of deleted bodies. */
-    deleted: Set<number>;
+export type DiffData = {
+    /** The keys of SimState that were changed. */
+    sim: Set<keyof SimState>;
+    bodies: {
+        /** The ids of newly created bodies. */
+        created: Set<BodyState["id"]>;
+        /** The ids of bodies that were updated. */
+        deleted: Set<BodyState["id"]>;
+        /** The ids of deleted bodies. */
+        updated: Set<BodyState["id"]>;
+    };
+};
+declare global {
+    var Bridge: Bridge | undefined;
 }
-
 /**
  * Provides a static API to interact with the .NET WebAssembly simulation engine.
  */
-export default class Bridge {
-    /**
-     * The current state of the simulation.
-     * This object is updated after each call to `tickEngine()`.
-     * It is `undefined` until the first tick after initialization is complete.
-     */
-    static readonly simState: SimState | undefined;
-
+export declare class Bridge {
+    #private;
     /**
      * Initializes the Bridge and the underlying .NET runtime. Must be called once before any other methods.
-     * @param {boolean} [debugMode=false]           If true enables debug logging and exposes the `Bridge` to the `globalThis`.
-     * @param {boolean} [diagnosticsTracing=false]  If "true", writes diagnostic messages during runtime startup and execution to the browser console.
-     * @returns A promise that resolves when initialization is complete.
-     * @throws {Error} if the Bridge has already been initialized.
+     * @param onStateChangeCallback Callback to notify the consumer about a changed state & diff.
+     * @param debugMode Whether to run the Bridge and its components in debug mode. Cannot be changed during runtime.
      */
-    static initialize(debugMode: bool = false, diagnosticsTracing: bool = false): Promise<void>;
-
+    static initialize(onStateChangeCallback: () => void, debugMode?: boolean): Promise<void>;
+    static get engineBridge(): EngineBridgeAPI | undefined;
+    static get runtime(): RuntimeAPI | undefined;
+    static get stateManager(): StateManager | undefined;
+    static get timeoutLoop(): TimeoutLoopHandler | undefined;
     /**
-     * Sets the maximum interval in which promises are handled, 
-     * in cases where `tickEngine` isn't called regularly.
-     * @param ms The interval time in ms. Cannot be less than 50ms! Default 100ms.
+     * Snapshot of the most recent physics state, which is updated at the end of every `tickEngine()` call.
+     * `undefined` until initialization is complete.
      */
-    static setMaxPromiseInterval(ms?: number) : void;
-
+    static get state(): Readonly<import("./StateManager.ts").StateData>;
+    /**
+     * Snapshot of the most recent physics state update diff, which is updated at the end of every `tickEngine()` call.
+     * `undefined` until initialization is complete.
+     */
+    static get diff(): Readonly<import("./StateManager.ts").DiffData>;
     /**
      * Advances the simulation by one step and refreshes the `simState` data.
-     * @returns An object detailing which body IDs were created, updated, or deleted during the tick.
      */
-    static tickEngine(): BodyDiffData;
-
+    static tickEngine(): void;
     /**
      * Serializes the current state of the physics engine simulation into a JSON string.
      * @returns A string containing the simulation state in JSON format.
      */
     static getPreset(): string;
-
     /**
      * Loads a preset string into the engine and refreshes simState data.
      * @param jsonPreset A string containing the simulation state in JSON format.
-     * @returns An object detailing which body IDs were created, updated, or deleted during the tick.
      */
-    static loadPreset(jsonPreset: string): BodyDiffData;
-
+    static loadPreset(jsonPreset: string): void;
     /**
-     * Creates a new (default disabled) body in the simulation.
+     * Creates a new body with default properties.
      * @returns Promise that resolves to the id of the created body
      */
     static createBody(): Promise<number>;
-
     /**
      * Deletes an existing body from the simulation.
      * @param id The id of the body to delete.
      * @returns Promise that resolves to `true` if the body was deleted, or `false` if it wasn't found.
      */
     static deleteBody(id: number): Promise<boolean>;
-
     /**
      * Updates an existing body.
-     * @param id        The unique id for the body to update.
-     * @param values    The new values for the body.
+     * @param id The id of the body to update.
+     * @param data Partial update data for the body.
      * @returns Promise that resolves to `true` if the body has been updated successfully, or `false` if it wasn't found.
      */
-    static updateBody(id: number, values: Partial<{ 
-        enabled: boolean|number,
-        mass: number,
-        posX: number,
-        posY: number,
-        velX: number,
-        velY: number
-    }>): Promise<boolean>;
-
+    static updateBody(id: number, data: {
+        enabled?: number | boolean | null;
+        mass?: number | null;
+        posX?: number | null;
+        posY?: number | null;
+        velX?: number | null;
+        velY?: number | null;
+    }): Promise<boolean>;
     /**
      * Updates the current simulation.
-     * @param values The new values for the simulation parameters.
-     * @returns A promise that resolves when the simulation parameters have been updated successfully.
+     * @param data Partial update data for the simulation.
+     * @returns Promise that resolves when the simulation has been updated.
      */
-    static updateSimulation(values: Partial<{
-        timeStep: number,
-        theta: number,
-        g_SI: number,
-        epsilon: number
-    }>): Promise<void>;
-
-    /**
-     * Registers a function to be called every time the simState has been refreshed.
-     * Only one such function can be registered.
-     * @param fn        Receives a `BodyDiffData` object as an argument.
-     * @param thisArg   An object to which the this keyword refers inside the callback function.
-     */
-    static registerOnTickCallback(fn: Function, thisArg: any): void;
-
+    static updateSimulation(data: {
+        timeStep?: number;
+        theta?: number;
+        g_SI?: number;
+        epsilon?: number;
+    }): Promise<void>;
     /**
      * Gets a number of logged entries from the C# side of the bridge.
-     * @param number The number of logs to get. -1 (or any other negative number) to get all logs.
+     * @param number The number of logs to get. -1 (or any other negative number) to get all available logs.
      * @returns An array of logged strings, from oldest to newest.
      */
-    static getLogs(number: number = -1): string[];
-
-    /** Clears the currently stored log entries. */
+    static getLogs(number?: number): string[] | undefined;
+    /**
+     * Clears the currently stored log entries.
+     */
     static clearLogs(): void;
 }
+declare class TimeoutLoopHandler {
+    #private;
+    constructor(timeoutIntervalInMs: number, callbackFn: () => void);
+    start(): void;
+    cancel(): void;
+}
+export {};
+//# sourceMappingURL=Bridge.d.ts.map
