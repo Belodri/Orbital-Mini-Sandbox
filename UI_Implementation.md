@@ -128,8 +128,8 @@ Action => App => Execution => App => Reaction
 **Example:** User clicks on the "Create" button of the `BodiesList` component to create a new body.
 1. **Action:** `BodiesList` calls `App.createBody()`. It does not await the result or expect any return.
 2. **App:** `App.createBody()` delegates the operation to `Bridge`
-3. **Execution:** `Bridge` queues the creation of the body, which is processed at the start of the next `Tick()` or after a short timeout, whichever comes first (so that commands are still processed when the simulation is paused). Once the `Engine` has processed the command and `Bridge` has marshalled the new state back across the WASM <=> JS boundary, `Bridge` calls a callback function on `App` to inform it of the new state. For this, `Bridge` also passes a `DiffData` object that consists of keys of any changed simulation properties (such as simulationTime) as well as three Sets of body ids - one for created, one for deleted, and one for updated bodies. The reason for only passing keys and ids is to preserve a single source of truth for all simulation state which all downstream consumers read from directly (the `SimState` getter). 
-4. **App:** `App` then iterates over the `DiffData`, integrates any additions or deletions into its own `App.StateView` object (which combines the pure simulation from the `Bridge.SimState` with additional front-end exclusive metadata, such as names of bodies), and emits events based on the new state, including a "bodyCreated" event (or something along those lines) which passes the id of the newly created body.
+3. **Execution:** `Bridge` queues the creation of the body, which is processed at the start of the next `Tick()` or after a short timeout, whichever comes first (so that commands are still processed when the simulation is paused). Once the `Engine` has processed the command and `Bridge` has marshalled the new state back across the WASM <=> JS boundary, `Bridge` calls a callback function on `App` to inform it of the new state. For this, `Bridge` also passes a `DiffData` object that consists of keys of any changed simulation properties (such as simulationTime) as well as three Sets of body ids - one for created, one for deleted, and one for updated bodies. The reason for only passing keys and ids is to preserve a single source of truth for all simulation state which all downstream consumers read from directly (the `PhysicsState` getter). 
+4. **App:** `App` then iterates over the `DiffData`, integrates any additions or deletions into its own `App.StateView` object (which combines the pure simulation from the `Bridge.PhysicsState` with additional front-end exclusive metadata, such as names of bodies), and emits events based on the new state, including a "bodyCreated" event (or something along those lines) which passes the id of the newly created body.
 5. **Reaction:** Components that listen to the "bodyCreated" event are then responsible for handling the rest themselves. In this example:
     - `BodiesList.onCreateBody(id)` Looks up the state of the new body via its ID in the `App.StateView` and creates a list entry for it in its own DOM representation.
     - `BodyConfig.staticOnCreateBody(id)` Creates a new `BodyConfig` instance, looking up the body's state via its ID in the `App.StateView` to do so.
@@ -156,7 +156,7 @@ Action => App => Execution => App => Components
 **Example:** User clicks on the "Create" button of the `BodiesList` component to create a new body.
 1. **Action (same as A):** `BodiesList` calls `App.createBody()`. It does not await the result or expect any return.
 2. **App (same as A):** `App.createBody()` delegates the operation to `Bridge`
-3. **Execution (same as A):** `Bridge` queues the creation of the body, which is processed at the start of the next `Tick()` or after a short timeout, whichever comes first (so that commands are still processed when the simulation is paused). Once the `Engine` has processed the command and `Bridge` has marshalled the new state back across the WASM <=> JS boundary, `Bridge` calls a callback function on `App` to inform it of the new state. For this, `Bridge` also passes a `DiffData` object that consists of keys of any changed simulation properties (such as simulationTime) as well as three Sets of body ids - one for created, one for deleted, and one for updated bodies. The reason for only passing keys and ids is to preserve a single source of truth for all simulation state which all downstream consumers read from directly (the `SimState` getter). 
+3. **Execution (same as A):** `Bridge` queues the creation of the body, which is processed at the start of the next `Tick()` or after a short timeout, whichever comes first (so that commands are still processed when the simulation is paused). Once the `Engine` has processed the command and `Bridge` has marshalled the new state back across the WASM <=> JS boundary, `Bridge` calls a callback function on `App` to inform it of the new state. For this, `Bridge` also passes a `DiffData` object that consists of keys of any changed simulation properties (such as simulationTime) as well as three Sets of body ids - one for created, one for deleted, and one for updated bodies. The reason for only passing keys and ids is to preserve a single source of truth for all simulation state which all downstream consumers read from directly (the `PhysicsState` getter). 
 4. **App:** `App` then iterates over the `DiffData` and directly manages and orchestrates the components as necessary, passing data only as needed (combining simulation-level and front-end-exclusive data as needed on the fly).
 5. **Components:** Offer methods for `App` to call. In this example:
     - `BodiesList.onCreateBody(bodyData)` Creates a list entry for the provided body's data in its own DOM representation.
@@ -185,11 +185,11 @@ The idea behind this model is to clearly distinguish between three distinct phas
 3. `Bridge` Process command queue.
 4. `Engine` Execute a simulation step (with timestep=0 if the `advanceTime` argument was `false`; this must be done to ensure a coherent state as, for example, a newly added body must have its acceleration derived before that can be displayed).
 5. `Bridge` Write the simulation state into shared memory (on the WASM side).
-6. `Bridge` Read and process the shared memory into the `SimState` object (on the JS side), constructing the `DiffData` in the process.
+6. `Bridge` Read and process the shared memory into the `PhysicsState` object (on the JS side), constructing/updating a `DiffData` object in the process. This object consists of keys of any changed simulation properties (such as simulationTime) as well as three Sets of body ids - one for created, one for deleted, and one for updated bodies. The reason for only passing keys and ids is to preserve a single source of truth for all simulation state which downstream consumers read from directly (the `PhysicsState` getter).
 7. `Bridge` Resolve queued commands.
-8. `Bridge` Call the `onTickCallback` function that was injected by `App` during `Bridge`'s initialization, passing `DiffData`.
+8. `Bridge` Call the `ComputeHandler.onTickCallback(diffData)` function that was injected by `App` during `Bridge`'s initialization, passing `DiffData`.
 9. `App` Process its own command queue (for commands or parts of commands that aren't related to the physics of the simulation; for example: changing a body's name)
-10. `App` Updates its `StateView` object to reflect the new state of the `Bridge.SimState` and any the front-end exclusive metadata. During this process it also updates its own `StateDiff` object, which adds any front-end exclusive metadata that has changed to the `Bridge`'s `DiffData`. From this point forward, the data of the entire system remains unchanged and in sync until the start of the next compute phase! 
+10. `App` Updates its `StateView` object to reflect the new state of the `Bridge.PhysicsState` and any the front-end exclusive metadata. During this process it also updates its own `StateDiff` object, which adds any front-end exclusive metadata that has changed to the `Bridge`'s `DiffData`. From this point forward, the data of the entire system remains unchanged and in sync until the start of the next compute phase! 
 11. `App` The call stack then resolves to `CanvasView` and back to PIXI.
 
 **Render Phase:** Begins when the PIXI ticker callback with `UPDATE_PRIORITY.MEDIUM` is called.
@@ -209,33 +209,33 @@ The idea behind this model is to clearly distinguish between three distinct phas
     - `CommandHandler` Provides the API and manages the `App`'s command queue and the resolution of promises.
 - **PIXI & requestAnimationFrame:** Since PIXI's render loop is ultimately triggered by the browser's `requestAnimationFrame`, nothing that is handled in the render phase should be wrapped in `requestAnimationFrame`. UI component code that is unrelated to PIXI's render loop, like `ViewModelMovable`'s `onPointerMove` event handler for dragging, can be safely wrapped in `requestAnimationFrame` as needed.
 - **Render Performance:** The render phase can be tuned to increase performance by setting a limit of how often each component can be updated. This could be handled by the `App` itself or by a counter within each component. This way the `SimulationControls` component could be set to update only every 10 calls, while the `CanvasView` renders on every call (PIXI handles a lot of the render optimization there already).
-- **PIXI & Ticker `render()` call:** To resolve the promises returned by `App.Command` API methods at the end of the next render phase, it must be known when PIXI actually finishes rendering the scene. Using the standard `Ticker` plugin, the `render()` method is not called manually and there is no event emitted by PIXI to signify that rendering is finished either. While PIXI's `SystemRunner` could be used to listen to the internal `postrender` event, the setup is complex and requires setting a custom `Renderer`. For this simple task, it's easier to simply monkeypatch the `render()` function in a wrapper that simply calls the original `render()` and then emits a `renderFinished` event.   
+- **PIXI & Ticker `render()` call:** To resolve the promises returned by `App.Command` API methods at the end of the next render phase, it must be known when PIXI actually finishes rendering the scene. Using the standard `PIXI.Ticker` plugin, the `render()` method is not called manually and there is no event emitted by PIXI to signify that rendering is finished either. While PIXI's `SystemRunner` could be used to listen to the internal `postrender` event, the setup is complex and requires setting a custom `Renderer`. For this simple task, it's easier to simply monkeypatch the `render()` function in a wrapper that simply calls the original `render()` and then emits a `renderFinished` event.   
 See example:  
-    ```js
-        // Create a new application
-        const app = new Application();
-        
-        // Initialize the application
-        await app.init();
+```js
+    // Create a new application
+    const app = new Application();
+    
+    // Initialize the application
+    await app.init();
 
-        // Monkeypatch render function.
-        // This must be done AFTER the Promise from app.init() has resolved!
-        const initialRenderFunc = app.renderer.render;
-        app.renderer.render = (...args) => {
-            // Ensure correct `this` binding
-            const ret = initialRenderFunc.call(app.renderer, ...args);
-            // Execute any post-render code.
-            console.log("Render process complete.");
-            // Renderer.render() returns void by default 
-            // but this doesn't hurt.
-            return ret;
-        }
+    // Monkeypatch render function.
+    // This must be done AFTER the Promise from app.init() has resolved!
+    const initialRenderFunc = app.renderer.render;
+    app.renderer.render = (...args) => {
+        // Ensure correct `this` binding
+        const ret = initialRenderFunc.call(app.renderer, ...args);
+        // Execute any post-render code.
+        console.log("Render process complete.");
+        // Renderer.render() returns void by default 
+        // but this doesn't hurt.
+        return ret;
+    }
 
-        // Other initialization...
+    // Other initialization...
 
-        // After initialization: Add ticker callback
-        app.ticker.add(() => { /* ... */ });
-    ```
+    // After initialization: Add ticker callback
+    app.ticker.add(() => { /* ... */ });
+```
 
 **Pros:**
 - Command and data flow is strictly enforced by the architecture itself, with no way to circumvent it.
@@ -250,7 +250,8 @@ See example:
 - Deferred execution of commands and the requirement for commands to return promises that resolve when the rendering is fully finished introduces extra complexity.
 
 **Implementation Considerations:**
-- **Command Queue:** The C# side of the `Bridge` already employs a Task-based command queue where Tasks are marshalled back into JS Promises that resolve when the C# side finished writing into the shared memory. If the `App` needs to implement its own command queue for metadata-related tasks anyways, should the `Bridge`'s command queue be removed? Or should `App` simply use its own command queue for metadata-related tasks and pass along all physics-related tasks to the `Bridge`, letting it handle its own commands? The `App` would have to create separate promises to return to callers, though that isn't an issue as the `App`'s promises always resolve after the `Bridge`'s.
-    - **Decision:** Keep two separate command queues. That way the clean separation of concerns between physics and presentation is maintained. 
+- **Command Queue** 
+    - **Problem:** The C# side of the `Bridge` already employs a Task-based command queue where Tasks are marshalled back into JS Promises that resolve when the C# side finished writing into the shared memory. If the `App` needs to implement its own command queue for metadata-related tasks anyways, should the `Bridge`'s command queue be removed? Or should `App` simply use its own command queue for metadata-related tasks and pass along all physics-related tasks to the `Bridge`, letting it handle its own commands? The `App` would have to create separate promises to return to callers, though that isn't an issue as the `App`'s promises always resolve after the `Bridge`'s.
+    - **Decision:** Keep two separate command queues. That way the clean separation of concerns between physics and presentation is maintained.
 
 ---
