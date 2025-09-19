@@ -115,9 +115,9 @@ export class Bridge {
         this.#tickEngine();
     }
 
-    static #tickEngine(instantTick: boolean = false) {
+    static #tickEngine(syncOnly: boolean = false) {
         this.#timeoutLoop.cancel();
-        this.#engineBridge.Tick(instantTick);
+        this.#engineBridge.Tick(syncOnly);
         this.#stateManager.refresh();
         this.#onStateChangeCallback();
     }
