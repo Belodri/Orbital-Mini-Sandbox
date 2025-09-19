@@ -56,4 +56,4 @@ https://learn.microsoft.com/en-us/aspnet/core/client-side/dotnet-interop/wasm-br
 - 10/09/2025 - Rename `AppShell` to `App` for clarity and conciseness; Add [UI_Integration.md](UI_Integration.md) to plan UI design and implementation details during early iteration (will be added to PDD once solidified); Add ViewModel and ViewModelMovable base classes for UI components;
 - 13/09/2025 - Evaluate and compare different architecture models for data and control flow, ultimately choosing a render-synched game-engine-like model; Document evaluated models in UI_Integration.md;
 - 16/09/2025 - Improve UI_Integration.md; Begin TypeScript rewrite of Bridge for type safety, maintainability, and to improve separation of concerns;
-- 18/09/2025 - Finish TypeScript rewrite of Bridge; Update build pipeline; Update WebApp dependencies; IMPORTANT: this broke 3 E2E tests
+- 18/09/2025 - Finish TypeScript rewrite of Bridge; Update build pipeline; Update WebApp dependencies; IMPORTANT: 3 broken E2E tests & PDD not yet updated
