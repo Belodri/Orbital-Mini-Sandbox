@@ -12,3 +12,5 @@ src/WebApp/types/LayoutRecords.d.ts
 src/WebApp/types/
 
 **/test-results
+
+src/Bridge/wwwroot/
