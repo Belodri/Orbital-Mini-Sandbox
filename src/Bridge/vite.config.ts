@@ -9,7 +9,7 @@ export default defineConfig({
         emptyOutDir: false,
         lib: {
             entry: 'scripts/Bridge.ts',
-            fileName: 'bridge',
+            fileName: 'Bridge',
             formats: ['es'],
         },
         rollupOptions: {
