@@ -62,7 +62,7 @@ export default class App {
      */
     static async #initBridge() {
         this.log("Initializing Bridge...");
-        await this.Bridge.initialize(() => this.#onStateChange, this.#CONFIG.debugMode);
+        await this.Bridge.initialize(() => this.#onStateChange(), this.#CONFIG.debugMode);
     }
 
     /**
@@ -223,10 +223,6 @@ export default class App {
     //#endregion
 
 
-    // TESTING
-
-
-
     //#region Presets
 
     /**
@@ -316,6 +312,4 @@ class Scenarios {
         await App.updateBody(id3, {enabled: 1, mass: 1, posX: -1, posY: -1, velY: 1, name: "3"});
         await App.updateBody(id4, {enabled: 1, mass: 1, posX: -1, posY: 1, velX: 1, name: "4"});
     }
-
-
 }
