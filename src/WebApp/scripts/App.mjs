@@ -1,11 +1,11 @@
 // @ts-ignore
-import _Bridge from '../bridge/Bridge.mjs';     // created during build
+import { Bridge as _Bridge } from '../bridge/Bridge.js';     // created during build
 import AppDataManager from './AppDataManager.mjs';
 import CanvasView from './components/CanvasView.mjs';
 import Notifications from './components/Notifications.mjs';
 
 /**
- * @import { BodyDiffData, BodyStateData } from '../types/Bridge'
+ * @import { Bridge, BodyState } from '../types/Bridge'
  * @import { BodyMetaData } from './AppDataManager.mjs'
  */
 
@@ -17,7 +17,7 @@ export default class App {
 
     //#region Components
 
-    /** @type {typeof import("../types/Bridge").default} */
+    /** @type {typeof Bridge} */
     static Bridge = _Bridge;
 
     /** @type {Notifications} */
@@ -62,9 +62,7 @@ export default class App {
      */
     static async #initBridge() {
         this.log("Initializing Bridge...");
-        await this.Bridge.initialize(this.#CONFIG.debugMode, this.#CONFIG.debugMode);
-
-        this.Bridge.registerOnTickCallback(this.#onStateChange, this);
+        await this.Bridge.initialize(() => this.#onStateChange, this.#CONFIG.debugMode);
     }
 
     /**
@@ -76,11 +74,11 @@ export default class App {
         this.log("Instantiating CanvasView...");
         this.canvasView = await CanvasView.create({
             bodyMetaDataStore: this.appDataManager.bodyData,
-            bodyStateDataStore: this.Bridge.simState.bodies,
+            bodyStateDataStore: this.Bridge.state.bodies,
             onError: this.onError
         });
 
-        this.canvasView.registerCallback("renderFrameReady", () => {
+        this.canvasView.registerCallback(CanvasView.CallbackEvents.onRenderFrameReady_HIGH, () => {
             if(this.paused) return;
 
             try {
@@ -134,7 +132,7 @@ export default class App {
      * in the physics engine and/or metadata store, and the rendered view.
      * 
      * @param {number} id                                       The unique ID of the body to update.
-     * @param {Partial<BodyStateData & BodyMetaData>} updates   An object with the properties to change.
+     * @param {Partial<BodyState & BodyMetaData>} updates   An object with the properties to change.
      * @returns {Promise<boolean>}  A promise that resolves with `true` if the update was successfully
      *                              processed by the Bridge, or `false` if the body ID was invalid at the time of queuing.
      */
@@ -160,7 +158,7 @@ export default class App {
 
     /**
      * Requests an update for the simulation state.
-     * @param {Parameters<(typeof import('../types/Bridge').default)['updateSimulation']>[0]} updates Partial update data.
+     * @param {Parameters<(typeof Bridge)['updateSimulation']>[0]} updates Partial update data.
      * @returns {Promise<void>} A promise that resolves after the simulation has been updated.
      */
     static async updateSimulation(updates={}) {
@@ -177,10 +175,9 @@ export default class App {
      * It is called by the Bridge after every physics tick with a list of all
      * bodies that were created, deleted, or updated during that tick. This
      * method then orchestrates the necessary updates across the other app components.
-     * @param {BodyDiffData} bodyDiffData   An object containing sets of created, deleted, and updated body IDs.
      */
-    static #onStateChange(bodyDiffData) {
-        const {created, deleted, updated} = bodyDiffData;
+    static #onStateChange() {
+        const {created, deleted, updated} = App.Bridge.diff.bodies;
 
         // Handle creations
         for(const id of created) this.appDataManager.onCreateBody(id);
@@ -224,6 +221,10 @@ export default class App {
     }
 
     //#endregion
+
+
+    // TESTING
+
 
 
     //#region Presets
@@ -315,4 +316,6 @@ class Scenarios {
         await App.updateBody(id3, {enabled: 1, mass: 1, posX: -1, posY: -1, velY: 1, name: "3"});
         await App.updateBody(id4, {enabled: 1, mass: 1, posX: -1, posY: 1, velX: 1, name: "4"});
     }
+
+
 }

@@ -2,7 +2,7 @@ import { Application, Container, CullerPlugin, extensions, Graphics, Sprite, Tex
 import { initDevtools } from "@pixi/devtools";
 
 /**
- * @import { BodyStateData } from  "../../types/Bridge"
+ * @import { BodyState } from  "../../types/Bridge"
  * @import { BodyMetaData } from "../AppDataManager.mjs"
  */
 
@@ -28,7 +28,7 @@ export default class CanvasView {
     /**
      * An object containing all external dependencies required by the CanvasView.
      * @typedef {object} Injections
-     * @property {Readonly<Map<number, BodyStateData>>} bodyStateDataStore                          A read-only map of body physics states.
+     * @property {Readonly<Map<number, BodyState>>} bodyStateDataStore                          A read-only map of body physics states.
      * @property {Readonly<Map<number, BodyMetaData>>} bodyMetaDataStore                            A read-only map of body metadata.
      * @property {(err: Error, config?: {notifMsg?: string, isFatal?: boolean}) => void} onError    A centralized error handling function.
      */
@@ -105,7 +105,7 @@ export default class CanvasView {
         const initialRendererFunc = this.#app.renderer.render;
         this.#app.renderer.render = (/** @type {any} */ ...args) => {
             const ret = initialRendererFunc.call(this.#app.renderer, ...args);
-            this.#callCallback(CanvasView.CallbackEvents.renderFinished);
+            this.#callCallback(CanvasView.CallbackEvents.onRenderFinished);
             return ret;
         }
     }
@@ -140,17 +140,16 @@ export default class CanvasView {
      * This render loop runs constantly, even while the simulation is paused,
      * to enable continuous camera controls and UI responsiveness. It is split
      * into two phases using PIXI's update priority system:
-     * 1. HIGH priority: Emits 'renderFrameReady' to signal that the physics engine can perform its tick.
-     * 2. NORMAL priority: Processes the rendering queue (creates, deletes, updates sprites).
+     * 1. HIGH priority: Emits 'onRenderFrameReady_HIGH' to signal that calculations can be performed.
+     * 2. NORMAL priority: Emits 'onRenderFrameReady_NORMAL' to signal that rendering can be performed.
      */
     #initRenderLoop() {
         this.#app.ticker.add(() => {
-            this.#callCallback(CanvasView.CallbackEvents.renderFrameReady);
+            this.#callCallback(CanvasView.CallbackEvents.onRenderFrameReady_HIGH);
         }, this, UPDATE_PRIORITY.HIGH);
 
         this.#app.ticker.add(() => {
-            this.#handleRender();
-            this.#resolveNextFramePromises();
+            this.#callCallback(CanvasView.CallbackEvents.onRenderFrameReady_NORMAL);
         }, this, UPDATE_PRIORITY.NORMAL);
     }
 
@@ -162,10 +161,10 @@ export default class CanvasView {
     /** @type {CanvasViewConfig} Configuration for the CanvasView instance with default values.*/
     #CONFIG = {
         ZOOM_MIN: 0.01,
-        ZOOM_MAX: 10000,
+        ZOOM_MAX: 1000,
         ZOOM_FACTOR: 0.05,
         /** @type {number} How many pixels is 1 AU? */
-        PIXELS_PER_AU: 100,
+        PIXELS_PER_AU: 10,
         DEBUG: true,
     }
 
@@ -185,7 +184,7 @@ export default class CanvasView {
 
     //#region Injections
 
-    /** @type {Readonly<Map<number, BodyStateData>>} A read-only map of body physics states, injected on creation. */
+    /** @type {Readonly<Map<number, BodyState>>} A read-only map of body physics states, injected on creation. */
     #bodyStateDataStore;
 
     /** @type {Readonly<Map<number, BodyMetaData>>} A read-only map of body metadata, injected on creation. */
@@ -202,9 +201,11 @@ export default class CanvasView {
     /** @enum {string} Callback events that can be registered. */
     static CallbackEvents = Object.freeze({
         /** Emitted after Pixi finishes render a frame. */
-        renderFinished: "renderFinished",
+        onRenderFinished: "onRenderFinished",
         /** Emitted during Pixi's HIGH priority render loop callback. */
-        renderFrameReady: "renderFrameReady"
+        onRenderFrameReady_HIGH: "onRenderFrameReady_HIGH",
+        /** Emitted during Pixi's NORMAL priority render loop callback. */
+        onRenderFrameReady_NORMAL: "onRenderFrameReady_NORMAL"
     });
 
     /** @type {Map<CallbackEvents, Function>} */
@@ -233,6 +234,16 @@ export default class CanvasView {
         const fn = this.#callbacks.get(event);
         if(!fn) return;
         fn(...eventArgs);
+    }
+
+    //#endregion
+
+    //#region Step 2: Rendering
+
+    render() {
+        // TODO
+        this.#handleRender();
+        this.#resolveNextFramePromises();
     }
 
     //#endregion
@@ -495,7 +506,7 @@ class BodyToken {
 
     /**
      * 
-     * @param {BodyStateData} physicsData 
+     * @param {BodyState} physicsData 
      * @param {BodyMetaData} metaData 
      */
     constructor(physicsData, metaData) {
@@ -505,7 +516,7 @@ class BodyToken {
 
     #sprite = new Sprite(BodyToken.bodyTexture);
 
-    /** @type {BodyStateData} */
+    /** @type {BodyState} */
     #physicsData;
     /** @type {BodyMetaData} */
     #metaData;
