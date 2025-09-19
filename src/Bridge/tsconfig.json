@@ -9,5 +9,5 @@
         "noEmit": true,
         "lib": ["ESNext", "DOM"]
     },
-    "include": ["types/**/*.d.ts", "scripts/**/*.ts"]
+    "include": ["types/dotnet.d.ts", "types/LayoutRecords.d.ts", "scripts/**/*.ts"]
 }
