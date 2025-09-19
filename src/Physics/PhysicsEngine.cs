@@ -15,6 +15,10 @@ public abstract class PhysicsEngineBase
     /// </summary>
     public abstract void Tick();
     /// <summary>
+    /// Recalculates the derived state of the simulation at the current time.
+    /// </summary>
+    public abstract void SyncState();
+    /// <summary>
     /// Loads a simulation with provided bodies from the given base data.
     /// </summary>
     /// <param name="sim">The base data for the simulation.</param>
@@ -97,6 +101,8 @@ public sealed class PhysicsEngine : PhysicsEngineBase
     public override SimulationView View { get; private protected set; }
 
     public override void Tick() => Simulation.StepFunction();
+
+    public override void SyncState() => Simulation.SyncDerivedState();
 
     public override void Import(SimDataBase sim, List<BodyDataBase> bodies)
     {
