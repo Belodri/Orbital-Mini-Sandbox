@@ -5,98 +5,126 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace TsTypeGen;
 
-internal record ParsedProperty(string Name, string Comment);
-internal record ParsedRecord(string Name, List<ParsedProperty> Properties);
+internal record ParsedProperty(string Name, string Comment, string TypeScriptType);
+internal record ParsedRecord(string Name, IReadOnlyList<ParsedProperty> Properties);
 
 internal static class Program
 {
     private const string SolutionFileName = "OrbitalMiniSandbox.sln";
+    private const string UsageHint = "Usage (all paths relative to OrbitalMiniSandbox.sln): dotnet run --project <project_path> -- --input <path> --output <path_to_.d.ts>";
 
-    // Configure input & output files
-    private static readonly string InputFileRelativePath = "src/Bridge/LayoutRecords.cs";
-    private static readonly string[] OutputFileRelativePaths  = [
-        "src/Bridge/types/LayoutRecords.d.ts",
-    ];
-
-    public static async Task<int> Main()
+    public static async Task<int> Main(string[] args)   // Use System.CommandLine if adding any more arguments
     {
-        Console.WriteLine("Generating TypeScript Types...");
-
         try
         {
-            string repoRoot = FindRepoRoot();
-            
-            string csharpContent = await ReadSourceFileAsync(repoRoot);
-            List<ParsedRecord> parsedRecords = Parser.ParseSource(csharpContent);
-            string tsContent = TsGenerator.Generate(parsedRecords);
-
-            if (string.IsNullOrWhiteSpace(tsContent))
-            {
-                Console.WriteLine("Warning: No records found. Aborting...");
-                return 1;
-            }
-
-            var tasks = OutputFileRelativePaths.Select(relPath => WriteOutputFileAsync(repoRoot, relPath, tsContent));
-            await Task.WhenAll(tasks);
-
-            Console.WriteLine("LayoutRecords.d.ts was generated successfully!");
+            var outPath = await MainWorker(args);
+            Console.WriteLine($"Successfully generated \"{outPath}\"!");
             return 0;
         }
         catch (Exception ex)
         {
             Console.Error.WriteLine($"Error: {ex.Message}");
-            return 0;
+            return 1;   // Return non-zero exit code for failure
         }
     }
-    
+
+    private static async Task<string> MainWorker(string[] args)
+    {
+        var (inPath, outPath) = ParseArguments(args);
+        var repoRoot = FindRepoRoot();
+
+        var cSharpSourceCode = await ReadSourceFileAsync(repoRoot, inPath);
+        List<ParsedRecord> parsedRecords = Parser.ParseSource(cSharpSourceCode);
+        string tsContent = TsGenerator.Generate(parsedRecords);
+
+        if (string.IsNullOrWhiteSpace(tsContent)) throw new Exception($"No records found in {inPath}.");
+
+        await WriteOutputFileAsync(repoRoot, outPath, tsContent);
+
+        return outPath;
+    }
+
+    private static (string inputFileRelativePath, string outputFileRelativePath) ParseArguments(string[] args)
+    {
+        string? relInPath = null;
+        string? relOutPath = null;
+
+        for (int i = 0; i + 1 < args.Length; i++)
+        {
+            switch (args[i])
+            {
+                case "--input": relInPath = args[++i]; break;
+                case "--output": relOutPath = args[++i]; break;
+            }
+        }
+
+        if(string.IsNullOrWhiteSpace(relInPath) || string.IsNullOrWhiteSpace(relOutPath)) throw new Exception($"Missing required arguments. \n{UsageHint}");
+        return (relInPath, relOutPath);
+    }
+
     private static string FindRepoRoot()
     {
-        string currentPath = AppContext.BaseDirectory;
-        DirectoryInfo? directory = new(currentPath);
+        DirectoryInfo? directory = new(AppContext.BaseDirectory);
 
         // Loop upwards until we find the .sln file or hit the filesystem root.
-        while (directory != null && !File.Exists(Path.Combine(directory.FullName, SolutionFileName)))
-        {
-            directory = directory.Parent;
-        }
+        while (directory != null && !File.Exists(Path.Combine(directory.FullName, SolutionFileName))) directory = directory.Parent;
 
-        if (directory == null)
-        {
-            throw new DirectoryNotFoundException($"Could not find repository root. Searched upwards for '{SolutionFileName}'.");
-        }
-        
-        return directory.FullName;
+        return directory?.FullName ?? throw new DirectoryNotFoundException($"Could not find repository root. Searched upwards for '{SolutionFileName}'.");
     }
 
-    private static async Task<string> ReadSourceFileAsync(string repoRoot)
+    private static async Task<string> ReadSourceFileAsync(string repoRoot, string relInPath)
     {
-        var inputFile = Path.Combine(repoRoot, InputFileRelativePath);
-        Console.WriteLine($"Input C# File:  {inputFile}");
-
-        if (!File.Exists(inputFile))
-        {
-            throw new FileNotFoundException($"Input file not found at '{inputFile}'");
-        }
-
-        return await File.ReadAllTextAsync(inputFile);
+        var inputFile = Path.Combine(repoRoot, relInPath);
+        return File.Exists(inputFile) ? await File.ReadAllTextAsync(inputFile) : throw new FileNotFoundException($"Input file not found at '{inputFile}'");
     }
 
-    private static async Task WriteOutputFileAsync(string repoRoot, string relPath, string content)
+    private static async Task WriteOutputFileAsync(string repoRoot, string relOutPath, string content)
     {
-
-        var outputFile = Path.Combine(repoRoot, relPath);
-        Console.WriteLine($"Target Output TS File: {outputFile}");
-
-        Directory.CreateDirectory(Path.GetDirectoryName(outputFile)!);
+        var outputFile = Path.Combine(repoRoot, relOutPath);
+        var dirName = Path.GetDirectoryName(outputFile);
+        if (string.IsNullOrWhiteSpace(dirName)) throw new Exception($"Output path at '{outputFile}' is root, null, or does not contain directory information.");
+        Directory.CreateDirectory(dirName);
         await File.WriteAllTextAsync(outputFile, content);
     }
 }
 
 internal static class Parser
 {
+    private class Validator
+    {
+        private static readonly (SpecialType cSharpType, string tsType)[] TypeMap = [
+            (SpecialType.System_Int32, "number"),
+            (SpecialType.System_Double, "number"),
+            (SpecialType.System_Boolean, "boolean"),
+        ];
+
+        private readonly SemanticModel _model;
+        private readonly (ISymbol symbol, string tsType)[] _values;
+
+        public Validator(SyntaxTree tree)
+        {
+            _model = CSharpCompilation.Create("AssemblyName")
+                .AddReferences(MetadataReference.CreateFromFile(typeof(object).Assembly.Location))
+                .AddSyntaxTrees(tree)
+                .GetSemanticModel(tree);
+
+            _values = [.. TypeMap.Select(t => (_model.Compilation.GetSpecialType(t.cSharpType), t.tsType))];
+        }
+
+        public string GetTsTypeString(ParameterSyntax param)
+        {
+            ITypeSymbol? paramTypeSymbol = _model.GetTypeInfo(param.Type!).Type
+                ?? throw new InvalidOperationException($"Could not determine the type for parameter '{param.Identifier.ValueText}'.");
+
+            foreach (var (symbol, tsType) in _values) if (SymbolEqualityComparer.Default.Equals(symbol, paramTypeSymbol)) return tsType;
+            throw new NotSupportedException($"Type '{paramTypeSymbol.ToDisplayString()}' for property '{param.Identifier.ValueText}' is not supported.");
+        }
+    }
+
     public static List<ParsedRecord> ParseSource(string csharpContent)
     {
         SyntaxTree tree = CSharpSyntaxTree.ParseText(csharpContent);
+        Validator validator = new(tree);
         var root = tree.GetRoot();
 
         var allRecords = new List<ParsedRecord>();
@@ -114,14 +142,13 @@ internal static class Parser
                 {
                     var propName = parameterNode.Identifier.ValueText;
 
-                    // Skip internal properties starting with '_'
-                    if (propName.StartsWith('_')) continue;
-
                     var comment = GetDocumentationComment(parameterNode);
-                    properties.Add(new ParsedProperty(propName, comment));
+                    var tsType = validator.GetTsTypeString(parameterNode);
+
+                    properties.Add(new ParsedProperty(propName, comment, tsType));
                 }
             }
-            
+
             allRecords.Add(new ParsedRecord(recordName, properties));
         }
 
@@ -136,8 +163,7 @@ internal static class Parser
 
         if (trivia == default) return string.Empty;
 
-        var xmlTrivia = trivia.GetStructure() as DocumentationCommentTriviaSyntax;
-        if (xmlTrivia == null) return string.Empty;
+        if (trivia.GetStructure() is not DocumentationCommentTriviaSyntax xmlTrivia) return string.Empty;
 
         var summaryElement = xmlTrivia.Content
             .OfType<XmlElementSyntax>()
@@ -176,8 +202,7 @@ internal static class TsGenerator
 
     private static void AppendInterface(StringBuilder builder, ParsedRecord record)
     {
-        string interfaceName = record.Name.Replace("Rec", "");
-        builder.AppendLine($"export interface {interfaceName} {{");
+        builder.AppendLine($"export interface {record.Name} {{");
 
         foreach (var prop in record.Properties)
         {
@@ -196,7 +221,7 @@ internal static class TsGenerator
             builder.AppendLine($"     * {prop.Comment}");
             builder.AppendLine("     */");
         }
-        
-        builder.AppendLine($"    {prop.Name}: number;");
+
+        builder.AppendLine($"    {prop.Name}: {prop.TypeScriptType};");
     }
 }
