@@ -1,0 +1,28 @@
+{
+    "compilerOptions": {
+        "module": "esnext",
+        "target": "esnext",
+        "checkJs": true,
+        "allowJs": true,    // TODO: remove after full typescript rewrite
+        "moduleResolution": "bundler",
+        "strict": true,
+        
+        "skipLibCheck": true,
+        "esModuleInterop": true,
+        "allowImportingTsExtensions": true,
+        "lib": ["esnext", "dom"],
+
+        "noEmit": true,
+
+        "baseUrl": ".", // Required to enable the 'paths' mapping.
+        "paths": {
+            "@bridge": ["src/Bridge/scripts/Bridge.ts"],
+            "@dotnet.d.ts": ["types/external/dotnet.d.ts"],
+            "@LayoutRecords.d.ts": ["types/generated/LayoutRecords.d.ts"],
+            "dotnet-runtime": ["types/external/dotnet.d.ts"],
+            "@webapp/*": ["src/WebApp/*"]
+        },
+    },
+    "include": ["src/**/*.ts", "src/**/*.js", "src/**/*.mjs", "Tests/**/*.ts"], // TODO: remove js after full typescript rewrite
+    "exclude": ["node_modules", "wwwroot"]
+}

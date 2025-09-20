@@ -1,8 +1,10 @@
+// @ts-nocheck
+
 import { Application, Container, CullerPlugin, extensions, Graphics, Sprite, Texture, UPDATE_PRIORITY } from "pixi.js";
 import { initDevtools } from "@pixi/devtools";
 
 /**
- * @import { BodyState } from  "../../types/Bridge"
+ * @import { BodyState } from  "@bridge"
  * @import { BodyMetaData } from "../AppDataManager.mjs"
  */
 

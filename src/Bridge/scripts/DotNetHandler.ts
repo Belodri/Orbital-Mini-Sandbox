@@ -1,7 +1,7 @@
-import type { DotnetHostBuilder, RuntimeAPI } from '../types/dotnet';
-import type { BodyStateLayout, SimStateLayout } from '../types/LayoutRecords';
-// @ts-ignore
-import { dotnet as _dotnet } from './_framework/dotnet.js'; // Generated during full application build
+import type { DotnetHostBuilder, RuntimeAPI } from "@dotnet.d.ts";
+import type { BodyStateLayout, SimStateLayout } from "@LayoutRecords.d.ts";
+
+import { dotnet as _dotnet } from 'dotnet-runtime'; // Generated during full application build
 const dotnet: DotnetHostBuilder = _dotnet;
 
 // TODO: Expand the TsTypeGen tool to generate this interface from C# source code as well.

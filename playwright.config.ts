@@ -1,29 +1,25 @@
 import { defineConfig, devices } from '@playwright/test';
-import path from "path";
+import { resolve, dirname } from "path";
+import { fileURLToPath } from 'url';
 
-const E2E_PORT = process.env.E2E_PORT || '8080';
-const E2E_BASE_URL = process.env.E2E_BASE_URL || `http://localhost:${E2E_PORT}`;
-// We expect the dist path to be provided.
-let E2E_DIST_PATH = process.env.E2E_DIST_PATH;
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
-if (!E2E_DIST_PATH) {
-    console.warn(
-        'WARNING: The E2E_DIST_PATH environment variable is not set. Falling back to the default `../../dist` path.'
-    );
-
-    E2E_DIST_PATH = path.resolve(__dirname, '../../dist');
-}
+const E2E_PORT = '8080';
+const E2E_BASE_URL = `http://localhost:${E2E_PORT}`;
+const DIST_PATH = resolve(__dirname, './dist');
 
 export default defineConfig({
-    testDir: './tests',
+    outputDir: "./Tests/E2ETests/test-results",
+    testDir: './Tests/E2ETests/tests',
     fullyParallel: true,
     forbidOnly: !!process.env.CI,                   // Fail the build on CI if test.only is left in the source code.
     retries: process.env.CI ? 2 : 0,                // Retry on CI only.
     workers: process.env.CI ? 1 : undefined,        // Opt out of parallel tests on CI.
     reporter: 'list',                               // See https://playwright.dev/docs/test-reporters
+    timeout: 30000,
 
     webServer: {
-        command: `npx http-server "${E2E_DIST_PATH}" -p ${E2E_PORT} --silent`,
+        command: `npx http-server "${DIST_PATH}" -p ${E2E_PORT} --silent`,
         url: E2E_BASE_URL,                                                      // URL to poll to know when the server is ready
         reuseExistingServer: !process.env.CI,                                   // Automatically reuse an existing server on the port if available
     },

@@ -83,6 +83,7 @@ export default class AppDataManager {
             if(!body) continue;
 
             for(const [k, v] of Object.entries(updateData)) {
+                // @ts-ignore
                 if(k in body) body[k] = v;
             }
 

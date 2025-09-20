@@ -1,3 +1,5 @@
+// @ts-nocheck
+
 /**
  * @typedef {object} NotificationsInitConfig
  * @property {string} containerId

@@ -22,8 +22,4 @@
         <_Parameter1>BridgeTests</_Parameter1>
         </AssemblyAttribute>
     </ItemGroup>
-
-    <Target Name="CompileTypeScript" BeforeTargets="Build">
-        <Exec Command="npm run build" WorkingDirectory="$(ProjectDir)" />
-    </Target>
 </Project>

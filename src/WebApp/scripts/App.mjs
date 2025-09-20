@@ -1,11 +1,11 @@
-// @ts-ignore
-import { Bridge as _Bridge } from '../bridge/Bridge.js';     // created during build
+
+import Bridge from '@bridge';
 import AppDataManager from './AppDataManager.mjs';
 import CanvasView from './components/CanvasView.mjs';
 import Notifications from './components/Notifications.mjs';
 
 /**
- * @import { Bridge, BodyState } from '../types/Bridge'
+ * @import { BodyState } from "@bridge"
  * @import { BodyMetaData } from './AppDataManager.mjs'
  */
 
@@ -18,7 +18,7 @@ export default class App {
     //#region Components
 
     /** @type {typeof Bridge} */
-    static Bridge = _Bridge;
+    static Bridge = Bridge;
 
     /** @type {Notifications} */
     static notifications = new Notifications();
@@ -50,7 +50,9 @@ export default class App {
         await this.#initCanvasView();
 
         if(this.#CONFIG.debugMode) {
+            // @ts-ignore
             globalThis.App = this;
+            // @ts-ignore
             globalThis.Scenarios = new Scenarios();
         }
         console.log("Initialization complete.");
@@ -256,6 +258,7 @@ export default class App {
         } catch (err) {
             this.notifications.add(`Invalid Preset`);
             if(prevState) {
+                // @ts-ignore
                 console.error(err.message, err);
                 return this.loadPreset(prevState, false);
             }

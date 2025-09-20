@@ -1,4 +1,4 @@
-import { BodyStateLayout, SimStateLayout } from "../types/LayoutRecords";
+import type { BodyStateLayout, SimStateLayout } from "@LayoutRecords.d.ts";
 
 // Redeclare for semantics and to prevent extension.
 export type BodyState = { [Property in keyof BodyStateLayout] : BodyStateLayout[Property] }

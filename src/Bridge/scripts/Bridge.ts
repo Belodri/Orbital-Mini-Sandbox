@@ -1,20 +1,23 @@
-import type { RuntimeAPI } from '../types/dotnet';
-import type { BodyStateLayout, SimStateLayout } from '../types/LayoutRecords';
+import type { RuntimeAPI } from "@dotnet.d.ts";
+import type { BodyStateLayout, SimStateLayout } from "@LayoutRecords.d.ts";
 import { DotNetHandler, type EngineBridgeAPI } from './DotNetHandler.ts';
 import { StateManager } from './StateManager.ts';
+
+// TODO: Remove TimeoutLoopHandler once the WebApp fully controlling the Bridge has been implemented
+
 
 // Redeclare for semantics and to prevent extension.
 
 /** Represents the state of a single body in the simulation. */
-export type BodyState = { [Property in keyof BodyStateLayout] : BodyStateLayout[Property] }
-export type SimState = { [Property in keyof SimStateLayout] : SimStateLayout[Property] };
+type BodyState = { [Property in keyof BodyStateLayout] : BodyStateLayout[Property] }
+type SimState = { [Property in keyof SimStateLayout] : SimStateLayout[Property] };
 
 
 /**
  * Represents the entire state of the simulation at a given tick.
  * Contains a map of all bodies and other global simulation properties.
  */
-export type StateData = {
+type StateData = {
     sim: SimState,
     bodies: Map<BodyState["id"], BodyState>
 }
@@ -22,7 +25,7 @@ export type StateData = {
 /**
  * Contains information physics engine state changes* during the last engine tick.
  */
-export type DiffData = {
+type DiffData = {
     /** The keys of SimState that were changed. */
     sim: Set<keyof SimState>,
     bodies: {
@@ -42,7 +45,7 @@ declare global {
 /**
  * Provides a static API to interact with the .NET WebAssembly simulation engine.
  */
-export class Bridge {
+class Bridge {
     static #CONFIG = {
         pausedPromiseIntervalInMs: 100,
     }
@@ -83,7 +86,7 @@ export class Bridge {
         }
 
         if(!this.#timeoutLoop) {
-            this.#timeoutLoop = new TimeoutLoopHandler(this.#CONFIG.pausedPromiseIntervalInMs, () => this.#tickEngine(true));
+            this.#timeoutLoop = new TimeoutLoopHandler(this.#CONFIG.pausedPromiseIntervalInMs, () => this.tickEngine(true));
         }
 
         if(this.#DEBUG) { globalThis.Bridge = this; }
@@ -110,12 +113,9 @@ export class Bridge {
 
     /**
      * Advances the simulation by one step and refreshes the `state` data.
+     * @param [syncOnly=false] If true, only re-synchronizes the current state and doesn't advance time.
      */
-    static tickEngine() {
-        this.#tickEngine();
-    }
-
-    static #tickEngine(syncOnly: boolean = false) {
+    static tickEngine(syncOnly: boolean = false) {
         this.#timeoutLoop.cancel();
         this.#engineBridge.Tick(syncOnly);
         this.#stateManager.refresh();
@@ -254,7 +254,7 @@ class TimeoutLoopHandler {
     start() {
         if(this.#timeoutId) return;
 
-        this.#timeoutId = setTimeout(() => {
+        this.#timeoutId = window.setTimeout(() => {
             try {
                 this.#callback()
             } finally {
@@ -270,3 +270,4 @@ class TimeoutLoopHandler {
     }
 }
 
+export { type BodyState, type SimState, type StateData, type DiffData, Bridge as default };

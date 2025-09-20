@@ -1,3 +1,5 @@
+// @ts-nocheck
+
 /**
  * A base type defining the core DOM element references for a ViewModel.
  * Subclasses can extend this type if needed.

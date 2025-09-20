@@ -1,0 +1,41 @@
+{
+  "name": "orbital-mini-sandbox",
+  "version": "1.0.0",
+  "description": "",
+  "homepage": "https://github.com/Belodri/Orbital-Mini-Sandbox#readme",
+  "bugs": {
+    "url": "https://github.com/Belodri/Orbital-Mini-Sandbox/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Belodri/Orbital-Mini-Sandbox.git"
+  },
+  "license": "MIT",
+  "author": "David Haas",
+  "type": "module",
+  "private": "true",
+  "scripts": {
+    "build": "bash ./tools/build.sh",
+    "build:debug": "bash ./tools/build.sh --debug",
+    "build:types": "dotnet run --project ./Tools/TsTypeGen/TsTypeGen.csproj -- --input ./src/Bridge/LayoutRecords.cs --output ./types/generated/LayoutRecords.d.ts",
+    "dev": "vite",
+    "postinstall": "playwright install chromium firefox webkit",
+    "pretest": "npm run build:debug",
+    "test:physics": "dotnet test ./Tests/PhysicsTests/PhysicsTests.csproj",
+    "test:bridge": "dotnet test ./Tests/BridgeTests/BridgeTests.csproj",
+    "test:e2e": "playwright test",
+    "test": "npm run test:physics && npm run test:bridge && npm run test:e2e",
+    "server": "npm run build:debug && npx http-server dist/"
+  },
+  "devDependencies": {
+    "@pixi/devtools": "^2.0.1",
+    "@playwright/test": "^1.55.0",
+    "@types/node": "^24.5.2",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.6",
+    "vite-tsconfig-paths": "^5.1.4"
+  },
+  "dependencies": {
+    "pixi.js": "^8.13.2"
+  }
+}

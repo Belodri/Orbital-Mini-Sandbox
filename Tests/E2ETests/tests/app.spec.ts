@@ -1,11 +1,12 @@
-// @ts-check
+import type { default as AppClass } from "@webapp/scripts/App.mjs";
 import { test, expect } from '@playwright/test';
-/** @typedef {import('@webapp/types/generated/App.mjs').default} App */
 
-/**
- * This test suite validates the core functionality of the `window.App` object,
- * which serves as the primary JavaScript interface to the C# WASM physics engine.
- */
+declare global {
+    interface Window {
+        App: typeof AppClass;
+    }
+}
+
 test.describe('App API and State', () => {
     test.beforeEach(async ({ page }) => {
         await page.goto('/');
@@ -87,9 +88,9 @@ test.describe('App API and State', () => {
                 }, { id: bodyId, data: updates });
 
                 expect(result.success).toBe(true);
-                expect(result.updatedAppData.name).toBe(updates.name);
-                expect(result.updatedAppData.tint).toBe(updates.tint);
-                expect(result.updatedSimData.mass).toBe(updates.mass);
+                expect(result?.updatedAppData?.name).toBe(updates.name);
+                expect(result?.updatedAppData?.tint).toBe(updates.tint);
+                expect(result?.updatedSimData?.mass).toBe(updates.mass);
             });
 
             test('should return false when updating a non-existent body ID', async ({ page }) => {
