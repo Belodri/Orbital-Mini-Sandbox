@@ -1,37 +1,65 @@
 namespace Bridge;
 #pragma warning disable IDE1006 // Naming Styles
 
-// TODO: Remove _bodyBufferPtr and _bodyBufferSize from SimStateLayoutRec
-// TODO: Add proper type data to LayoutRecords.cs and use that to cast from/to number on the respective sides
-
 /* 
     Defines the memory layout structures as strongly-typed records. These records are the
     Single Source of Truth for the entire shared memory layout across both C# and JavaScript.
 
-    IMPORTANT:
-    - Property names must be written in camelCase! as they define the names of the properties in JavaScript.
+    ########################################################################################
 
-    - All properties must be of type 'int'! The system relies on this, as the properties will hold the 
-        integer index/offset for each field within the shared memory array.
+    FAILURE TO ADHERE TO THESE CONSTRAINTS WILL CAUSE FATAL ERRORS DURING BUILD OR RUNTIME
 
-    - To mark a property as internal (not exposed publicly by Bridge.mjs) it must begin with an underscore.
+    Records must
+    - be public
+    - be flagged with `[Attributes.GenerateLayoutRecord]`
+    - consist of nothing but a primary constructor
+    - not extend or inherit anything
+    - not have type parameters
 
-    - All non-internal properties must have a comment explaining the property's function.
-        This comment is used to create the LayoutRecords.d.ts file.
+    Record constructor params must
+    - be of types `int`, `double`, or `bool`
+    - have names written in camelCase
+    - must have an xml comment explaining the parameter
+
+    ##########################################################################################
+
+    DETAILS
+
+    Constructor parameter names must be written in camelCase
+    as they define the names of the properties in JavaScript.
+
+    TypeScript types are generated from these records, 
+    and the self-configuring runtime layout uses them to know which values to cast.
+    The parameter comments are included in the generated LayoutRecords.d.ts file.
+
+    The [Attributes.GenerateLayoutRecord] flags a record to a custom source generation script, 
+    which generates alternate versions, which have Rec" appended to the name.
+
+    These generated records have identical parameter names, but all parameter types are set to `int`.
+    This is used by the C# writer to determine, hold, and efficiently access
+    the integer index/offset for each field within the shared memory array.
+
+    Example: 
+    ```
+    [Attributes.GenerateLayoutRecord]
+    public record Initial(bool bar)
+
+    // source generator output
+    public record InitialRec(int bar)
+    ```
 */
 
-public record SimStateLayoutRec(
-    int _bodyBufferPtr,
-    int _bodyBufferSize,
+
+[Attributes.GenerateLayoutRecord]
+public record SimStateLayout(
     /// <summary>
     /// Internal simulation time in units of days (d).
     /// </summary>
     int simulationTime,
     /// <summary>
     /// The amount of time that passes in a single simulation step in units of days (d). Negative timestep to simulate backwards in time.
-    /// Altering the timestep of a running simulation breaks time-reversability!
     /// </summary>
-    int timeStep,
+    double timeStep,
     /// <summary>
     /// The total number of bodies in the simulation, including disabled ones.
     /// </summary>
@@ -39,56 +67,57 @@ public record SimStateLayoutRec(
     /// <summary>
     /// The opening-angle parameter (theta, θ) for the Barnes-Hut algorithm. Clamped between 0 and 1.
     /// </summary>
-    int theta,
+    double theta,
     /// <summary>
     /// The value for the gravitational constant G in m³/kg/s²
     /// </summary>
-    int gravitationalConstant,
+    double gravitationalConstant,
     /// <summary>
     /// The softening factor (epsilon, ε) used to prevent numerical instability in the simulation. Clamped to a value greater than 0.001.
     /// </summary>
-    int epsilon
+    double epsilon
 );
 
-public record BodyStateLayoutRec(
+[Attributes.GenerateLayoutRecord]
+public record BodyStateLayout(
     /// <summary>
     /// The unique identifier of the body
     /// </summary>
     int id,
     /// <summary>
-    /// Disabled bodies are ignored by the simulation. Enabled = 1; Disabled = 0;
+    /// Disabled bodies are ignored by the simulation.
     /// </summary>
-    int enabled,
+    bool enabled,
     /// <summary>
     /// The mass of the body in units of Solar Mass (M☉)
     /// </summary>
-    int mass,
+    double mass,
     /// <summary>
     /// The x position of the body in units of Astronomical Units (au)
     /// </summary>
-    int posX,
+    double posX,
     /// <summary>
     /// The y position of the body in units of Astronomical Units (au)
     /// </summary>
-    int posY,
+    double posY,
     /// <summary>
     /// The body's velocity in the x direction in units of Astronomical Units per day (au/d)
     /// </summary>
-    int velX,
+    double velX,
     /// <summary>
     /// The body's velocity in the y direction in units of Astronomical Units per day (au/d)
     /// </summary>
-    int velY,
+    double velY,
     /// <summary>
     /// The body's acceleration in the x direction in units of Astronomical Units per day squared (au/d²)
     /// </summary>
-    int accX,
+    double accX,
     /// <summary>
     /// The body's acceleration in the y direction in units of Astronomical Units per day squared (au/d²)
     /// </summary>
-    int accY,
+    double accY,
     /// <summary>
     /// Is the body considered to be out of bounds? An out of bounds body is automatically disabled.
     /// </summary>
-    int outOfBounds
+    bool outOfBounds
 );

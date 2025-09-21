@@ -9,6 +9,8 @@ export interface EngineBridgeAPI {
     GetPointerData(): [simBufferPtr: number, simBufferSizeInBytes: number, bodyBufferPtr: number, bodyBufferSizeInBytes: number],
     GetSimStateLayout(): [keyof SimStateLayout],
     GetBodyStateLayout(): [keyof BodyStateLayout],
+    GetSimStateTypes(): ["number"|"boolean"][],
+    GetBodyStateTypes(): ["number"|"boolean"][],  // TODO: Implement these into StateManager for proper type castings
     Tick(syncOnly: boolean): void,
     CreateBody(): Promise<number>,
     DeleteBody(id: number): Promise<boolean>,

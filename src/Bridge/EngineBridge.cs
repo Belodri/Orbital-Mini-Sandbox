@@ -59,6 +59,12 @@ public static partial class EngineBridge
     [JSExport]
     public static string[] GetBodyStateLayout() => MemoryBufferHandler.BodyStateLayoutArr;
 
+    [JSExport]
+    public static string[] GetSimStateTypes() => MemoryBufferHandler.SimStateTsTypes;
+
+    [JSExport]
+    public static string[] GetBodyStateTypes() => MemoryBufferHandler.BodyStateTsTypes;
+
     #endregion
 
     #region Publicly exposed methods

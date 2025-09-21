@@ -14,6 +14,12 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <Compile Remove="CodeGen\**\*.cs" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="CodeGen\Attributes\Attributes.csproj" />
+        <ProjectReference Include="CodeGen\CodeGen.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
         <ProjectReference Include="..\Physics\Physics.csproj" />
     </ItemGroup>
 
@@ -21,5 +27,9 @@
         <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
         <_Parameter1>BridgeTests</_Parameter1>
         </AssemblyAttribute>
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="CodeGen\Attributes\" />
     </ItemGroup>
 </Project>

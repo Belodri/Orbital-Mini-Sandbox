@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <!-- MUST be netstandard2.0 -->
+        <TargetFramework>netstandard2.0</TargetFramework>
+        <LangVersion>13.0</LangVersion>
+        <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="Attributes\Attributes.csproj" PrivateAssets="all" IncludeAssets="runtime" />
+    </ItemGroup>
+
+      <ItemGroup>
+        <Compile Remove="Attributes\**\*.cs" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" PrivateAssets="all" />
+    </ItemGroup>
+</Project>
