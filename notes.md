@@ -57,3 +57,5 @@ https://learn.microsoft.com/en-us/aspnet/core/client-side/dotnet-interop/wasm-br
 - 13/09/2025 - Evaluate and compare different architecture models for data and control flow, ultimately choosing a render-synched game-engine-like model; Document evaluated models in UI_Integration.md;
 - 16/09/2025 - Improve UI_Integration.md; Begin TypeScript rewrite of Bridge for type safety, maintainability, and to improve separation of concerns;
 - 18/09/2025 - Finish TypeScript rewrite of Bridge; Update build pipeline; Update WebApp dependencies; IMPORTANT: 3 broken E2E tests & PDD not yet updated
+- 19/09/2025 - Fix tests; Update PDD following recent rewrite of Bridge; Improve Bridge and PhysicsEngine APIs; Untangle and completely overhaul the mess that the build pipeline had grown to;
+- 20/09/2025 - Clean repo, deleting code, types, and scripts now made redundant by the overhauled structure and build pipeline (-3k lines); Update the TsTypeGen tool to also infer appropriate TS types from C# code; Add custom C# source code generation to Bridge, allowing for full type safety and casting of boolean values via self-configuring type-inference during runtime; All tests passing;
