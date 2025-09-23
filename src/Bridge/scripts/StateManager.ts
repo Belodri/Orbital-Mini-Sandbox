@@ -1,22 +1,4 @@
-import type { BodyStateLayout, SimStateLayout } from "@LayoutRecords.d.ts";
-
-// Redeclare for semantics and to prevent extension.
-export type BodyState = { [Property in keyof BodyStateLayout] : BodyStateLayout[Property] }
-export type SimState = { [Property in keyof SimStateLayout] : SimStateLayout[Property] };
-
-export type StateData = {
-    sim: SimState,
-    bodies: Map<BodyState["id"], BodyState>
-}
-
-export type DiffData = {
-    sim: Set<keyof SimState>,
-    bodies: {
-        created: Set<BodyState["id"]>,
-        deleted: Set<BodyState["id"]>,
-        updated: Set<BodyState["id"]>
-    }
-}
+import type { BodyId, BodyState, SimState, StateData, DiffData } from "@bridge";
 
 export class StateManager {
     #simReader: SimStateReader;
@@ -126,8 +108,8 @@ class BodiesStateReader extends StateReader<BodyState> {
     }
 
     #idCache = {
-        curr: <Set<BodyState["id"]>> new Set(),
-        prev: <Set<BodyState["id"]>> new Set()
+        curr: <Set<BodyId>> new Set(),
+        prev: <Set<BodyId>> new Set()
     }
 
     #bodyStride: number;

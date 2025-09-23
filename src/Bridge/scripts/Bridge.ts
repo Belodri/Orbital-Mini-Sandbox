@@ -11,7 +11,7 @@ import { StateManager } from './StateManager.ts';
 /** Represents the state of a single body in the simulation. */
 type BodyState = { [Property in keyof BodyStateLayout] : BodyStateLayout[Property] }
 type SimState = { [Property in keyof SimStateLayout] : SimStateLayout[Property] };
-
+type BodyId = BodyState["id"];
 
 /**
  * Represents the entire state of the simulation at a given tick.
@@ -19,7 +19,7 @@ type SimState = { [Property in keyof SimStateLayout] : SimStateLayout[Property] 
  */
 type StateData = {
     sim: SimState,
-    bodies: Map<BodyState["id"], BodyState>
+    bodies: Map<BodyId, BodyState>
 }
 
 /**
@@ -30,11 +30,11 @@ type DiffData = {
     sim: Set<keyof SimState>,
     bodies: {
         /** The ids of newly created bodies. */
-        created: Set<BodyState["id"]>,
+        created: Set<BodyId>,
         /** The ids of bodies that were updated. */
-        deleted: Set<BodyState["id"]>,
+        deleted: Set<BodyId>,
         /** The ids of deleted bodies. */
-        updated: Set<BodyState["id"]>
+        updated: Set<BodyId>
     }
 }
 
@@ -270,4 +270,4 @@ class TimeoutLoopHandler {
     }
 }
 
-export { type BodyState, type SimState, type StateData, type DiffData, Bridge as default };
+export { type BodyState, type SimState, type StateData, type DiffData, type BodyId, Bridge as default };
