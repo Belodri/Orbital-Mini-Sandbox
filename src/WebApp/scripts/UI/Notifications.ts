@@ -99,7 +99,7 @@ class NotificationSlot {
  * Static utility for displaying temporary, non-modal notification messages to the user.
  * See Docs/Front_End_Alpha.md for details.
  */
-export class Notifications {
+export default class Notifications {
     static #instanceField: Notifications;
 
     /** Default values for the Notifications config. */
