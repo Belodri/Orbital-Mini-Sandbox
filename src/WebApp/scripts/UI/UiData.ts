@@ -1,13 +1,13 @@
 import { BodyId, BodyState, SimState, StateData, DiffData as PhysicsDiff } from "@bridge";
 import { AppStateBody, AppStateSim, AppState, AppDiff } from "../AppData";
 
-interface BodyView {
+export interface BodyView {
     readonly id: BodyId,
     readonly app: Readonly<AppStateBody>;
     readonly physics: Readonly<BodyState>;
 }
 
-interface SimView {
+export interface SimView {
     readonly app: Readonly<AppStateSim>;
     readonly physics: Readonly<SimState>;
 }
@@ -19,12 +19,11 @@ type DataViewsInjections = {
     appDiff: AppDiff;
 }
 
-
 /**
  * Transient data object containing the BodyViews and BodyIds 
  * of bodies that were created/updated/deleted during the last frame.
  */
-type BodyFrameData = {
+export type BodyFrameData = {
     /** The BodyView objects of bodies created this frame. */
     readonly created: readonly BodyView[];
     /** The BodyView objects of bodies with updated app data this frame. */
@@ -39,7 +38,7 @@ type BodyFrameData = {
  * Transient data object containing the keys of SimView properties
  * that were updated during the last frame.
  */
-type SimFrameData = {
+export type SimFrameData = {
     readonly app: Readonly<AppDiff["sim"]>,
     readonly physics: Readonly<PhysicsDiff["sim"]>
 }
