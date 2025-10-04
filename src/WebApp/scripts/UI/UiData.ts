@@ -26,10 +26,13 @@ type DataViewsInjections = {
 export type BodyFrameData = {
     /** The BodyView objects of bodies created this frame. */
     readonly created: readonly BodyView[];
-    /** The BodyView objects of bodies with updated app data this frame. */
-    readonly updatedApp: readonly BodyView[];
-    /** The BodyView objects of bodies with updated physics data this frame. */
-    readonly updatedPhysics: readonly BodyView[],
+    /** 
+     * The BodyView objects of bodies with updated physics or app data this frame.
+     * If a component really needs to know whether the update was app or physics, 
+     * it can use {@link UiData.appDiff.bodies.updated} or 
+     * {@link UiData.physicsDiff.bodies.updated} respectively.
+     */
+    readonly updated: readonly BodyView[];
     /** The BodyIds of bodies deleted this frame. */
     readonly deleted: ReadonlySet<BodyId>;
 }
@@ -84,6 +87,12 @@ export default class UiData {
     /** Transient, prepared data of bodies that were created, updated, or deleted this frame. */
     static get bodyFrameData(): BodyFrameData { return UiData.#instance.#bodyFrameData; }
 
+    /** Contains the direct diff information about physics data changes during the last engine tick. */
+    static get physicsDiff(): PhysicsDiff { return UiData.#instance.#physicsDiff; }
+
+    /** Contains the direct diff information about app data changes during the last engine tick. */
+    static get appDiff(): AppDiff { return UiData.#instance.#appDiff; }
+
     /**
      * Processes and refreshes the data views and frameData by reading from the injected sources.
      * 
@@ -113,8 +122,9 @@ export default class UiData {
     #bodyFrameData: BodyFrameData;
 
     #bodyCreated: BodyView[] = [];
-    #bodyUpdatedApp: BodyView[] = [];
-    #bodyUpdatedPhysics: BodyView[] = [];
+    #bodyUpdated: BodyView[] = [];
+
+    #bodyUpdatedDiffUnion: Set<BodyId> = new Set();
 
     private constructor(injections: DataViewsInjections) {
         this.#physicsState = injections.physicsState;
@@ -134,20 +144,27 @@ export default class UiData {
 
         this.#bodyFrameData = {
             created: this.#bodyCreated,
-            updatedApp: this.#bodyUpdatedApp,
-            updatedPhysics: this.#bodyUpdatedPhysics,
+            updated: this.#bodyUpdated,
             deleted: this.#appDiff.bodies.deleted,
         }
     }
 
     #refresh(): void {
+        // Create a union of updated body diffs.
+
+        // Set.prototype.union() is faster but creates a new Set every frame.
+        // TODO: Benchmark if Set.prototype.union() is overall faster than this.
+
+        this.#bodyUpdatedDiffUnion.clear();
+        for(const id of this.#physicsDiff.bodies.updated) this.#bodyUpdatedDiffUnion.add(id);
+        for(const id of this.#appDiff.bodies.updated) this.#bodyUpdatedDiffUnion.add(id);
+
         // Validate before refresh methods as those rely on valid data!
         this.#validateDiffs();
 
         // After validation it doesn't matter in which order these are run.
         this.#refreshCreatedBodies();
-        this.#refreshUpdatedBodies("app");
-        this.#refreshUpdatedBodies("physics");
+        this.#refreshUpdatedBodies();
         this.#refreshDeletedBodies();
     }
 
@@ -170,15 +187,14 @@ export default class UiData {
         if(!app.deleted.isDisjointFrom(app.created)) throw new UiDataValidationError("Invalid diff: Overlap between created and deleted body diffs detected.");
         if(!app.deleted.isSubsetOf(this.#bodyViews)) throw new UiDataValidationError("Invalid diff: Not all deleted bodies have a DataView.");  
 
-        // Validate - Updated (App)
+        // Validate - Updated (individual)
         if(!app.updated.isDisjointFrom(app.created)) throw new UiDataValidationError("Invalid diff: Overlap between created and updated(app) body diffs detected.");
         if(!app.updated.isDisjointFrom(app.deleted)) throw new UiDataValidationError("Invalid diff: Overlap between deleted and updated(app) body diffs detected.");
-        if(!app.updated.isSubsetOf(this.#bodyViews)) throw new UiDataValidationError("Invalid diff: Not all updated(app) bodies have a DataView.");
-
-        // Updated - Physics
         if(!physics.updated.isDisjointFrom(physics.created)) throw new UiDataValidationError("Invalid diff: Overlap between created and updated(physics) body diffs detected.");
         if(!physics.updated.isDisjointFrom(physics.deleted)) throw new UiDataValidationError("Invalid diff: Overlap between deleted and updated(physics) body diffs detected.");
-        if(!physics.updated.isSubsetOf(this.#bodyViews)) throw new UiDataValidationError("Invalid diff: Not all updated(physics) bodies have a DataView.");
+
+        // Validate - Updated (union)
+        if(!this.#bodyUpdatedDiffUnion.isSubsetOf(this.#bodyViews)) throw new UiDataValidationError("Invalid diff: Not all updated bodies have a DataView.");
     }
 
 
@@ -186,7 +202,7 @@ export default class UiData {
         this.#bodyCreated.length = 0;
 
         for(const id of this.#appDiff.bodies.created) {
-            // Non-null assertions safe because of prior validation in #validateDiffs()
+            // Non-null assertions are safe because of prior validation in #validateDiffs()
             const app = this.#appState.bodies.get(id)!;
             const physics = this.#physicsState.bodies.get(id)!;
 
@@ -196,16 +212,12 @@ export default class UiData {
         }
     }
 
-    #refreshUpdatedBodies(type: "app" | "physics") {
-        const viewArray = type === "app" ? this.#bodyUpdatedApp : this.#bodyUpdatedPhysics;
-        const diff = type === "app" ? this.#appDiff.bodies.updated : this.#physicsDiff.bodies.updated;
+    #refreshUpdatedBodies() {
+        this.#bodyUpdated.length = 0;
 
-        viewArray.length = 0;
-
-        for(const id of diff) {
-            // Non-null assertion safe because of prior validation in #validateDiffs()
-            const bodyView = this.#bodyViews.get(id)!;
-            viewArray.push(bodyView);
+        // Non-null assertion is safe because of prior validation in #validateDiffs()
+        for(const id of this.#bodyUpdatedDiffUnion) {
+            this.#bodyUpdated.push(this.#bodyViews.get(id)!);
         }
     }
 
