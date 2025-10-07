@@ -122,6 +122,12 @@ export default class PixiHandler {
      */
     static onUpdateBody(id: number): void { PixiHandler.#instance.#onUpdateBody(id); }
 
+    /** Starts the render/update loop. */
+    static start() { PixiHandler.#instance.#app.start(); }
+    
+    /** Stops the render/update loop. */
+    static stop() { PixiHandler.#instance.#app.stop(); }
+
     //#endregion
 
     readonly #app: Application;
