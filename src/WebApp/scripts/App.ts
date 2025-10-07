@@ -50,7 +50,8 @@ export default class App {
      */
     static async updateSimulation(updates: { physics: Parameters<typeof Bridge["updateSimulation"]>[0] }): Promise<void>;
     static async updateSimulation(updates: { app: Parameters<AppData["updateSimulationData"]>[0] }): Promise<void>;
-    static async updateSimulation(updates: { physics: Parameters<typeof Bridge["updateSimulation"]>[0] } | { app: Parameters<AppData["updateSimulationData"]>[0] }): Promise<void> {
+    static async updateSimulation(updates: { app: Parameters<AppData["updateSimulationData"]>[0] } | { physics: Parameters<typeof Bridge["updateSimulation"]>[0] }): Promise<void> {
+        if("app" in updates && "physics" in updates) throw new Error("App | updateSimulation cannot update app and physics data simultaneously."); 
         return this.#instance.#resolver.execute(() => "app" in updates ? this.#instance.#appData.updateSimulationData(updates.app) : Bridge.updateSimulation(updates.physics));
     }
 
@@ -64,6 +65,7 @@ export default class App {
     static async updateBody(id: BodyId, updates: { physics: Parameters<typeof Bridge["updateBody"]>[1] }): Promise<boolean>;
     static async updateBody(id: BodyId, updates: { app: Parameters<AppData["updateBodyData"]>[1] }): Promise<boolean>;
     static async updateBody(id: BodyId, updates: { app: Parameters<AppData["updateBodyData"]>[1] } | { physics: Parameters<typeof Bridge["updateBody"]>[1] }): Promise<boolean> {
+        if("app" in updates && "physics" in updates) throw new Error("App | updateBody cannot update app and physics data simultaneously."); 
         return this.#instance.#resolver.execute(() => "app" in updates ? this.#instance.#appData.updateBodyData(id, updates.app) : Bridge.updateBody(id, updates.physics));
     }
 
@@ -87,7 +89,7 @@ export default class App {
         UiData.init({
             physicsState: Bridge.state,
             physicsDiff: Bridge.diff,
-            appState: app.#appData.appState,
+            appState: app.#appData.state,
             appDiff: app.#appData.diff
         });
 
@@ -110,6 +112,16 @@ export default class App {
     #appData: AppData = new AppData();
     #paused: boolean = false;
     #started: boolean = false;
+
+    // Debug only getters
+
+    static get Bridge() { return DEBUG_MODE && App.#instanceField ? Bridge : undefined }
+    static get PixiHandler() { return DEBUG_MODE && App.#instanceField ? PixiHandler : undefined }
+    static get UiData() { return DEBUG_MODE && App.#instanceField ? UiData : undefined }
+    static get Notifications() { return DEBUG_MODE && App.#instanceField ? Notifications : undefined }
+    static get appData() { return DEBUG_MODE && App.#instanceField ? App.#instance.#appData : undefined }
+    static get resolver() { return DEBUG_MODE && App.#instanceField ? App.#instance.#resolver : undefined }
+
 
     //#region Render Loop
 

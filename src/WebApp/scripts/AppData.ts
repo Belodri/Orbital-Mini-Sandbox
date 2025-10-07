@@ -52,7 +52,7 @@ export default class AppData {
         enableVelocityTrais: true
     } 
 
-    #appState = {
+    #state = {
         sim: { ...AppData.DEFAULT_SIM_DATA } as AppStateSim,
         bodies: new Map() as Map<BodyId, AppStateBody>
     }
@@ -69,7 +69,7 @@ export default class AppData {
 
     get diff(): AppDiff { return this.#diff }
 
-    get appState(): AppState { return this.#appState }
+    get state(): AppState { return this.#state }
 
     /**
      * Creates a new BodyData entry for a given body's id with default data if it doesn't exist already.
@@ -78,7 +78,7 @@ export default class AppData {
      */
     #createBodyData(id: BodyId, data?: AppStateBody): void {
         if(data && data.id !== id) throw new Error(`AppData: ID in 'data' argument (${data.id}) did not match body id (${id}).`);
-        if(this.#appState.bodies.has(id)) return;   
+        if(this.#state.bodies.has(id)) return;   
 
         const state = data ?? {
             ...AppData.DEFAULT_BODY_DATA_OMIT_ID_NAME, 
@@ -86,7 +86,7 @@ export default class AppData {
             name: `New Body #${id}`
         };
 
-        this.#appState.bodies.set(id, state);
+        this.#state.bodies.set(id, state);
     }
 
     /**
@@ -94,7 +94,7 @@ export default class AppData {
      * @param id ID of the respective body.
      */
     #deleteBodyData(id: BodyId): void {
-        this.#appState.bodies.delete(id)
+        this.#state.bodies.delete(id)
     }
 
     /**
@@ -104,7 +104,7 @@ export default class AppData {
      * @returns `false` if no BodyData with the given id was found, `true` otherwise.
      */
     updateBodyData(id: BodyId, updates: Partial<Omit<AppStateBody, "id">>): boolean {
-        const body = this.#appState.bodies.get(id);
+        const body = this.#state.bodies.get(id);
         if(!body) return false;
 
         let hasChanged = false;
@@ -130,10 +130,10 @@ export default class AppData {
     updateSimulationData(updates: Partial<AppStateSim>): void {
         for(const key of Object.keys(updates) as (keyof AppStateSim)[]) {
             const newValue = updates[key];
-            const oldValue = this.#appState.sim[key];
+            const oldValue = this.#state.sim[key];
 
             if (newValue !== undefined && oldValue !== newValue) {
-                this.#appState.sim[key] = newValue as any;
+                this.#state.sim[key] = newValue as any;
                 this.#nextFrameDiff.sim.add(key);
             }
         }
@@ -160,8 +160,8 @@ export default class AppData {
      */
     getPresetData(): AppDataPreset {
         return {
-            sim: this.#appState.sim,
-            bodies: [...this.#appState.bodies.values()]
+            sim: this.#state.sim,
+            bodies: [...this.#state.bodies.values()]
         };
     }
 
@@ -170,7 +170,7 @@ export default class AppData {
      * @param preset The preset data to load.
      */
     loadPresetData(preset: AppDataPreset): void {
-        this.#appState.bodies.clear();
+        this.#state.bodies.clear();
         this.#diff.updatedBodies.clear();
 
         for(const data of preset.bodies) this.#createBodyData(data.id, data);
