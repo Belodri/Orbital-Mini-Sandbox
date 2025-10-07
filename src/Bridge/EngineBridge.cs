@@ -25,20 +25,12 @@ partial class PresetJSONSerializerContext : JsonSerializerContext { }
 public static partial class EngineBridge
 {
 #if DEBUG
-    internal static PhysicsEngine physicsEngine;
+    internal static PhysicsEngine physicsEngine = new();
 #else
-    private static PhysicsEngine physicsEngine;
+    private static PhysicsEngine physicsEngine = new();
 #endif
 
-    private static readonly MemoryBufferHandler memoryBufferHandler;
-    private static readonly CommandQueue commandQueue;
-
-    static EngineBridge()
-    {
-        physicsEngine = new PhysicsEngine();
-        memoryBufferHandler = new MemoryBufferHandler();
-        commandQueue = new CommandQueue();
-    }
+    private static readonly MemoryBufferHandler memoryBufferHandler = new();
 
     #region Bridge-internal methods
 
@@ -75,8 +67,6 @@ public static partial class EngineBridge
 #if DEBUG   // High-frequency calls are only logged in debug builds
         Logger.Entry().WithArg(syncOnly).Log("Start Execution...");
 #endif
-        // Process queued commands
-        commandQueue.ProcessAll(physicsEngine);
 
         // Let the engine do its calculations
         if (syncOnly) physicsEngine.SyncState(); 
@@ -84,40 +74,31 @@ public static partial class EngineBridge
         
         // Write the resulting state into the shared memory
         memoryBufferHandler.WriteViewToMemory(physicsEngine.View);
-        // Resolve the queued commands
-        commandQueue.ResolveProcessed();
 #if DEBUG
         Logger.Entry().Log("Finish");
 #endif
     }
 
     [JSExport]
-    public static Task<int> CreateBody()
+    public static int CreateBody()
     {
-        Logger.Entry().Log("Task Queued");
-        return commandQueue.EnqueueTask(engine =>
-        {
-            var id = engine.CreateBody();
-            Logger.Entry(nameof(CreateBody)).WithArg(id).Log("Task Executed");
-            return id;
-        });
+        Logger.Entry().Log("Called");
+        var id = physicsEngine.CreateBody();
+        Logger.Entry().WithArg(id).Log("Executed");
+        return id;
     }
 
     [JSExport]
-    public static Task<bool> DeleteBody(int id)
+    public static bool DeleteBody(int id)    
     {
-        Logger.Entry().WithArg(id).Log("Task Queued");
-
-        return commandQueue.EnqueueTask(engine =>
-        {
-            var wasDeleted = engine.DeleteBody(id);
-            Logger.Entry(nameof(DeleteBody)).WithArg(id).WithArg(wasDeleted).Log("Task Executed");
-            return wasDeleted;
-        });
+        Logger.Entry().WithArg(id).Log("Called");
+        var wasDeleted = physicsEngine.DeleteBody(id);
+        Logger.Entry().WithArg(id).WithArg(wasDeleted).Log("Executed");
+        return wasDeleted;
     }
 
     [JSExport]
-    public static Task<bool> UpdateBody(
+    public static bool UpdateBody(    // TODO: Make sync
         int id,
         bool? enabled = null, double? mass = null,
         double? posX = null, double? posY = null,
@@ -131,22 +112,17 @@ public static partial class EngineBridge
             .WithArg(posY)
             .WithArg(velX)
             .WithArg(velY)
-            .Log("Task Queued");
+            .Log("Called");
 
-        return commandQueue.EnqueueTask(engine =>
-        {
-            var wasUpdated = engine.UpdateBody(
-                id, new(enabled, mass, posX, posY, velX, velY)
-            );
-            Logger.Entry(nameof(UpdateBody))
-                .WithArg(id).WithArg(wasUpdated)
-                .Log("Task Executed");
-            return wasUpdated;
-        });
+        var updates = new BodyDataUpdates(enabled, mass, posX, posY, velX, velY);
+        var wasUpdated = physicsEngine.UpdateBody(id, updates);
+
+        Logger.Entry().WithArg(id).WithArg(wasUpdated).Log("Executed");
+        return wasUpdated;
     }
 
     [JSExport]
-    public static Task UpdateSimulation(
+    public static void UpdateSimulation(  
         double? timeStep = null,
         double? theta = null,
         double? g_SI = null,
@@ -157,20 +133,11 @@ public static partial class EngineBridge
             .WithArg(theta)
             .WithArg(g_SI)
             .WithArg(epsilon)
-            .Log("Task Queued");
+            .Log("Called");
 
-        return commandQueue.EnqueueTask(engine =>
-        {
-            engine.UpdateSimulation(
-                new(timeStep, theta, g_SI, epsilon)
-            );
-            Logger.Entry(nameof(UpdateSimulation))
-                .WithArg(timeStep)
-                .WithArg(theta)
-                .WithArg(g_SI)
-                .WithArg(epsilon)
-                .Log("Task Executed");
-        });
+        var updates = new SimDataUpdates(timeStep, theta, g_SI, epsilon);
+        physicsEngine.UpdateSimulation(updates);
+        Logger.Entry().Log("Executed");
     }
 
     /// <summary>
@@ -206,7 +173,6 @@ public static partial class EngineBridge
     {
         Logger.Entry().WithArg(jsonPreset.Length).Log("Importing Preset...");
 
-        commandQueue.ClearQueue(); // Ensure prior commands cannot interfere with the newly loaded state.
         PresetData? data = ParseJsonPreset(jsonPreset) ?? throw new ArgumentException("Failed to load: Preset data was null or empty.", nameof(jsonPreset));
         physicsEngine.Import(data.Sim, data.Bodies);
         memoryBufferHandler.WriteViewToMemory(physicsEngine.View);

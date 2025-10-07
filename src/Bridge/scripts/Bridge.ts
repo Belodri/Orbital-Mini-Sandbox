@@ -9,25 +9,25 @@ import { StateManager } from './StateManager.ts';
 // Redeclare for semantics and to prevent extension.
 
 /** Represents the state of a single body in the simulation. */
-type BodyState = { [Property in keyof BodyStateLayout] : BodyStateLayout[Property] }
-type SimState = { [Property in keyof SimStateLayout] : SimStateLayout[Property] };
-type BodyId = BodyState["id"];
+type PhysicsStateBody = { [Property in keyof BodyStateLayout] : BodyStateLayout[Property] }
+type PhysicsStateSim = { [Property in keyof SimStateLayout] : SimStateLayout[Property] };
+type BodyId = PhysicsStateBody["id"];
 
 /**
  * Represents the entire state of the simulation at a given tick.
  * Contains a map of all bodies and other global simulation properties.
  */
-type StateData = {
-    sim: SimState,
-    bodies: Map<BodyId, BodyState>
+type PhysicsState = {
+    sim: PhysicsStateSim,
+    bodies: Map<BodyId, PhysicsStateBody>
 }
 
 /**
  * Contains information physics engine state changes* during the last engine tick.
  */
-type DiffData = {
+type PhysicsDiff = {
     /** The keys of SimState that were changed. */
-    sim: Set<keyof SimState>,
+    sim: Set<keyof PhysicsStateSim>,
     bodies: {
         /** The ids of newly created bodies. */
         created: Set<BodyId>,
@@ -46,27 +46,17 @@ declare global {
  * Provides a static API to interact with the .NET WebAssembly simulation engine.
  */
 class Bridge {
-    static #CONFIG = {
-        pausedPromiseIntervalInMs: 100,
-    }
-
     static #DEBUG: boolean;
-
     static #runtime: RuntimeAPI;
     static #engineBridge: EngineBridgeAPI;
     static #stateManager: StateManager;
-    static #timeoutLoop: TimeoutLoopHandler;
-
-    static #onStateChangeCallback: () => void;
 
     /**
      * Initializes the Bridge and the underlying .NET runtime. Must be called once before any other methods.
-     * @param onStateChangeCallback Callback to notify the consumer about a changed state & diff.
      * @param debugMode Whether to run the Bridge and its components in debug mode. Cannot be changed during runtime.
      */
-    static async initialize(onStateChangeCallback: () => void, debugMode: boolean = false) {
+    static async initialize(debugMode: boolean = false) {
         this.#DEBUG ??= debugMode;
-        this.#onStateChangeCallback = onStateChangeCallback;
 
         if(!this.#engineBridge || !this.#runtime) {
             const {engineBridge, runtime} = await DotNetHandler.init(this.#DEBUG ? "DEVELOPMENT" : "PRODUCTION");
@@ -85,10 +75,6 @@ class Bridge {
             });
         }
 
-        if(!this.#timeoutLoop) {
-            this.#timeoutLoop = new TimeoutLoopHandler(this.#CONFIG.pausedPromiseIntervalInMs, () => this.tickEngine(true));
-        }
-
         if(this.#DEBUG) { globalThis.Bridge = this; }
     }
 
@@ -96,8 +82,6 @@ class Bridge {
     static get engineBridge() { return this.#DEBUG ? this.#engineBridge : undefined }
     static get runtime() { return this.#DEBUG ? this.#runtime : undefined }
     static get stateManager() { return this.#DEBUG ? this.#stateManager : undefined }
-    static get timeoutLoop() { return this.#DEBUG ? this.#timeoutLoop : undefined }
-
 
     /** 
      * Snapshot of the most recent physics state, which is updated at the end of every `tickEngine()` call.
@@ -113,13 +97,11 @@ class Bridge {
 
     /**
      * Advances the simulation by one step and refreshes the `state` data.
-     * @param [syncOnly=false] If true, only re-synchronizes the current state and doesn't advance time.
+     * @param syncOnly If true, only re-synchronizes the current state and doesn't advance time.
      */
     static tickEngine(syncOnly: boolean = false) {
-        this.#timeoutLoop.cancel();
         this.#engineBridge.Tick(syncOnly);
         this.#stateManager.refresh();
-        this.#onStateChangeCallback();
     }
 
     /**
@@ -139,71 +121,54 @@ class Bridge {
 
     /**
      * Creates a new body with default properties.
-     * 
-     * Promise resolves after state has been written into shared memory but before the Bridge.state has been updated to reflect it! 
-     * 
-     * @returns Promise that resolves to the id of the created body.
+     * @returns The id of the created body.
      */
-    static async createBody() {
-        this.#timeoutLoop.start();
+    static createBody() {
         return this.#engineBridge.CreateBody();
     }
 
     /**
      * Deletes an existing body from the simulation.
-     * 
-     * Promise resolves after state has been written into shared memory but before the Bridge.state has been updated to reflect it! 
-     * 
      * @param id The id of the body to delete.
-     * @returns Promise that resolves to `true` if the body was deleted, or `false` if it wasn't found.
+     * @returns `true` if the body was deleted, or `false` if it wasn't found.
      */
-    static async deleteBody(id: number) {
-        this.#timeoutLoop.start();
+    static deleteBody(id: number) {
         return this.#engineBridge.DeleteBody(id);
     }
 
 
-    static #numNull(val: any, allowBoolIn = false) {
-        if (typeof val === 'number') return val;
-        if (allowBoolIn && typeof val === 'boolean') return val ? 1 : 0;
-        return null;
+    static #nullUndefined<T>(val: T | null | undefined): T | null {
+        if(val === undefined || val === null) return null;
+        else return val;
     }
 
     /**
      * Updates an existing body.
-     * 
-     * Promise resolves after state has been written into shared memory but before the Bridge.state has been updated to reflect it! 
-     * 
      * @param id The id of the body to update.
      * @param data Partial update data for the body.
-     * @returns Promise that resolves to `true` if the body has been updated successfully, or `false` if it wasn't found.
+     * @returns `true` if the body has been updated successfully, or `false` if it wasn't found.
      */
-    static async updateBody(id: number, data: {
-        enabled?: number | boolean | null,
+    static updateBody(id: number, data: {
+        enabled?: boolean | null,
         mass?: number | null,
         posX?: number | null,
         posY?: number | null,
         velX?: number | null,
         velY?: number | null,
     }) {
-        this.#timeoutLoop.start();
         return this.#engineBridge.UpdateBody(id,
-            !!this.#numNull(data.enabled, true),  // Cast to bool if number; remove once the TODO in LayoutRecords.cs is completed
-            this.#numNull(data.mass),
-            this.#numNull(data.posX),
-            this.#numNull(data.posY),
-            this.#numNull(data.velX),
-            this.#numNull(data.velY)
+            this.#nullUndefined(data.enabled),
+            this.#nullUndefined(data.mass),
+            this.#nullUndefined(data.posX),
+            this.#nullUndefined(data.posY),
+            this.#nullUndefined(data.velX),
+            this.#nullUndefined(data.velY)
         );
     }
     
     /**
      * Updates the current simulation.
-     * 
-     * Promise resolves after state has been written into shared memory but before the Bridge.state has been updated to reflect it! 
-     * 
      * @param data Partial update data for the simulation.
-     * @returns Promise that resolves when the simulation has been updated.
      */
     static async updateSimulation(data: {
         timeStep?: number,
@@ -211,12 +176,11 @@ class Bridge {
         g_SI?: number,
         epsilon?: number
     }) {
-        this.#timeoutLoop.start();
         return this.#engineBridge.UpdateSimulation(
-            this.#numNull(data.timeStep),
-            this.#numNull(data.theta),
-            this.#numNull(data.g_SI),
-            this.#numNull(data.epsilon)
+            this.#nullUndefined(data.timeStep),
+            this.#nullUndefined(data.theta),
+            this.#nullUndefined(data.g_SI),
+            this.#nullUndefined(data.epsilon)
         );
     }
 
@@ -238,36 +202,5 @@ class Bridge {
     }
 }
 
-class TimeoutLoopHandler {
-    #timeoutIntervalInMs: number;
-    #callback: () => void;
-    #timeoutId: number | null = null;
 
-    constructor(timeoutIntervalInMs: number, callbackFn: () => void) {
-        const validTimeout = Number.isSafeInteger(timeoutIntervalInMs)
-            && timeoutIntervalInMs > 0;
-        if(!validTimeout) throw new Error(`Invalid argument: 'timeoutIntervalInMs' must be a positive integer but was ${timeoutIntervalInMs}`);
-        this.#timeoutIntervalInMs = timeoutIntervalInMs;
-        this.#callback = callbackFn;
-    }
-
-    start() {
-        if(this.#timeoutId) return;
-
-        this.#timeoutId = window.setTimeout(() => {
-            try {
-                this.#callback()
-            } finally {
-                this.#timeoutId = null;
-            }
-        }, this.#timeoutIntervalInMs);
-    }
-
-    cancel() {
-        if(!this.#timeoutId) return;
-        clearTimeout(this.#timeoutId);
-        this.#timeoutId = null;
-    }
-}
-
-export { type BodyState, type SimState, type StateData, type DiffData, type BodyId, Bridge as default };
+export { type PhysicsStateBody, type PhysicsStateSim, type PhysicsState, type PhysicsDiff, type BodyId, Bridge as default };

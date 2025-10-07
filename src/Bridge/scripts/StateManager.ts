@@ -1,4 +1,4 @@
-import type { BodyId, BodyState, SimState, StateData, DiffData } from "@bridge";
+import type { BodyId, PhysicsStateBody, PhysicsStateSim, PhysicsState, PhysicsDiff } from "@bridge";
 
 export class StateManager {
     #simReader: SimStateReader;
@@ -6,8 +6,8 @@ export class StateManager {
 
     #getPointerData: () => [simBufferPtr: number, simBufferSizeInBytes: number, bodyBufferPtr: number, bodyBufferSizeInBytes: number];
 
-    readonly state: Readonly<StateData>;
-    readonly diff: Readonly<DiffData>;
+    readonly state: Readonly<PhysicsState>;
+    readonly diff: Readonly<PhysicsDiff>;
 
     /**
      * @param layouts       String arrays with the ordered keys for SimState and BodyState as exported by C# WASM interface during initialization.
@@ -51,7 +51,7 @@ export class StateManager {
     };
 }
 
-abstract class StateReader<T extends SimState | BodyState> {
+abstract class StateReader<T extends PhysicsStateSim | PhysicsStateBody> {
     protected readonly _layout: StateLayoutHandler<T>;
     protected readonly _viewHandler: BufferViewHandler;
 
@@ -68,12 +68,12 @@ abstract class StateReader<T extends SimState | BodyState> {
     abstract refresh(...args: any[]): void;
 }
 
-class SimStateReader extends StateReader<SimState> {
-    #state: SimState = { ...this._layout.template };
-    #diff: Set<keyof SimState> = new Set();
+class SimStateReader extends StateReader<PhysicsStateSim> {
+    #state: PhysicsStateSim = { ...this._layout.template };
+    #diff: Set<keyof PhysicsStateSim> = new Set();
 
-    get state(): StateData["sim"] { return this.#state; }
-    get diff(): DiffData["sim"] { return this.#diff; }
+    get state(): PhysicsState["sim"] { return this.#state; }
+    get diff(): PhysicsDiff["sim"] { return this.#diff; }
 
     refresh(ptr: number, size: number): void {
         this.#diff.clear();
@@ -99,9 +99,9 @@ class SimStateReader extends StateReader<SimState> {
     }
 }
 
-class BodiesStateReader extends StateReader<BodyState> {
-    #state: StateData["bodies"] = new Map();
-    #diff: DiffData["bodies"] = {
+class BodiesStateReader extends StateReader<PhysicsStateBody> {
+    #state: PhysicsState["bodies"] = new Map();
+    #diff: PhysicsDiff["bodies"] = {
         created: new Set(),
         deleted: new Set(),
         updated: new Set()
@@ -115,7 +115,7 @@ class BodiesStateReader extends StateReader<BodyState> {
     #bodyStride: number;
     #idIndex: number;
 
-    constructor(...args: ConstructorParameters<typeof StateReader<BodyState>>) {
+    constructor(...args: ConstructorParameters<typeof StateReader<PhysicsStateBody>>) {
         super(...args);
 
         this.#bodyStride = this._layout.keys.size;
@@ -226,7 +226,7 @@ class BufferViewHandler {
     }
 }
 
-class StateLayoutHandler<T extends SimState | BodyState> {
+class StateLayoutHandler<T extends PhysicsStateSim | PhysicsStateBody> {
     /** Tuples of SimState/BodyState property keys and their index offsets in the memory view. */
     readonly #keyIndexTuples: [keyof T, index: number][] = [];
     readonly #keyIndexRecord: Record<keyof T, number>;
