@@ -37,17 +37,16 @@ export default class DeferredResolver {
      * @param fn    Function to execute immediately.
      * @returns     A Promise that resolves to the return value of the executed function after `resolve()` is called.
      */
-    execute<T>(fn: T extends PromiseLike<any> 
+    execute<T>(fn: [T] extends [PromiseLike<any>] 
         ? (ERROR: "DeferredResolver.execute() cannot be called with an async function or a function that returns a Promise.") => any 
         : () => T
     ): Promise<T>;
-    execute(fn: () => void): Promise<void>;
-    execute<T>(fn: () => T | void): Promise<T | void> {
+    execute<T>(fn: () => T): Promise<T> {
         // Execute directly, any error thrown must be caught by calling code.
         const value = fn();
 
         // If no error, return a promise that'll later resolve to the returned value.
-        return new Promise<T | void>((resolve, reject) => {
+        return new Promise<T>((resolve, reject) => {
             this.#addToResolveQueue(value, resolve, reject);
         });
     }
