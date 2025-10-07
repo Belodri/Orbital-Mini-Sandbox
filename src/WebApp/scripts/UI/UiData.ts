@@ -1,19 +1,19 @@
-import { BodyId, BodyState, SimState, StateData, DiffData as PhysicsDiff } from "@bridge";
+import { BodyId, PhysicsStateBody, PhysicsStateSim, PhysicsState, PhysicsDiff } from "@bridge";
 import { AppStateBody, AppStateSim, AppState, AppDiff } from "../AppData";
 
 export interface BodyView {
     readonly id: BodyId,
     readonly app: Readonly<AppStateBody>;
-    readonly physics: Readonly<BodyState>;
+    readonly physics: Readonly<PhysicsStateBody>;
 }
 
 export interface SimView {
     readonly app: Readonly<AppStateSim>;
-    readonly physics: Readonly<SimState>;
+    readonly physics: Readonly<PhysicsStateSim>;
 }
 
 type DataViewsInjections = {
-    physicsState: StateData;
+    physicsState: PhysicsState;
     physicsDiff: PhysicsDiff; 
     appState: AppState;
     appDiff: AppDiff;
@@ -113,7 +113,7 @@ export default class UiData {
     #simView: SimView;
     #bodyViews: Map<BodyId, BodyView> = new Map();
 
-    #physicsState: StateData;
+    #physicsState: PhysicsState;
     #physicsDiff: PhysicsDiff;
     #appState: AppState;
     #appDiff: AppDiff;
@@ -145,7 +145,7 @@ export default class UiData {
         this.#bodyFrameData = {
             created: this.#bodyCreated,
             updated: this.#bodyUpdated,
-            deleted: this.#appDiff.bodies.deleted,
+            deleted: this.#physicsDiff.bodies.deleted,
         }
     }
 
@@ -157,7 +157,7 @@ export default class UiData {
 
         this.#bodyUpdatedDiffUnion.clear();
         for(const id of this.#physicsDiff.bodies.updated) this.#bodyUpdatedDiffUnion.add(id);
-        for(const id of this.#appDiff.bodies.updated) this.#bodyUpdatedDiffUnion.add(id);
+        for(const id of this.#appDiff.updatedBodies) this.#bodyUpdatedDiffUnion.add(id);
 
         // Validate before refresh methods as those rely on valid data!
         this.#validateDiffs();
@@ -170,26 +170,21 @@ export default class UiData {
 
 
     #validateDiffs() {
-        const equal = (a: Set<number>, b: Set<number>) => a.size === b.size && a.isSubsetOf(b);
-
-        const app = this.#appDiff.bodies;
+        const app = this.#appDiff.updatedBodies;
         const physics = this.#physicsDiff.bodies;
 
         // Note: Be careful to not break the sequential cohesion of these checks when refactoring!
 
         // Validate - Created
-        if(!equal(physics.created, app.created)) throw new UiDataValidationError("Invalid diff: Created body diffs out of sync.");
-        if(!app.created.isSubsetOf(this.#appState.bodies)) throw new UiDataValidationError("Invalid diff: Not all created bodies have an AppState.");
         if(!physics.created.isSubsetOf(this.#physicsState.bodies)) throw new UiDataValidationError("Invalid diff: Not all created bodies have a PhysicsState.");
 
         // Validate - Deleted
-        if(!equal(app.deleted, physics.deleted)) throw new UiDataValidationError("Invalid diff: Deleted body diffs out of sync.");
-        if(!app.deleted.isDisjointFrom(app.created)) throw new UiDataValidationError("Invalid diff: Overlap between created and deleted body diffs detected.");
-        if(!app.deleted.isSubsetOf(this.#bodyViews)) throw new UiDataValidationError("Invalid diff: Not all deleted bodies have a DataView.");  
+        if(!physics.deleted.isDisjointFrom(physics.created)) throw new UiDataValidationError("Invalid diff: Overlap between created and deleted body diffs detected.");
+        if(!physics.deleted.isSubsetOf(this.#bodyViews)) throw new UiDataValidationError("Invalid diff: Not all deleted bodies have a DataView.");  
 
         // Validate - Updated (individual)
-        if(!app.updated.isDisjointFrom(app.created)) throw new UiDataValidationError("Invalid diff: Overlap between created and updated(app) body diffs detected.");
-        if(!app.updated.isDisjointFrom(app.deleted)) throw new UiDataValidationError("Invalid diff: Overlap between deleted and updated(app) body diffs detected.");
+        if(!app.isDisjointFrom(physics.created)) throw new UiDataValidationError("Invalid diff: Overlap between created and updated(app) body diffs detected.");
+        if(!app.isDisjointFrom(physics.deleted)) throw new UiDataValidationError("Invalid diff: Overlap between deleted and updated(app) body diffs detected.");
         if(!physics.updated.isDisjointFrom(physics.created)) throw new UiDataValidationError("Invalid diff: Overlap between created and updated(physics) body diffs detected.");
         if(!physics.updated.isDisjointFrom(physics.deleted)) throw new UiDataValidationError("Invalid diff: Overlap between deleted and updated(physics) body diffs detected.");
 
@@ -201,7 +196,7 @@ export default class UiData {
     #refreshCreatedBodies() {
         this.#bodyCreated.length = 0;
 
-        for(const id of this.#appDiff.bodies.created) {
+        for(const id of this.#physicsDiff.bodies.created) {
             // Non-null assertions are safe because of prior validation in #validateDiffs()
             const app = this.#appState.bodies.get(id)!;
             const physics = this.#physicsState.bodies.get(id)!;
@@ -222,10 +217,10 @@ export default class UiData {
     }
 
     #refreshDeletedBodies() {
-        for(const id of this.#appDiff.bodies.deleted) this.#bodyViews.delete(id);
+        for(const id of this.#physicsDiff.bodies.deleted) this.#bodyViews.delete(id);
 
         // `this.#bodyFrameData.deleted` is set directly in the constructor and directly 
-        // references `this.#appDiff.bodies.deleted`. As long as validation passes, this
+        // references `this.#physicsDiff.bodies.deleted`. As long as validation passes, this
         // is always correct for the current frame.
     }
 }
