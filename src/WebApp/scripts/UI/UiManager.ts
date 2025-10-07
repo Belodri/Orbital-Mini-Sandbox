@@ -42,7 +42,7 @@ export default class UiManager {
      * Updates UI components based on the frameData provided by {@link UiData}.
      * Assumes all data is valid, as per `UiData`'s contract!
      */
-    static render(): void { UiManager.#instance.#render(); }
+    static render(isPaused: boolean): void { UiManager.#instance.#render(isPaused); }
 
     //#endregion
 
@@ -58,7 +58,7 @@ export default class UiManager {
         this.#config = config;
     }
 
-    #render(): void {
+    #render(isPaused: boolean): void {
         this.#renderSim();
         this.#renderBodies();
 
