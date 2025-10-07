@@ -152,24 +152,24 @@ The application uses a render-loop execution model similar to ones used in video
     - **Post-Render:** Resolves deferred promises (see API section). The thread is then unblocked, allowing user inputs to be processed until the next Pre-Render.
 
 ### Pre-Render Phase
-1. `App.preRenderPhase()` is called by the Pixi `Ticker` callback with `UPDATE_PRIORITY.HIGH`. The thread is blocked from now until the end of the next Post-Render Phase.
+1. `App.#preRender()` is called by the Pixi `Ticker` callback with `UPDATE_PRIORITY.HIGH`. The thread is blocked from now until the end of the next Post-Render Phase.
 2. (C# `PhysicsEngine`) Physics timestep calculations.
 3. (C# `Bridge`) Writes physics state into shared memory.
 4. (JS `Bridge`) Reads physics state from shared memory, parses & creates diff => refreshes `Physics.state` and `Physics.diff`.
 5. (`AppData`) Uses `Physics.diff` to keep non-physics data store in sync => refreshes `AppData.state` and `AppData.diff`.
 6. (`UiData`) Uses `Physics.diff.bodies` and `AppData.diff.bodies` to keep the store of `DataViewBody` objects in sync with actual bodies in the simulation.
-`App.preRenderPhase()` returns to Pixi `Ticker`
+`App.#preRender()` returns to Pixi `Ticker`
 
 ### Render Phase
-7. `App.renderPhase()` is called by the Pixi `Ticker` callback with `UPDATE_PRIORITY.NORMAL`.
+7. `App.#render()` is called by the Pixi `Ticker` callback with `UPDATE_PRIORITY.NORMAL`.
 8. (`UiHandler`) Uses `Physics.diff` and `AppData.diff` to selectively create, delete, and update individual UI components as required, passing the `DataViewBody` and/or `DataViewSim` objects as required.
-9. `App.renderPhase()` returns to Pixi `Ticker`
+9. `App.#render()` returns to Pixi `Ticker`
 10. Pixi handles the canvas rendering
 
 ### Post-Render Phase
-11. `App.postRenderPhase()` is called by the `PixiHandler` wrapper around Pixi's `render()` method, after Pixi has fully rendered the canvas.
+11. `App.#postRender()` is called by the `PixiHandler` wrapper around Pixi's `render()` method, after Pixi has fully rendered the canvas.
 12. (`DeferredResolver`) Resolves any promises returned by API calls that were executed since the last frame's pre-render phase.
-13. `App.postRenderPhase()` returns and eventually unblocks the thread.
+13. `App.#postRender()` returns and eventually unblocks the thread.
 
 ---
 
