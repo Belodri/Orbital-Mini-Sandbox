@@ -64,3 +64,4 @@ https://learn.microsoft.com/en-us/aspnet/core/client-side/dotnet-interop/wasm-br
 - 01/10/2025 - Refactor and rewrite Notifications in TypeScript
 - 02/10/2025 - Add singleton UiData to WebApp to act as static data provider for UI components and adapter and facade between multi-source state (physics & appData) and consuming UI
 - 03/10/2025 - Replace CanvasView.js with TypeScript PixiHandler; Remove unnecessary work from UiData; Add UiManager as the consumer of UiData and owner and orchestrator of UI components;
+- 06/10/2025 - Refactor Bridge to be fully synchronous as required by App, removing TimeoutLoopHandler and CommandQueue classes; Fix numerous small issues with various App components; Add App.ts; Project is now fully converted to TypeScript; Builds and unit tests succeed, only E2E tests need to be updated;
