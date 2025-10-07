@@ -96,8 +96,10 @@ export default class App {
 
         App.#instanceField = app;
 
-        // @ts-ignore
-        if(debug) globalThis.App = App;
+        if(DEBUG_MODE) {
+            // @ts-ignore
+            globalThis.App = App;
+        }
 
         App.#instance.#startRenderLoop();
     }
