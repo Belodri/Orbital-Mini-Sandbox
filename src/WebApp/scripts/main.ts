@@ -1,4 +1,4 @@
-import App from './App.mjs';
+import App from './App.ts';
 
 //#region Fatal Error Handling
 
@@ -24,5 +24,5 @@ window.addEventListener('unhandledrejection', (event) => {
 //#endregion
 
 window.addEventListener("load", async (event) => {
-    await App.initialize();
+    await App.init();
 });
