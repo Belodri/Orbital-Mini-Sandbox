@@ -56,67 +56,67 @@ class Bridge {
      * @param debugMode Whether to run the Bridge and its components in debug mode. Cannot be changed during runtime.
      */
     static async initialize(debugMode: boolean = false) {
-        this.#DEBUG ??= debugMode;
+        Bridge.#DEBUG ??= debugMode;
 
-        if(!this.#engineBridge || !this.#runtime) {
-            const {engineBridge, runtime} = await DotNetHandler.init(this.#DEBUG ? "DEVELOPMENT" : "PRODUCTION");
-            this.#runtime = runtime;
-            this.#engineBridge = engineBridge;
+        if(!Bridge.#engineBridge || !Bridge.#runtime) {
+            const {engineBridge, runtime} = await DotNetHandler.init(Bridge.#DEBUG ? "DEVELOPMENT" : "PRODUCTION");
+            Bridge.#runtime = runtime;
+            Bridge.#engineBridge = engineBridge;
         }
 
-        if(!this.#stateManager) {
-            this.#stateManager = new StateManager({
-                sim: this.#engineBridge.GetSimStateLayout(),
-                body: this.#engineBridge.GetBodyStateLayout()
+        if(!Bridge.#stateManager) {
+            Bridge.#stateManager = new StateManager({
+                sim: Bridge.#engineBridge.GetSimStateLayout(),
+                body: Bridge.#engineBridge.GetBodyStateLayout()
             }, {
-                getPointerData: this.#engineBridge.GetPointerData,
-                heapViewGetter: this.#runtime.localHeapViewU8,
-                log: this.#DEBUG ? console.log : undefined
+                getPointerData: Bridge.#engineBridge.GetPointerData,
+                heapViewGetter: Bridge.#runtime.localHeapViewU8,
+                log: Bridge.#DEBUG ? console.log : undefined
             });
         }
 
-        if(this.#DEBUG) { globalThis.Bridge = this; }
+        if(Bridge.#DEBUG) { globalThis.Bridge = Bridge; }
     }
 
     // Debug only getters
-    static get engineBridge() { return this.#DEBUG ? this.#engineBridge : undefined }
-    static get runtime() { return this.#DEBUG ? this.#runtime : undefined }
-    static get stateManager() { return this.#DEBUG ? this.#stateManager : undefined }
+    static get engineBridge() { return Bridge.#DEBUG ? Bridge.#engineBridge : undefined }
+    static get runtime() { return Bridge.#DEBUG ? Bridge.#runtime : undefined }
+    static get stateManager() { return Bridge.#DEBUG ? Bridge.#stateManager : undefined }
 
     /** 
      * Snapshot of the most recent physics state, which is updated at the end of every `tickEngine()` call.
      * `undefined` until initialization is complete.
      */
-    static get state() { return this.#stateManager.state; }
+    static get state() { return Bridge.#stateManager.state; }
 
     /** 
      * Snapshot of the most recent physics state update diff, which is updated at the end of every `tickEngine()` call.
      * `undefined` until initialization is complete.
      */
-    static get diff() { return this.#stateManager.diff; }
+    static get diff() { return Bridge.#stateManager.diff; }
 
     /**
      * Advances the simulation by one step and refreshes the `state` data.
      * @param syncOnly If true, only re-synchronizes the current state and doesn't advance time.
      */
     static tickEngine(syncOnly: boolean = false) {
-        this.#engineBridge.Tick(syncOnly);
-        this.#stateManager.refresh();
+        Bridge.#engineBridge.Tick(syncOnly);
+        Bridge.#stateManager.refresh();
     }
 
     /**
      * Serializes the current state of the physics engine simulation into a JSON string.
      * @returns A string containing the simulation state in JSON format.
      */
-    static getPreset() { return this.#engineBridge.GetPreset(); }
+    static getPreset() { return Bridge.#engineBridge.GetPreset(); }
 
     /**
      * Loads a preset string into the engine and refreshes state data.
      * @param jsonPreset A string containing the simulation state in JSON format.
      */
     static loadPreset(jsonPreset: string) {
-        this.#engineBridge.LoadPreset(jsonPreset);
-        this.#stateManager.refresh();
+        Bridge.#engineBridge.LoadPreset(jsonPreset);
+        Bridge.#stateManager.refresh();
     }
 
     /**
@@ -124,7 +124,7 @@ class Bridge {
      * @returns The id of the created body.
      */
     static createBody() {
-        return this.#engineBridge.CreateBody();
+        return Bridge.#engineBridge.CreateBody();
     }
 
     /**
@@ -133,7 +133,7 @@ class Bridge {
      * @returns `true` if the body was deleted, or `false` if it wasn't found.
      */
     static deleteBody(id: number) {
-        return this.#engineBridge.DeleteBody(id);
+        return Bridge.#engineBridge.DeleteBody(id);
     }
 
 
@@ -156,13 +156,13 @@ class Bridge {
         velX?: number | null,
         velY?: number | null,
     }) {
-        return this.#engineBridge.UpdateBody(id,
-            this.#nullUndefined(data.enabled),
-            this.#nullUndefined(data.mass),
-            this.#nullUndefined(data.posX),
-            this.#nullUndefined(data.posY),
-            this.#nullUndefined(data.velX),
-            this.#nullUndefined(data.velY)
+        return Bridge.#engineBridge.UpdateBody(id,
+            Bridge.#nullUndefined(data.enabled),
+            Bridge.#nullUndefined(data.mass),
+            Bridge.#nullUndefined(data.posX),
+            Bridge.#nullUndefined(data.posY),
+            Bridge.#nullUndefined(data.velX),
+            Bridge.#nullUndefined(data.velY)
         );
     }
     
@@ -176,11 +176,11 @@ class Bridge {
         g_SI?: number,
         epsilon?: number
     }) {
-        return this.#engineBridge.UpdateSimulation(
-            this.#nullUndefined(data.timeStep),
-            this.#nullUndefined(data.theta),
-            this.#nullUndefined(data.g_SI),
-            this.#nullUndefined(data.epsilon)
+        return Bridge.#engineBridge.UpdateSimulation(
+            Bridge.#nullUndefined(data.timeStep),
+            Bridge.#nullUndefined(data.theta),
+            Bridge.#nullUndefined(data.g_SI),
+            Bridge.#nullUndefined(data.epsilon)
         );
     }
 
@@ -191,14 +191,14 @@ class Bridge {
      */
     static getLogs(number: number = -1) {
         if(!Number.isSafeInteger(number) || number === 0) return;
-        return this.#engineBridge.GetLogs(number);
+        return Bridge.#engineBridge.GetLogs(number);
     }
 
     /**
      * Clears the currently stored log entries.
      */
     static clearLogs() {
-        this.#engineBridge.ClearLogs();
+        Bridge.#engineBridge.ClearLogs();
     }
 }
 
