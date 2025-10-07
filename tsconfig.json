@@ -18,6 +18,7 @@
             "@bridge": ["src/Bridge/scripts/Bridge.ts"],
             "@dotnet.d.ts": ["types/external/dotnet.d.ts"],
             "@LayoutRecords.d.ts": ["types/generated/LayoutRecords.d.ts"],
+            "dotnet-runtime": ["types/external/dotnet.d.ts"],
             "@webapp/*": ["src/WebApp/*"]
         },
     },

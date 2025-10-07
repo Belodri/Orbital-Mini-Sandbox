@@ -36,7 +36,7 @@ export default defineConfig(({ command }) => {
         config.resolve = {
             alias: {
                 '@bridge': resolve(__dirname, './src/Bridge/scripts/Bridge.ts'),
-                './_framework/dotnet.js': resolve(__dirname, "./dist/_framework/dotnet.js")
+                'dotnet-runtime': resolve(__dirname, "./dist/_framework/dotnet.js")
             }
         };
 
