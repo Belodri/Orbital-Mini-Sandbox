@@ -10,10 +10,12 @@ set -e
 # --- Argument Parsing ---
 # Default build configuration is Release
 BUILD_CONFIG="Release"
+VITE_MODE="production"
 
 # Check the first argument for a debug flag.
 if [[ "$1" == "--debug" ]]; then
   BUILD_CONFIG="Debug"
+  VITE_MODE="debug"
 fi
 
 
@@ -50,4 +52,4 @@ cp -r "$FRAMEWORK_SRC_DIR" "$FRAMEWORK_DEST_DIR"
 # 4. Compile & bundle the TypeScript/WebApp code
 echo "Building WebApp with Vite..."
 # Vite places the output directly into the 'dist' directory
-npx vite build
+npx vite build --mode "$VITE_MODE"

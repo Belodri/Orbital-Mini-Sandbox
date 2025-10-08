@@ -5,7 +5,9 @@ import tsconfigPaths from "vite-tsconfig-paths";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-export default defineConfig(({ command }) => {
+export default defineConfig(({ command, mode }) => {
+    const isDebug = mode === "debug";
+
     const config: UserConfig = {
         root: 'src/WebApp', // required for the dev server to work correctly
         build: {
@@ -29,7 +31,10 @@ export default defineConfig(({ command }) => {
         },
         plugins: [
             tsconfigPaths(),
-        ]
+        ],
+        define: {
+            "__DEBUG__": isDebug
+        }
     }
 
     if (command === "serve") {

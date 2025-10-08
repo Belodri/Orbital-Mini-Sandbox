@@ -22,6 +22,6 @@
             "@webapp/*": ["src/WebApp/*"]
         },
     },
-    "include": ["src/**/*.ts", "Tests/**/*.ts"],
+    "include": ["src/**/*.ts", "Tests/**/*.ts", "types/custom/**/*.d.ts"],
     "exclude": ["node_modules", "wwwroot"]
 }
