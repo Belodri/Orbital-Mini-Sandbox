@@ -1,0 +1,1 @@
+export const log = __DEBUG__ ? console.log : (...args: any[]): void => {};
