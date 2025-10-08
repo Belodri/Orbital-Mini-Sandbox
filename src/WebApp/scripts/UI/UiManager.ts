@@ -3,11 +3,9 @@ import UiData, { type BodyView } from "./UiData";
 import type { ViewModel, ViewModelMovable } from "./ViewModel";
 
 const UI_MANAGER_CONFIG_DEFAULTS: UiManagerConfig = {
-    isDebug: false,
 } as const;
 
 export type UiManagerConfig = {
-    isDebug: boolean
 }
 
 /**
