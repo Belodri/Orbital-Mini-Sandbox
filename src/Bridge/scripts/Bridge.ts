@@ -1,45 +1,9 @@
 import type { RuntimeAPI } from "@dotnet.d.ts";
-import type { BodyStateLayout, SimStateLayout } from "@LayoutRecords.d.ts";
 import { DotNetHandler, type EngineBridgeAPI } from './DotNetHandler.ts';
-import { StateManager } from './StateManager.ts';
-
-// TODO: Remove TimeoutLoopHandler once the WebApp fully controlling the Bridge has been implemented
-
-
-// Redeclare for semantics and to prevent extension.
-
-/** Represents the state of a single body in the simulation. */
-type PhysicsStateBody = { [Property in keyof BodyStateLayout] : BodyStateLayout[Property] }
-type PhysicsStateSim = { [Property in keyof SimStateLayout] : SimStateLayout[Property] };
-type BodyId = PhysicsStateBody["id"];
-
-/**
- * Represents the entire state of the simulation at a given tick.
- * Contains a map of all bodies and other global simulation properties.
- */
-type PhysicsState = {
-    sim: PhysicsStateSim,
-    bodies: Map<BodyId, PhysicsStateBody>
-}
-
-/**
- * Contains information physics engine state changes* during the last engine tick.
- */
-type PhysicsDiff = {
-    /** The keys of SimState that were changed. */
-    sim: Set<keyof PhysicsStateSim>,
-    bodies: {
-        /** The ids of newly created bodies. */
-        created: Set<BodyId>,
-        /** The ids of bodies that were updated. */
-        deleted: Set<BodyId>,
-        /** The ids of deleted bodies. */
-        updated: Set<BodyId>
-    }
-}
+import { StateManager, type PhysicsDiff, type PhysicsState, type PhysicsStateSim, type PhysicsStateBody, type BodyId  } from './StateManager.ts';
 
 declare global {
-    var Bridge: Bridge | undefined
+    var Bridge: Bridge | undefined  // TODO: Remove
 }
 
 /**
@@ -66,8 +30,14 @@ class Bridge {
 
         if(!Bridge.#stateManager) {
             Bridge.#stateManager = new StateManager({
-                sim: Bridge.#engineBridge.GetSimStateLayout(),
-                body: Bridge.#engineBridge.GetBodyStateLayout()
+                sim: {
+                    keys: Bridge.#engineBridge.GetSimStateLayout(),
+                    csTypes: Bridge.#engineBridge.GetSimStateCsTypes()
+                },
+                body: {
+                    keys: Bridge.#engineBridge.GetBodyStateLayout(),
+                    csTypes: Bridge.#engineBridge.GetBodyStateCsTypes(),
+                }
             }, {
                 getPointerData: Bridge.#engineBridge.GetPointerData,
                 heapViewGetter: Bridge.#runtime.localHeapViewU8,
