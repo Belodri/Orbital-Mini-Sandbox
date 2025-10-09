@@ -33,7 +33,7 @@ namespace Bridge;
     The parameter comments are included in the generated LayoutRecords.d.ts file.
 
     The [Attributes.GenerateLayoutRecord] flags a record to a custom source generation script, 
-    which generates alternate versions, which have Rec" appended to the name.
+    which generates alternate versions, which have "Rec" appended to the name.
 
     These generated records have identical parameter names, but all parameter types are set to `int`.
     This is used by the C# writer to determine, hold, and efficiently access
