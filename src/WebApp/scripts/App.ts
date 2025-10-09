@@ -108,8 +108,8 @@ class App {
                 "PixiHandler": { value: PixiHandler },
                 "UiData": { value: UiData },
                 "Notifications": { value: Notifications },
-                "appData": { get() { App.#instance.#appData }},
-                "resolver": { get() { App.#instance.#resolver }},
+                "appData": { get() { return App.#instance.#appData }},
+                "resolver": { get() { return App.#instance.#resolver }},
             });
         }
 
