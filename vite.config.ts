@@ -6,7 +6,8 @@ import tsconfigPaths from "vite-tsconfig-paths";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig(({ command, mode }) => {
-    const isDebug = mode === "debug";
+    const isDebug = mode === "debug" || mode === "development";
+    console.log(`Begin building Vite config in mode "${mode}."`);
 
     const config: UserConfig = {
         root: 'src/WebApp', // required for the dev server to work correctly
