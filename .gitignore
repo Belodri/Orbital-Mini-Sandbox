@@ -5,12 +5,7 @@ dist/
 node_modules
 .env
 
-# Ignore symlinked files
-src/WebApp/types/Bridge.d.ts
-src/WebApp/types/LayoutRecords.d.ts
-
-src/WebApp/types/
-
 **/test-results
-
 src/Bridge/wwwroot/
+
+types/generated/
