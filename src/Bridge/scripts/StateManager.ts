@@ -1,20 +1,76 @@
-import type { BodyId, PhysicsStateBody, PhysicsStateSim, PhysicsState, PhysicsDiff } from "@bridge";
+import type { BodyStateLayout, SimStateLayout } from "@LayoutRecords.d.ts";
+import { EngineBridgeAPI } from "./DotNetHandler";
+
+// Redeclare source code generated types for semantics and to prevent extension.
+
+/** Represents the state of a single body in the simulation. */
+export type PhysicsStateBody = { [Property in keyof BodyStateLayout] : BodyStateLayout[Property] }
+export type PhysicsStateSim = { [Property in keyof SimStateLayout] : SimStateLayout[Property] };
+
+/** Unique ID of a body. */
+export type BodyId = PhysicsStateBody["id"];
+
+/**
+ * Represents the entire state of the simulation at a given tick.
+ * Contains a map of all bodies and other global simulation properties.
+ */
+export type PhysicsState = {
+    readonly sim: PhysicsStateSim,
+    readonly bodies: ReadonlyMap<BodyId, PhysicsStateBody>
+}
+
+/** Contains information physics engine state changes* during the last engine tick. */
+export type PhysicsDiff = {
+    /** The keys of SimState that were changed. */
+    readonly sim: ReadonlySet<keyof PhysicsStateSim>,
+    readonly bodies: {
+        /** The ids of newly created bodies. */
+        readonly created: ReadonlySet<BodyId>,
+        /** The ids of bodies that were updated. */
+        readonly deleted: ReadonlySet<BodyId>,
+        /** The ids of deleted bodies. */
+        readonly updated: ReadonlySet<BodyId>
+    }
+}
+
+type Flatten<T> = T extends any[] ? T[number] : T;
+
+type CsType<T extends PhysicsStateSim | PhysicsStateBody> = T extends PhysicsStateSim 
+    ? Flatten<ReturnType<EngineBridgeAPI["GetSimStateCsTypes"]>> 
+    : Flatten<ReturnType<EngineBridgeAPI["GetBodyStateCsTypes"]>>;
+
+type LayoutData<T extends PhysicsStateSim | PhysicsStateBody> = { 
+    /** Array of member names of T, in the order in which they appear in memory. */
+    keys: (keyof T)[], 
+    /** Array of C# type strings of the types of members of T, in the same order as the member names in layoutKeys. */
+    csTypes: CsType<T>[] 
+}
+
+type LayoutInfo<T extends PhysicsStateSim | PhysicsStateBody> = Readonly<{index: number, key: keyof T, cast: (num: number) => T[keyof T]}>;
+
+const CS_TO_JS_TYPE_CASTS: Record<CsType<PhysicsStateSim> & CsType<PhysicsStateBody>, (input: number) => number | boolean> = {
+    Boolean: (input: number) => input >= 0.5,
+    /*
+        Handles webkit floating point issue.
+        When an int is cast to a double in C# before being written to the shared WASM memory, 
+        then read into a Number in javascript, V8 and spidermonkey truncate automatically,
+        making the read value Number.IsInteger(value) == true.
+        Webkit does not, so we have to manually truncate values that must be integers.
+    */
+    Int32: (input: number) => Math.trunc(input),
+    Double: (input: number) => input,
+} as const;
+
 
 export class StateManager {
     #simReader: SimStateReader;
     #bodiesReader: BodiesStateReader;
-
     #getPointerData: () => [simBufferPtr: number, simBufferSizeInBytes: number, bodyBufferPtr: number, bodyBufferSizeInBytes: number];
 
     readonly state: Readonly<PhysicsState>;
     readonly diff: Readonly<PhysicsDiff>;
 
-    /**
-     * @param layouts       String arrays with the ordered keys for SimState and BodyState as exported by C# WASM interface during initialization.
-     * @param injections    Injected functions. 
-     */
-    constructor(
-        layouts: { sim: string[], body: string[] },
+    constructor(layoutData: { sim: LayoutData<PhysicsStateSim>, body: LayoutData<PhysicsStateBody> },
         injections: {
             /** C# WASM function to get the pointers and sizes for the two different shared memory buffers. */
             getPointerData: () => [simBufferPtr: number, simBufferSizeInBytes: number, bodyBufferPtr: number, bodyBufferSizeInBytes: number],
@@ -27,21 +83,14 @@ export class StateManager {
         const { getPointerData, heapViewGetter, log } = injections;
         this.#getPointerData = getPointerData;
 
-        const simReader = new SimStateReader(new BufferViewHandler(heapViewGetter, log), layouts.sim);
-        const bodiesReader = new BodiesStateReader(new BufferViewHandler(heapViewGetter, log), layouts.body);
+        const simReader = new SimStateReader(new BufferViewHandler(heapViewGetter, log), layoutData.sim);
+        const bodiesReader = new BodiesStateReader(new BufferViewHandler(heapViewGetter, log), layoutData.body);
 
         this.#simReader = simReader;
         this.#bodiesReader = bodiesReader;
 
-        this.state = {
-            get sim() { return simReader.state; },
-            get bodies() { return bodiesReader.state; }
-        }
-
-        this.diff = {
-            get sim() { return simReader.diff; },
-            get bodies() { return bodiesReader.diff; }
-        };
+        this.state = { get sim() { return simReader.state; }, get bodies() { return bodiesReader.state; } }
+        this.diff = { get sim() { return simReader.diff; }, get bodies() { return bodiesReader.diff; } };
     }
 
     refresh() : void {
@@ -51,151 +100,14 @@ export class StateManager {
     };
 }
 
-abstract class StateReader<T extends PhysicsStateSim | PhysicsStateBody> {
-    protected readonly _layout: StateLayoutHandler<T>;
-    protected readonly _viewHandler: BufferViewHandler;
-
-    constructor(
-        viewHandler: BufferViewHandler,
-        layoutKeyArray: string[],
-    ) {
-        this._viewHandler = viewHandler;
-        this._layout = new StateLayoutHandler<T>(layoutKeyArray);
-    }
-
-    get layout(): StateLayoutHandler<T> { return this._layout; }
-
-    abstract refresh(...args: any[]): void;
-}
-
-class SimStateReader extends StateReader<PhysicsStateSim> {
-    #state: PhysicsStateSim = { ...this._layout.template };
-    #diff: Set<keyof PhysicsStateSim> = new Set();
-
-    get state(): PhysicsState["sim"] { return this.#state; }
-    get diff(): PhysicsDiff["sim"] { return this.#diff; }
-
-    refresh(ptr: number, size: number): void {
-        this.#diff.clear();
-        const view = this._viewHandler.getView(ptr, size);
-
-        for(const [key, index] of this._layout.keyIndexTuples) {
-            let value = view[index];
-            if(this.#state[key] === value) continue;
-
-            // Since the generation from the LayoutRecords.cs guarantees all
-            // properties of T are to be numbers, this won't lead to runtime errors.
-            this.#state[key] = value;
-            this.#diff.add(key);
-        }
-
-        // Handle webkit floating point issue
-        // When an int is cast to a double in C# before being written to the
-        // shared WASM memory, then read into a Number in javascript,
-        // V8 and spidermonkey truncate automatically, making the read value
-        // Number.IsInteger(value) == true.
-        // Webkit does not, so we have to manually truncate values that must be integers.
-        this.#state.bodyCount = Math.trunc(this.#state.bodyCount);
-    }
-}
-
-class BodiesStateReader extends StateReader<PhysicsStateBody> {
-    #state: PhysicsState["bodies"] = new Map();
-    #diff: PhysicsDiff["bodies"] = {
-        created: new Set(),
-        deleted: new Set(),
-        updated: new Set()
-    }
-
-    #idCache = {
-        curr: <Set<BodyId>> new Set(),
-        prev: <Set<BodyId>> new Set()
-    }
-
-    #bodyStride: number;
-    #idIndex: number;
-
-    constructor(...args: ConstructorParameters<typeof StateReader<PhysicsStateBody>>) {
-        super(...args);
-
-        this.#bodyStride = this._layout.keys.size;
-        this.#idIndex = this._layout.keyIndexRecord["id"];
-    }
-
-    get state() { return this.#state; }
-    get diff() { return this.#diff; }
-
-    refresh(ptr: number, size: number, bodyCount: number): void {
-        const view = this._viewHandler.getView(ptr, size);
-
-        // Reset diff
-        const { created, deleted, updated } = this.#diff;
-        created.clear();
-        deleted.clear();
-        updated.clear();
-
-        // Swap id caches
-        [this.#idCache.curr, this.#idCache.prev] = [this.#idCache.prev, this.#idCache.curr];
-        this.#idCache.curr.clear();
-
-        // Read buffer data
-        for(let i = 0; i < bodyCount; i++) {
-            const offset = i * this.#bodyStride;
-            const id = view[offset + this.#idIndex];
-
-            this.#idCache.curr.add(id);
-
-            let wasCreated = false;
-            let wasUpdated = false;
-
-            let body = this.#state.get(id);
-            if(!body) {
-                body = { ...this._layout.template };
-                this.#state.set(id, body);
-                created.add(id);
-                wasCreated = true;
-            }
-
-            for(const [key, index] of this._layout.keyIndexTuples) {
-                const value = view[offset + index];
-                if(body[key] === value) continue;
-
-                wasUpdated = true;
-                body[key] = value;
-            }
-
-            // Handle webkit float issue. See comment in 
-            // SimStateReader#refresh() for details. 
-            body.id = Math.trunc(body.id);
-            body.enabled = Math.trunc(body.enabled);
-            body.outOfBounds = Math.trunc(body.outOfBounds);
-
-            if(!wasCreated && wasUpdated) updated.add(id);
-        }
-        
-        // Handle the actual deletion of bodies that were in the previous 
-        // frame but are missing from the current frame.
-        for(const id of this.#idCache.prev) {
-            if(!this.#idCache.curr.has(id)) {
-                this.#state.delete(id);
-                deleted.add(id);
-            }
-        }
-    }
-}
-
 class BufferViewHandler {
     #bufferView?: Float64Array<ArrayBuffer>;
     #ptr?: number;
     #size?: number;
-
     #heapViewGetter: () => Uint8Array;
     #log?: (msg: any, ...args: any[]) => void;
 
-    constructor(
-        heapViewGetter: () => Uint8Array,
-        log?: (msg: any, ...args: any[]) => void
-    ) {
+    constructor(heapViewGetter: () => Uint8Array, log?: (msg: any, ...args: any[]) => void) {
         this.#heapViewGetter = heapViewGetter;
         this.#log = log;
     }
@@ -205,7 +117,6 @@ class BufferViewHandler {
             || this.#bufferView.buffer.detached 
             || this.#ptr !== ptr
             || this.#size !== size;
-
         if(stale) this.#refresh(ptr, size);
 
         return this.#bufferView!;
@@ -226,39 +137,117 @@ class BufferViewHandler {
     }
 }
 
-class StateLayoutHandler<T extends PhysicsStateSim | PhysicsStateBody> {
-    /** Tuples of SimState/BodyState property keys and their index offsets in the memory view. */
-    readonly #keyIndexTuples: [keyof T, index: number][] = [];
-    readonly #keyIndexRecord: Record<keyof T, number>;
-    readonly #keys: Set<keyof T> = new Set();
-    readonly #template: T;
+abstract class StateReader<T extends PhysicsStateSim | PhysicsStateBody> {
+    protected readonly _viewHandler: BufferViewHandler;
+    protected readonly _layout: ReadonlyArray<LayoutInfo<T>>;
+    protected readonly _template: Readonly<T>;
 
-    constructor(layoutKeyArray: string[]) {
-        const stateTemplate = {} as T;
-        const keyIndexTuples = <[keyof T, index: number][]>[];
-        const keyIndexRecord = <Record<keyof T, number>>{};
+    constructor(viewHandler: BufferViewHandler, layoutData: LayoutData<T>) {
+        const { keys, csTypes } = layoutData;
+        if(keys.length !== csTypes.length) throw new Error("Argument arrays must be of the same length.");
 
-        for(let i = 0; i < layoutKeyArray.length; i++) {
-            // Because layoutKeyArray and T are generated from the same SSOT,
-            // the key is assumed to be valid.
-            const key = layoutKeyArray[i] as keyof T;
+        this._viewHandler = viewHandler;
+        const layout: { index: number, key: keyof T, cast: (num: number) => T[keyof T] }[] = [];
+        const template = {} as T;
 
-            this.#keys.add(key);
-            keyIndexTuples[i] = [key, i];
-            keyIndexRecord[key] = i;
-            // Since the generation from the LayoutRecords.cs guarantees all
-            // properties of T are to be numbers, this won't lead to runtime errors.
-            // `as any` to bypass strict property type checks for this initialization.
-            (stateTemplate as any)[key] = 0;
+        for(let index = 0; index < keys.length; index++) {
+            const key = keys[index] as keyof T; // Because keys and T are generated from the same SSOT, the key is assumed to be valid.
+            const type = csTypes[index];        // Same holds true for csTypes
+
+            const cast = CS_TO_JS_TYPE_CASTS[type] as (input: number) => T[keyof T];
+            if(!cast) throw new Error(`No conversion function defined for type "${type}".`);
+
+            template[key] = cast(0);
+            layout[index] = { index, key, cast };
         }
 
-        this.#keyIndexTuples = keyIndexTuples;
-        this.#keyIndexRecord = keyIndexRecord;;
-        this.#template = stateTemplate;
+        this._layout = layout;
+        this._template = template;
     }
 
-    get keyIndexTuples(): [keyof T, index: number][] { return this.#keyIndexTuples; }
-    get keyIndexRecord(): Record<keyof T, number> { return this.#keyIndexRecord; }
-    get template(): T { return this.#template; }
-    get keys(): Set<keyof T> { return this.#keys; }
+    abstract refresh(ptr: number, size: number, ...args: any[]): void;
+}
+
+class SimStateReader extends StateReader<PhysicsStateSim> {
+    #state: PhysicsStateSim = { ...this._template };
+    #diff: Set<keyof PhysicsStateSim> = new Set();
+
+    get state(): PhysicsState["sim"] { return this.#state; }
+    get diff(): PhysicsDiff["sim"] { return this.#diff; }
+
+    refresh(ptr: number, size: number): void {
+        const view = this._viewHandler.getView(ptr, size);
+        this.#diff.clear();
+        
+        for(const { index, key, cast } of this._layout) {
+            const value = cast(view[index]);
+
+            if(this.#state[key] !== value) {
+                this.#state[key] = value;
+                this.#diff.add(key);
+            }
+        }
+    }
+}
+
+class BodiesStateReader extends StateReader<PhysicsStateBody> {
+    #state: Map<number, PhysicsStateBody> = new Map();
+    #diff = {
+        created: new Set() as Set<BodyId>,
+        deleted: new Set() as Set<BodyId>,
+        updated: new Set() as Set<BodyId>
+    };
+
+    #idLayout = this._layout.find(ele => ele.key === "id")!;
+    #restLayout = this._layout.filter(ele => ele.key !== "id");
+    #idCache = { curr: new Set() as Set<BodyId>, prev: new Set() as Set<BodyId> };
+
+    get state() { return this.#state; }
+    get diff() { return this.#diff; }
+
+    refresh(ptr: number, size: number, bodyCount: number): void {
+        const view = this._viewHandler.getView(ptr, size);
+        this.#diff.created.clear();
+        this.#diff.updated.clear();
+        this.#diff.deleted.clear();
+
+        [this.#idCache.curr, this.#idCache.prev] = [this.#idCache.prev, this.#idCache.curr];
+        this.#idCache.curr.clear();
+
+        for(let i = 0; i < bodyCount; i++) {
+            const offset = i * this._layout.length;
+            const id = this.#idLayout.cast(view[offset + this.#idLayout.index]) as PhysicsStateBody["id"];
+            this.#idCache.curr.add(id);
+
+            let wasCreated = false;
+            let wasUpdated = false;
+
+            let body = this.#state.get(id);
+            if(!body) {
+                body = { ...this._template, id };
+                this.#state.set(id, body);
+                wasCreated = true;
+            }
+
+            for(const {index, key, cast} of this.#restLayout) { // excludes id
+                const value = cast(view[index + offset]);
+
+                if(body[key] !== value) {
+                    wasUpdated = true;
+                    (body[key] as any) = value;     // Type 'number | boolean' is not assignable to type 'never'. Type 'number' is not assignable to type 'never'.ts(2322)
+                }
+            }
+
+            if(wasCreated) this.#diff.created.add(id);
+            else if(wasUpdated) this.#diff.updated.add(id);
+        }
+        
+        // Handle the actual deletion of bodies that were in the previous frame but are missing from the current frame.
+        for(const id of this.#idCache.prev) {
+            if(!this.#idCache.curr.has(id)) {
+                this.#state.delete(id);
+                this.#diff.deleted.add(id);
+            }
+        }
+    }
 }
