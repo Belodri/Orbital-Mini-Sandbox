@@ -46,16 +46,16 @@ public static partial class EngineBridge
     }
 
     [JSExport]
-    public static string[] GetSimStateLayout() => MemoryBufferHandler.SimStateLayoutArr;
+    public static string[] GetSimStateLayout() => [.. Layouts.SimKeys];
 
     [JSExport]
-    public static string[] GetBodyStateLayout() => MemoryBufferHandler.BodyStateLayoutArr;
+    public static string[] GetBodyStateLayout() => [.. Layouts.BodyKeys];
 
     [JSExport]
-    public static string[] GetSimStateTypes() => MemoryBufferHandler.SimStateTsTypes;
+    public static string[] GetSimStateCsTypes() => [.. Layouts.SimCsTypes];
 
     [JSExport]
-    public static string[] GetBodyStateTypes() => MemoryBufferHandler.BodyStateTsTypes;
+    public static string[] GetBodyStateCsTypes() => [.. Layouts.BodyCsTypes];
 
     #endregion
 
@@ -98,7 +98,7 @@ public static partial class EngineBridge
     }
 
     [JSExport]
-    public static bool UpdateBody(    // TODO: Make sync
+    public static bool UpdateBody(
         int id,
         bool? enabled = null, double? mass = null,
         double? posX = null, double? posY = null,
