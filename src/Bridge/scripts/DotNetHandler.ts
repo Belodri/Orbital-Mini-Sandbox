@@ -22,38 +22,55 @@ export interface EngineBridgeAPI {
     ClearLogs(): void
 }
 
+const C_SHARP_CONFIG = {
+    NAMESPACE: "Bridge",
+    CLASS_NAME: "EngineBridge"
+} as const;
+
 export class DotNetHandler {
-    static readonly #C_SHARP_NAMESPACE = "Bridge";
-    static readonly #C_SHARP_CLASS_NAME = "EngineBridge";
+    static #runtime: RuntimeAPI | null = null;
+    static #engineBridge: EngineBridgeAPI | null = null;
 
-    static #runtimeAPI: RuntimeAPI;
-    static #engineBridgeAPI: EngineBridgeAPI;
-
-    static #makeBuilder(dev: boolean) {
-        return dotnet
-            .withApplicationEnvironment(dev ? "Development" : "Production")
-            .withDiagnosticTracing(dev)
-            .withDebugging(dev ? 1 : 0);
+    static get runtime(): RuntimeAPI {
+        if(!DotNetHandler.#runtime) throw new Error("Cannot access runtime API before initialization or after exit.");
+        else return DotNetHandler.#runtime;
     }
 
-    static async init(mode: "PRODUCTION" | "DEVELOPMENT") {
-        if(!this.#runtimeAPI) {
-            const builder = this.#makeBuilder(mode === "DEVELOPMENT");
-            const runtimeAPI = await builder.create();
-            this.#runtimeAPI = runtimeAPI;
-        }
+    static get engineBridge(): EngineBridgeAPI {
+        if(!DotNetHandler.#engineBridge) throw new Error("Cannot access engineBridge API before initialization or after exit.");
+        else return DotNetHandler.#engineBridge;
+    }
+    
+    /** Initializes the DotNetHandler and the underlying .NET runtime. Idempotent. */
+    static async init(): Promise<void> {
+        DotNetHandler.#runtime ??= await DotNetHandler.#createRuntimeAPI();
+        DotNetHandler.#engineBridge ??= await DotNetHandler.#createEngineBridgeAPI();
+    }
+
+    /** Exits the DotNetHandler and the underlying .NET runtime. Idempotent. */
+    static exit() {
+        if(DotNetHandler.#runtime) DotNetHandler.#runtime.exit(0, "Exit DotNetHandler.");
+
+        DotNetHandler.#runtime = null;
+        DotNetHandler.#engineBridge = null;
+    }
+
+    static async #createRuntimeAPI(): Promise<RuntimeAPI> {
+        const builder = dotnet
+            .withApplicationEnvironment(__DEBUG__ ? "Development" : "Production")
+            .withDiagnosticTracing(__DEBUG__)
+            .withDebugging(__DEBUG__ ? 1 : 0);
         
-        if(!this.#engineBridgeAPI) {
-            const monoConfig = this.#runtimeAPI.getConfig();
-            if(!monoConfig.mainAssemblyName) throw new Error("Main assembly name not defined.");
+        return builder.create()
+    }
 
-            const assemblyExports = await this.#runtimeAPI.getAssemblyExports(monoConfig.mainAssemblyName);
-            this.#engineBridgeAPI = assemblyExports[this.#C_SHARP_NAMESPACE][this.#C_SHARP_CLASS_NAME] as EngineBridgeAPI;
-        }
+    static async #createEngineBridgeAPI(): Promise<EngineBridgeAPI> {
+        const monoConfig = DotNetHandler.runtime.getConfig();
+        if(!monoConfig.mainAssemblyName) throw new Error("Main assembly name not defined.");
 
-        return {
-            runtime: this.#runtimeAPI,
-            engineBridge: this.#engineBridgeAPI
-        }
+        const assemblyExports = await DotNetHandler.runtime.getAssemblyExports(monoConfig.mainAssemblyName);
+        const engineBridge = assemblyExports[C_SHARP_CONFIG.NAMESPACE][C_SHARP_CONFIG.CLASS_NAME] as EngineBridgeAPI;
+
+        return engineBridge;
     }
 }
