@@ -1,8 +1,18 @@
-const NotificationTypes = {
+import { NotificationSlot } from "./NotificationSlot";
+
+export const NotificationTypes = {
     error: { elementClass: "error", iconClass: "fa-solid fa-circle-xmark" },
     warn: { elementClass: "warn", iconClass: "fa-solid fa-triangle-exclamation" },
     success: { elementClass: "success", iconClass: "fa-solid fa-check-double" },
     info: { elementClass: "info", iconClass: "fa-solid fa-info" }
+} as const;
+
+const DEFAULT_CONFIG: NotificationsConfig = {
+    containerElementId: "notifications-container",
+    slots: 3,
+    minRenderIntervalMs: 1000,
+    renderDebounceMs: 100,
+    minMessageDurationMs: 10000, 
 } as const;
 
 type NotificationType = keyof typeof NotificationTypes;
@@ -15,107 +25,55 @@ type NotificationsConfig = {
     minMessageDurationMs: number
 }
 
-type NotificationData = {
+export type NotificationData = {
     type: NotificationType,
     msg: string,
     durationMs: number | null,
     end: number | null,    
 }
 
-class NotificationSlot {
-    static readonly CSS_CLASSES = {
-        element: "notification",
-        closeIcon: "fa-solid fa-xmark",
-        hidden: "hidden"
-    }
-
-    static readonly #allTypeElementCssClasses = Object.values(NotificationTypes).map(t => t.elementClass);
-
-    readonly index: number;
-    readonly element: HTMLDivElement;
-
-    #data?: NotificationData;
-    #icon: HTMLElement;
-    #span: HTMLSpanElement;
-    #boundCloseListener = this.#closeIconListener.bind(this);
-    #onUserCloseCallback: () => void;
-
-    get data() { return this.#data; }
-    get isCleared() { return !this.#data; }
-
-    constructor(index: number, onUserCloseCallback: () => void) {
-        this.index = index;
-        this.#onUserCloseCallback = onUserCloseCallback;
-
-        const { element, hidden, closeIcon } = NotificationSlot.CSS_CLASSES;
-
-        const div = document.createElement("div");
-        div.classList.add(element, hidden);
-
-        const icon = document.createElement("i");
-        const span = document.createElement("span");
-    
-        const closeI = document.createElement("i");
-        closeI.className = closeIcon;
-        closeI.addEventListener("pointerdown", this.#boundCloseListener);
-
-        div.appendChild(icon);
-        div.appendChild(span);
-        div.appendChild(closeI);
-
-        this.element = div;
-        this.#icon = icon;
-        this.#span = span;
-    }
-
-    set(data: NotificationData) {
-        const {elementClass, iconClass} = NotificationTypes[data.type];
-
-        this.element.classList.remove(NotificationSlot.CSS_CLASSES.hidden,
-            ...NotificationSlot.#allTypeElementCssClasses);
-
-        this.element.classList.add(elementClass);
-        this.#icon.className = iconClass;
-        this.#span.textContent = data.msg;
-
-        this.#data = data;
-    }
-
-    clear() {
-        if(!this.#data) return;
-        this.#data = undefined;
-        this.element.classList.add(NotificationSlot.CSS_CLASSES.hidden);
-    }
-
-    #closeIconListener(event: PointerEvent) {
-        event.stopPropagation();
-        event.preventDefault();
-        this.clear();
-        this.#onUserCloseCallback();
-    }
-}
-
 /** 
- * Static utility for displaying temporary, non-modal notification messages to the user.
+ * Utility for displaying temporary, non-modal notification messages to the user.
  * See Docs/Front_End_Alpha.md for details.
  */
-export default class Notifications {
-    static #instanceField: Notifications;
+export interface INotifications {
+    /** Clears all queued and currently displayed notifications. */
+    clearAll(): void;
+    /** Clears all queued and currently displayed notifications of the given types. */
+    clearTypes(types: NotificationType[]): void;
+    /**
+     * Renders a red error notification message.
+     * @param msg               The message to be displayed.
+     * @param durationInSeconds For how many seconds should the message be displayed (min set during initialization)? 
+     *                          If omitted, the message persists until closed by the user.
+     */ 
+    error(msg: string, durationInSeconds?: number): void;
+    /**
+     * Renders a yellow warning notification message.
+     * @param msg               The message to be displayed.
+     * @param durationInSeconds For how many seconds should the message be displayed (min set during initialization)? 
+     *                          If omitted, the message persists until closed by the user.
+     */ 
+    warn(msg: string, durationInSeconds?: number): void;
+    /**
+     * Renders a green success notification message.
+     * @param msg               The message to be displayed.
+     * @param durationInSeconds For how many seconds should the message be displayed (min set during initialization)? 
+     *                          If omitted, the message persists until closed by the user.
+     */ 
+    success(msg: string, durationInSeconds?: number): void;
+    /**
+     * Renders a blue info notification message.
+     * @param msg               The message to be displayed.
+     * @param durationInSeconds For how many seconds should the message be displayed (min set during initialization)? 
+     *                          If omitted, the message persists until closed by the user.
+     */ 
+    info(msg: string, durationInSeconds?: number): void;
+    /** Destroys the Notifications instance and cleans up references to it and its child elements. */
+    destroy(): void;
+}
 
-    /** Default values for the Notifications config. */
-    static readonly DEFAULT_CONFIG: NotificationsConfig = {
-        containerElementId: "notifications-container",
-        slots: 3,
-        minRenderIntervalMs: 1000,
-        renderDebounceMs: 100,
-        minMessageDurationMs: 10000, 
-    }
-
-    static get #instance() {
-        if(!Notifications.#instanceField) throw new Error("Notifications have not been initialized.");
-        return Notifications.#instanceField;
-    }
-
+export default class Notifications implements INotifications {
     static #validateConfig(cfg: NotificationsConfig): void {
         const slotsValid = Number.isSafeInteger(cfg.slots) && cfg.slots > 0;
         if(!slotsValid) throw new Error(`Configuration property "slots" must be a safe integer greater than 0.`);
@@ -132,77 +90,15 @@ export default class Notifications {
         // Constructor checks for valid element ID.
     }
 
-    //#region Public API
-
-    /** 
-     * Initializes the class. Calling any other method before this one will throw an Error.
-     * Repeated initialization calls are safely ignored.
-     */
-    static init(cfg: Partial<NotificationsConfig> = {}) {
-        Notifications.#instanceField ??= new Notifications(cfg);
-    }
-
-    /** Clears all queued and currently displayed notifications. */
-    static clearAll(): void {
-        Notifications.#instance.clear();
-    }
-
-    /** Clears all queued and currently displayed notifications of the given types. */
-    static clearTypes(types: NotificationType[]): void {
-        Notifications.#instance.clear(types);
-    }
-
-    /**
-     * Renders a red error notification message.
-     * @param msg               The message to be displayed.
-     * @param durationInSeconds For how many seconds should the message be displayed (min set during initialization)? 
-     *                          If omitted, the message persists until closed by the user.
-     */ 
-    static error(msg: string, durationInSeconds?: number): void {
-        Notifications.#instance.notify("error", msg, durationInSeconds);
-    }
-
-    /**
-     * Renders a yellow warning notification message.
-     * @param msg               The message to be displayed.
-     * @param durationInSeconds For how many seconds should the message be displayed (min set during initialization)? 
-     *                          If omitted, the message persists until closed by the user.
-     */ 
-    static warn(msg: string, durationInSeconds?: number): void {
-        Notifications.#instance.notify("warn", msg, durationInSeconds);
-    }
-
-    /**
-     * Renders a green success notification message.
-     * @param msg               The message to be displayed.
-     * @param durationInSeconds For how many seconds should the message be displayed (min set during initialization)? 
-     *                          If omitted, the message persists until closed by the user.
-     */ 
-    static success(msg: string, durationInSeconds?: number): void {
-        Notifications.#instance.notify("success", msg, durationInSeconds);
-    }
-
-    /**
-     * Renders a blue info notification message.
-     * @param msg               The message to be displayed.
-     * @param durationInSeconds For how many seconds should the message be displayed (min set during initialization)? 
-     *                          If omitted, the message persists until closed by the user.
-     */ 
-    static info(msg: string, durationInSeconds?: number): void {
-        Notifications.#instance.notify("info", msg, durationInSeconds);
-    }
-
-    //#endregion
-
+    #config: NotificationsConfig;
     #slots: NotificationSlot[] = [];
     #queue: NotificationData[] = [];
     #debounceTimeoutId: number | null = null;
     #renderTimeoutId: number | null = null;
-    #config: NotificationsConfig;
     #container: HTMLElement;
 
-    private constructor(cfg: Partial<NotificationsConfig> = {}, ) {
-        this.#config = { ...Notifications.DEFAULT_CONFIG, ...cfg };
+    constructor(cfg: Partial<NotificationsConfig> = {}, ) {
+        this.#config = { ...DEFAULT_CONFIG, ...cfg };
 
         Notifications.#validateConfig(this.#config);
 
@@ -220,6 +116,22 @@ export default class Notifications {
         this.#container = container;
     }
 
+    //#region Public API
+
+    clearAll(): void { this.#clear(); }
+    clearTypes(types: NotificationType[]): void { this.#clear(types); }
+    error(msg: string, durationInSeconds?: number): void { this.#notify("error", msg, durationInSeconds); }
+    warn(msg: string, durationInSeconds?: number): void { this.#notify("warn", msg, durationInSeconds); }
+    success(msg: string, durationInSeconds?: number): void { this.#notify("success", msg, durationInSeconds); }
+    info(msg: string, durationInSeconds?: number): void { this.#notify("info", msg, durationInSeconds); }
+    destroy(): void {
+        this.clearAll();
+        this.#container = null as any;
+    }
+
+    //#endregion
+
+
     /**
      * Renders a notification message of a given type.
      * @param type      The type of the notification.
@@ -227,7 +139,7 @@ export default class Notifications {
      * @param durationInSeconds For how many seconds should the message be displayed (min set during initialization)? 
      *                          If omitted, the message persists until closed by the user.
      */ 
-    notify(type: NotificationType, msg: string, durationInSeconds?: number): void {
+    #notify(type: NotificationType, msg: string, durationInSeconds?: number): void {
         const durationMs = Number.isSafeInteger(durationInSeconds) 
             ? Math.max(this.#config.minMessageDurationMs, durationInSeconds! * 1000) 
             : null;
@@ -235,12 +147,12 @@ export default class Notifications {
         this.#queue.push({ type, msg: msg.trim(), durationMs, end: null });
         this.#debounceRender();
     }
-
+    
     /**
      * Clears all queued and currently displayed notifications.
      * @param types If given, clears only a notifications of the given types. 
      */
-    clear(types?: NotificationType[]) {
+    #clear(types?: NotificationType[]) {
         // Clear queue
         this.#queue = types ? this.#queue.filter(data => !types.includes(data.type)) : [];
 

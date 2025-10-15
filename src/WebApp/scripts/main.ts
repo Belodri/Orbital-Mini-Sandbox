@@ -9,8 +9,12 @@ import App from './App.ts';
  */
 function handleFatalError(errorInfo: string | Error | PromiseRejectionEvent) {
     console.error(`Fatal, unrecoverable error:`, errorInfo);
-    document.getElementById('error-fatal')!
-        .classList.remove("hidden");
+    const element = document.getElementById('error-fatal');
+    if(element) element.classList.remove("hidden");
+    else {
+        console.error("The fatal error overlay element ('#error-fatal') was not found in the DOM.");
+        alert("The fatal error overlay element ('#error-fatal') was not found in the DOM.");
+    }
 }
 
 window.addEventListener('error', (event) => {

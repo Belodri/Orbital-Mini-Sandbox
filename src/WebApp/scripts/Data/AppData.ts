@@ -1,7 +1,18 @@
-import { BodyId, PhysicsDiff } from "@bridge";
+import { BodyId } from "@bridge";
 import { ColorSource } from "pixi.js";
 
 // TODO: Add preset verification and cleaning
+
+const DEFAULT_SIM_DATA: Readonly<AppStateSim> = {
+    bgColor: "black",
+    enableOrbitPaths: true,
+    enableBodyLabels: true,
+    enableVelocityTrais: true
+} as const;
+
+const DEFAULT_BODY_DATA_OMIT_ID_NAME: Readonly<Omit<AppStateBody, "id" | "name">> = {
+    tint: "white"
+} as const;
 
 /** Represents the front-end exclusive data of a single body. */
 export type AppStateBody = {
@@ -36,73 +47,50 @@ export type AppDiff = {
     readonly updatedBodies: ReadonlySet<BodyId> 
 }
 
-
 type AppDataPreset = { sim: AppStateSim, bodies: AppStateBody[] }
 
 /** Manages application-level, non-physics related data. */
-export default class AppData {
-    static readonly DEFAULT_BODY_DATA_OMIT_ID_NAME: Readonly<Omit<AppStateBody, "id" | "name">> = {
-        tint: "white"
-    }
-    
-    static readonly DEFAULT_SIM_DATA: Readonly<AppStateSim> = {
-        bgColor: "black",
-        enableOrbitPaths: true,
-        enableBodyLabels: true,
-        enableVelocityTrais: true
-    } 
-
-    #state = {
-        sim: { ...AppData.DEFAULT_SIM_DATA } as AppStateSim,
-        bodies: new Map() as Map<BodyId, AppStateBody>
-    }
-
-    #diff = { 
-        sim: new Set() as Set<keyof AppStateSim>,
-        updatedBodies: new Set as Set<BodyId>
-    };
-
-    #nextFrameDiff = {
-        sim: new Set() as Set<keyof AppStateSim>,
-        updatedBodies: new Set as Set<BodyId>
-    };
-
-    get diff(): AppDiff { return this.#diff }
-
-    get state(): AppState { return this.#state }
-
-    /**
-     * Creates a new BodyData entry for a given body's id with default data if it doesn't exist already.
-     * @param id ID of the respective body.
-     * @param data The full state data of the body.
-     */
-    #createBodyData(id: BodyId, data?: AppStateBody): void {
-        if(data && data.id !== id) throw new Error(`AppData: ID in 'data' argument (${data.id}) did not match body id (${id}).`);
-        if(this.#state.bodies.has(id)) return;   
-
-        const state = data ?? {
-            ...AppData.DEFAULT_BODY_DATA_OMIT_ID_NAME, 
-            id, 
-            name: `New Body #${id}`
-        };
-
-        this.#state.bodies.set(id, state);
-    }
-
-    /**
-     * Deletes a BodyData entry for a given body's id (or does nothing if none is found).
-     * @param id ID of the respective body.
-     */
-    #deleteBodyData(id: BodyId): void {
-        this.#state.bodies.delete(id)
-    }
-
+export interface IAppData {
+    /** Contains information AppData changes during the last engine tick. */
+    diff: AppDiff;
+    /** Represents all front-end exclusive data at a given tick. */
+    state: AppState;
     /**
      * Updates a BodyData entry with partial data.
      * @param id ID of the BodyData to update.
      * @param updates Partial update data.
      * @returns `false` if no BodyData with the given id was found, `true` otherwise.
      */
+    updateBodyData(id: BodyId, updates: Partial<Omit<AppStateBody, "id">>): boolean;
+    /**
+     * Updates the front-end exlusive SimData with partial updates.
+     * @param updates Partial update data.
+     */
+    updateSimulationData(updates: Partial<AppStateSim>): void 
+    /**
+     * Synchronizes diff data with the physics engine, creating and deleting BodyData objects as required.  
+     * Swaps diff buffers, ensuring that any update calls after this don't pullute the current frame.
+     * @param created The set of ids of created bodies in the physics engine.
+     * @param deleted The set of ids of deleted bodies in the physics engine.
+     */
+    syncDiff(created: ReadonlySet<BodyId>, deleted: ReadonlySet<BodyId>): void;
+    /** 
+     * Returns the current state of the AppData store as a preset that can be loaded via `loadPresetData()`.
+     */
+    getPresetData(): AppDataPreset;
+    /**
+     * Loads preset data into the AppData store. Current data is overwritten.
+     * @param preset The preset data to load.
+     */
+    loadPresetData(preset: AppDataPreset): void;
+}
+
+export default class AppData implements IAppData {
+    //#region Interface Implementation
+
+    get diff(): AppDiff { return this.#diff }
+    get state(): AppState { return this.#state }
+
     updateBodyData(id: BodyId, updates: Partial<Omit<AppStateBody, "id">>): boolean {
         const body = this.#state.bodies.get(id);
         if(!body) return false;
@@ -123,10 +111,6 @@ export default class AppData {
         return true;
     }
 
-    /**
-     * Updates the front-end exlusive SimData with partial updates.
-     * @param updates Partial update data.
-     */
     updateSimulationData(updates: Partial<AppStateSim>): void {
         for(const key of Object.keys(updates) as (keyof AppStateSim)[]) {
             const newValue = updates[key];
@@ -139,13 +123,7 @@ export default class AppData {
         }
     }
 
-    /**
-     * Synchronizes diff data with the physics engine, creating and deleting BodyData objects as required.  
-     * Swaps diff buffers, ensuring that any update calls after this don't pullute the current frame.
-     * @param created The set of ids of created bodies in the physics engine.
-     * @param deleted The set of ids of deleted bodies in the physics engine.
-     */
-    syncDiff(created: PhysicsDiff["bodies"]["created"], deleted: PhysicsDiff["bodies"]["deleted"]) {
+    syncDiff(created: ReadonlySet<BodyId>, deleted: ReadonlySet<BodyId>) {
         // The PhysicsDiff ensures that an id can never be in both created and deleted sets at the same time.
         for(const id of created) this.#createBodyData(id);
         for(const id of deleted) this.#deleteBodyData(id);
@@ -155,9 +133,6 @@ export default class AppData {
         [this.#diff, this.#nextFrameDiff] = [this.#nextFrameDiff, this.#diff];
     }
 
-    /** 
-     * Returns the current state of the AppData store as a preset that can be loaded via `loadPresetData()`.
-     */
     getPresetData(): AppDataPreset {
         return {
             sim: this.#state.sim,
@@ -165,10 +140,6 @@ export default class AppData {
         };
     }
 
-    /**
-     * Loads preset data into the AppData store. Current data is overwritten.
-     * @param preset The preset data to load.
-     */
     loadPresetData(preset: AppDataPreset): void {
         this.#state.bodies.clear();
         this.#diff.updatedBodies.clear();
@@ -177,4 +148,51 @@ export default class AppData {
 
         this.updateSimulationData(preset.sim);
     }
+
+    //#endregion
+
+    //#region Private implementation
+
+    #state = {
+        sim: { ...DEFAULT_SIM_DATA } as AppStateSim,
+        bodies: new Map() as Map<BodyId, AppStateBody>
+    }
+
+    #diff = { 
+        sim: new Set() as Set<keyof AppStateSim>,
+        updatedBodies: new Set as Set<BodyId>
+    };
+
+    #nextFrameDiff = {
+        sim: new Set() as Set<keyof AppStateSim>,
+        updatedBodies: new Set as Set<BodyId>
+    };
+
+    /**
+     * Creates a new BodyData entry for a given body's id with default data if it doesn't exist already.
+     * @param id ID of the respective body.
+     * @param data The full state data of the body.
+     */
+    #createBodyData(id: BodyId, data?: AppStateBody): void {
+        if(data && data.id !== id) throw new Error(`AppData: ID in 'data' argument (${data.id}) did not match body id (${id}).`);
+        if(this.#state.bodies.has(id)) return;   
+
+        const state = data ?? {
+            ...DEFAULT_BODY_DATA_OMIT_ID_NAME, 
+            id, 
+            name: `New Body #${id}`
+        };
+
+        this.#state.bodies.set(id, state);
+    }
+
+    /**
+     * Deletes a BodyData entry for a given body's id (or does nothing if none is found).
+     * @param id ID of the respective body.
+     */
+    #deleteBodyData(id: BodyId): void {
+        this.#state.bodies.delete(id)
+    }
+
+    //#endregion
 }

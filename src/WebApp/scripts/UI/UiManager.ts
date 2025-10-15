@@ -1,88 +1,59 @@
-import PixiHandler from "./PixiHandler";
-import UiData, { type BodyView } from "./UiData";
-import type { ViewModel, ViewModelMovable } from "./ViewModel";
+import { IPixiHandler } from "./PixiHandler/PixiHandler";
+import { IDataViews, BodyFrameData, SimFrameData, type BodyView } from "../Data/DataViews";
+import type { ViewModelMovable } from "./abstract/ViewModelMovable";
+import { INotifications } from "./Notifications/Notifications";
 
-const UI_MANAGER_CONFIG_DEFAULTS: UiManagerConfig = {
-} as const;
 
-export type UiManagerConfig = {
+/** Owner and orchestrator of UI components. */
+export interface IUiManager {
+    /**
+     * Updates UI components based on the provided data views.
+     * @param views The processed and validated data views for the frame to render.
+     */
+    render(views: IDataViews): void;
 }
 
-/**
- * Static orchestrator of UI components, and owner and manager of all non-static UI components.
- * 
- * Assumes that the following static dependencies are initialized before the first {@link UiManager.render} call:
- * - {@link UiData}
- * - {@link PixiHandler}
- */
-export default class UiManager {
-    static #instanceField: UiManager;
-    static get #instance() { 
-        if(!UiManager.#instanceField) throw new Error("UiManager has not been initialized.");
-        return UiManager.#instanceField;
-    }
+export default class UiManager implements IUiManager {
+    // Permanent UI components
+    #pixi: IPixiHandler;
+    #notif: INotifications;
 
-    //#region Public API
-
-    /**
-     * Initializes the class. Calling any other method before this one will throw an Error.
-     * Repeated initialization calls are safely ignored.
-     * @param config Partial configuration data. Is merged with and overrides default config.
-     */
-    static init(config: Partial<UiManagerConfig> = {}): void {
-        UiManager.#instanceField ??= new UiManager({
-            ...UI_MANAGER_CONFIG_DEFAULTS,
-            ...config
-        });
-    }
-
-    /**
-     * Updates UI components based on the frameData provided by {@link UiData}.
-     * Assumes all data is valid, as per `UiData`'s contract!
-     */
-    static render(isPaused: boolean): void { UiManager.#instance.#render(isPaused); }
-
-    //#endregion
-
-    /** Record of permanent UI components. */
-    #perm: Record<ViewModel["id"], ViewModel> = {};
     /** Map of temporary UI components. */
     #temp: Map<ViewModelMovable["id"], ViewModelMovable> = new Map();
     /** Simple counter for throttled updated. */
     #frameCounter: number = 0;
-    #config: UiManagerConfig;
 
-    private constructor(config: UiManagerConfig) {
-        this.#config = config;
+    constructor(pixi: IPixiHandler, notif: INotifications) {
+        this.#pixi = pixi;
+        this.#notif = notif;
     }
 
-    #render(isPaused: boolean): void {
-        this.#renderSim();
-        this.#renderBodies();
+    render(views: IDataViews): void {
+        this.#renderSim(views.simFrameData);
+        this.#renderBodies(views.bodyFrameData);
 
         this.#frameCounter++;
     }
 
-    #renderSim(): void {
+    #renderSim(frameData: SimFrameData): void {
         
     }
 
-    #renderBodies(): void {
-        const frameData = UiData.bodyFrameData;
+    #renderBodies(frameData: BodyFrameData): void {
         for(const view of frameData.created) this.#renderCreatedBody(view);
         for(const id of frameData.deleted) this.#renderDeletedBody(id);
         for(const view of frameData.updated) this.#renderUpdatedBody(view);
     }
 
     #renderCreatedBody(view: BodyView): void {
-        PixiHandler.onCreateBody(view);
+        this.#pixi.onCreateBody(view);
     }
 
     #renderDeletedBody(id: BodyView["id"]): void {
-        PixiHandler.onDeleteBody(id);
+        this.#pixi.onDeleteBody(id);
     }
 
     #renderUpdatedBody(view: BodyView): void {
-        PixiHandler.onUpdateBody(view.id);
+        this.#pixi.onUpdateBody(view.id);
     }
 }

@@ -16,7 +16,30 @@ export class DeferredResolverResetError extends Error {
  * Manages a queue of synchronous commands, decoupling their immediate execution
  * from the asynchronous resolution of their resulting Promises.
  */
-export default class DeferredResolver {
+export interface IDeferredResolver {
+    /**
+     * Executes a synchronous function immediately.
+     * The returned Promise resolves to the return value of the executed function during the next `resolve()` call.
+     * 
+     * Calling code is responsible for handling errors thrown during the immediate execution!
+     * @param fn    Function to execute immediately.
+     * @returns     A Promise that resolves to the return value of the executed function after `resolve()` is called.
+     */
+    execute<T>(fn: [T] extends [PromiseLike<any>] 
+        ? (ERROR: "DeferredResolver.execute() cannot be called with an async function or a function that returns a Promise.") => any 
+        : () => T
+    ): Promise<T>;
+    execute<T>(fn: () => T): Promise<T>;
+    /** 
+     * Resolves all promises issued since the last `resolve()` or `reset()` call.
+     * Any commands issued during the `resolve()` execution are deferred until the next call.
+     */
+    resolve(): void;
+    /** Rejects all pending promise resolutions and fully resets the handler. */
+    reset(): void;
+}
+
+export default class DeferredResolver implements IDeferredResolver {
     static readonly QUEUE_CLEARED_REJECTION_ERROR = new DeferredResolverResetError();
 
     constructor(logError: (...data: any[]) => void = console.error) {
