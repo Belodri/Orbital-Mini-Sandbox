@@ -1,4 +1,5 @@
-import { NotificationTypes, NotificationData } from "./Notifications";
+import { NotificationTypes } from "./consts";
+import { NotificationData } from "./Notifications";
 
 export class NotificationSlot {
     static readonly CSS_CLASSES = {
