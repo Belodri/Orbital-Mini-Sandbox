@@ -42,15 +42,15 @@ export default class Controller implements IController {
 
     constructor(parts: Parts) {
         this.#parts = parts;
+
+        // Bind overloaded methods
+        this.updateBody = this.updateBody.bind(this);
+        this.updateSimulation = this.updateSimulation.bind(this);
     }
 
-    createBody(): Promise<BodyId> {
-        return this.#parts.resolver.execute(() => this.#parts.bridge.createBody());
-    }
+    createBody = () => this.#parts.resolver.execute(() => this.#parts.bridge.createBody());
 
-    deleteBody(id: BodyId): Promise<boolean> {
-        return this.#parts.resolver.execute(() => this.#parts.bridge.deleteBody(id));
-    }
+    deleteBody = (id: BodyId) => this.#parts.resolver.execute(() => this.#parts.bridge.deleteBody(id));
 
     updateSimulation(updates: { physics: Parameters<IBridge["updateSimulation"]>[0]; }): Promise<void>;
     updateSimulation(updates: { app: Parameters<IAppData["updateSimulationData"]>[0]; }): Promise<void>;
