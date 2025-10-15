@@ -164,6 +164,7 @@ export default class DataViews implements IDataViews {
 
         // Validate - Created
         if(!physics.created.isSubsetOf(this.#physicsState.bodies)) throw new DataValidationError("Invalid diff: Not all created bodies have a PhysicsState.");
+        if(!physics.created.isSubsetOf(this.#appState.bodies)) throw new DataValidationError("Invalid diff: Not all created bodies have an AppState.");
 
         // Validate - Deleted
         if(!physics.deleted.isDisjointFrom(physics.created)) throw new DataValidationError("Invalid diff: Overlap between created and deleted body diffs detected.");
