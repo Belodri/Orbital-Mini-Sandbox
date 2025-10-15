@@ -1,10 +1,7 @@
 import { expect, it, describe, beforeEach, beforeAll, afterAll, vi } from "vitest";
 import DataViews, { DataValidationError } from "@webapp/scripts/Data/DataViews";
 import { mockAppDiff, mockAppState, mockAppStateBody, mockPhysicsDiff, mockPhysicsState, mockPhysicsStateBody } from "./mockTypes";
-import { 
-    AppStateBody, AppStateSim, PhysicsStateBody, PhysicsStateSim, PhysicsState, PhysicsDiff, AppState, AppDiff,
-    BodyId, BodyView, SimView, BodyFrameData, SimFrameData,
-} from "./MutableTypes"
+import { AppStateBody,  PhysicsStateBody, PhysicsState, PhysicsDiff, AppState, AppDiff, BodyId } from "./MutableTypes"
 
 const addBody = (
     id: BodyId,
@@ -193,7 +190,7 @@ describe('DataViews', () => {
 
             // Update body 2
             physicsDiff.bodies.updated.add(2);
-            appDiff.updatedBodies.add(2); // In both for good measure
+            appDiff.updatedBodies.add(2); // In both
 
             // Delete body 3
             physicsDiff.bodies.deleted.add(3);
@@ -215,6 +212,51 @@ describe('DataViews', () => {
 
             expect(dataViews.bodyFrameData.deleted.size).toBe(1);
             expect(dataViews.bodyFrameData.deleted.has(3)).toBe(true);
+        });
+
+        it('should handle multiple creates, updates, and deletes in one frame', () => {
+            // Initial state: bodies 3, 4, 5, 6 exist
+            addBody(3, physicsState, appState);
+            addBody(4, physicsState, appState);
+            addBody(5, physicsState, appState);
+            addBody(6, physicsState, appState);
+            const initialPhysicsDiff = mockPhysicsDiff();
+            [3, 4, 5, 6].forEach(id => initialPhysicsDiff.bodies.created.add(id));
+            dataViews.refresh(physicsState, initialPhysicsDiff, appState, mockAppDiff());
+
+            // Frame with multiple C/U/D operations
+            // Create bodies 1, 2
+            addBody(1, physicsState, appState);
+            addBody(2, physicsState, appState);
+            physicsDiff.bodies.created.add(1);
+            physicsDiff.bodies.created.add(2);
+
+            // Update bodies 3, 4
+            physicsDiff.bodies.updated.add(3);
+            appDiff.updatedBodies.add(4);
+
+            // Delete bodies 5, 6
+            physicsDiff.bodies.deleted.add(5);
+            physicsDiff.bodies.deleted.add(6);
+
+            dataViews.refresh(physicsState, physicsDiff, appState, appDiff);
+
+            // Assert final state
+            expect(dataViews.bodyViews.size).toBe(4); // 1, 2, 3, 4
+            expect(dataViews.bodyViews.has(1)).toBe(true);
+            expect(dataViews.bodyViews.has(4)).toBe(true);
+            expect(dataViews.bodyViews.has(5)).toBe(false);
+
+            // Assert frame data
+            expect(dataViews.bodyFrameData.created).toHaveLength(2);
+            expect(dataViews.bodyFrameData.created.map(b => b.id)).toEqual(expect.arrayContaining([1, 2]));
+
+            expect(dataViews.bodyFrameData.updated).toHaveLength(2);
+            expect(dataViews.bodyFrameData.updated.map(b => b.id)).toEqual(expect.arrayContaining([3, 4]));
+
+            expect(dataViews.bodyFrameData.deleted.size).toBe(2);
+            expect(dataViews.bodyFrameData.deleted.has(5)).toBe(true);
+            expect(dataViews.bodyFrameData.deleted.has(6)).toBe(true);
         });
     });
 
@@ -284,6 +326,14 @@ describe('DataViews', () => {
 
         it('should throw if a created body is not in physicsState', () => {
             physicsDiff.bodies.created.add(1); // Body 1 does not exist in physicsState
+            expect(() => dataViews.refresh(physicsState, physicsDiff, appState, appDiff)).toThrowError(DataValidationError);
+        });
+
+        it('should throw if a created body is in physicsState but not appState', () => {
+            // Manually add body 1 to physicsState but NOT to appState
+            const physicsBody = mockPhysicsStateBody({ id: 1 });
+            physicsState.bodies.set(1, physicsBody);
+            physicsDiff.bodies.created.add(1);
             expect(() => dataViews.refresh(physicsState, physicsDiff, appState, appDiff)).toThrowError(DataValidationError);
         });
 
