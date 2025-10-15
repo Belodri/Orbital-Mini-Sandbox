@@ -1,11 +1,8 @@
-import type { BodyStateLayout, SimStateLayout } from "@LayoutRecords.d.ts";
+import type { BodyStateLayout as PhysicsStateBody, SimStateLayout as PhysicsStateSim } from "@LayoutRecords.d.ts";
 import { EngineBridgeAPI } from "./DotNetHandler";
 
-// Redeclare source code generated types for semantics and to prevent extension.
-
-/** Represents the state of a single body in the simulation. */
-export type PhysicsStateBody = { [Property in keyof BodyStateLayout] : BodyStateLayout[Property] }
-export type PhysicsStateSim = { [Property in keyof SimStateLayout] : SimStateLayout[Property] };
+// Re-export source code generated types for semantics.
+export type { PhysicsStateBody, PhysicsStateSim };
 
 /** Unique ID of a body. */
 export type BodyId = PhysicsStateBody["id"];
