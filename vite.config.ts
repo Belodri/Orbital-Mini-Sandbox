@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig, type UserConfig } from 'vite';
 import { resolve, dirname } from "path";
 import { fileURLToPath } from 'url';
@@ -10,6 +11,10 @@ export default defineConfig(({ command, mode }) => {
     console.log(`Begin building Vite config in mode "${mode}."`);
 
     const config: UserConfig = {
+        test: {
+            include: ["Tests/AppTests/*"],
+            root: __dirname
+        },
         root: 'src/WebApp', // required for the dev server to work correctly
         build: {
             // The output directory is relative to the project root, not the `root` option.
