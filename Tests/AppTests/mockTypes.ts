@@ -1,7 +1,7 @@
-import { BodyView, SimView, BodyFrameData, SimFrameData } from "@webapp/scripts/Data/DataViews";
-import { AppStateBody, AppStateSim, AppState, AppDiff } from "@webapp/scripts/Data/AppData";
-import { BodyId, PhysicsStateBody, PhysicsStateSim, PhysicsState, PhysicsDiff } from "@bridge";
-import { ColorSource } from "pixi.js";
+import { 
+    AppStateBody, AppStateSim, PhysicsStateBody, PhysicsStateSim, PhysicsState, PhysicsDiff, AppState, AppDiff,
+    BodyId, BodyView, SimView, BodyFrameData, SimFrameData,
+} from "./MutableTypes"
 
 export function mockAppStateBody(partial: Partial<AppStateBody> = {}): AppStateBody {
     return {
