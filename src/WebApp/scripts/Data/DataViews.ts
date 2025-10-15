@@ -127,19 +127,19 @@ export default class DataViews implements IDataViews {
         appState: AppState,
         appDiff: AppDiff
     ): void {
-        // Set data if it doesn't already exist.
-        if(!this.#physicsState) {
-            this.#physicsState = physicsState;
-            this.#physicsDiff = physicsDiff;
-            this.#appState = appState;
-            this.#appDiff = appDiff;
-        } else if(__DEBUG__) {
-            const refEquals = this.#physicsState === physicsState
-                && this.physicsDiff === physicsDiff
-                && this.#appState === appState
-                && this.#appDiff === appDiff;
-            if(!refEquals) throw new DataValidationError("Invalid reference to underlying data sources, which must remain unchanged after the first call.");
+        // Set state data references if they don't already exist.
+        if(!this.#physicsState) this.#physicsState = physicsState;
+        if(!this.#appState) this.#appState = appState;
+
+        if(__DEBUG__) {
+            // State data is stored by reference in BodyView objects and changing it would invalidate those references.
+            if(this.#physicsState !== physicsState) throw new DataValidationError("Invalid reference to underlying data source (physicsState), which must remain unchanged after the first call.");
+            if(this.#appState !== appState) throw new DataValidationError("Invalid reference to underlying data source (appState), which must remain unchanged after the first call.");
         }
+
+        // Diff data isn't stored by reference anywhere so it can be reassigned safely to allow for double buffered implementations. 
+        this.#physicsDiff = physicsDiff;
+        this.#appDiff = appDiff;
         
         // Create a union of updated body diffs.
         // Set.prototype.union() is faster but creates a new Set every frame.
