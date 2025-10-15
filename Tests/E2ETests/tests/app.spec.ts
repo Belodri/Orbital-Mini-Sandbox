@@ -1,26 +1,20 @@
-import App from "@webapp/scripts/App.ts";
 import { test, expect } from '@playwright/test';
-
-declare global {
-    interface Window {
-        App: typeof App;
-    }
-}
 
 test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    await page.waitForFunction(() => typeof window.App === 'function', null, { timeout: 15000 });
+    await page.waitForFunction(() => !!window.App, null, { timeout: 15000 });
 });
 
 test.describe("App Initialization", () => {
     test("window.App should have debug-only properties", async ({page}) => {
         const appProperties = await page.evaluate(() => ({
-            hasBridge: !!window.App.Bridge,
-            hasPixiHandler: !!window.App.PixiHandler,
-            hasUiData: !!window.App.UiData,
-            hasNotifications: !!window.App.Notifications,
-            hasAppData: !!window.App.appData,
-            hasResolver: !!window.App.resolver
+            hasBridge: !!window.App.parts.bridge,
+            hasPixiHandler: !!window.App.parts.pixi,
+            hasUiData: !!window.App.parts.views,
+            hasNotifications: !!window.App.parts.notif,
+            hasAppData: !!window.App.parts.appData,
+            hasResolver: !!window.App.parts.resolver,
+            hasUiManager: !!window.App.parts.uiManager
         }));
 
         for (const [key, value] of Object.entries(appProperties)) {
@@ -30,8 +24,8 @@ test.describe("App Initialization", () => {
 
     test("Console should contain initialization confirmation", async ({ page }) => {
         const messages = await page.consoleMessages();
-        expect(messages.some(m => m.text() === "Begin initialization.")).toBe(true);
-        expect(messages.some(m => m.text() === "Initialization complete.")).toBe(true);
+        expect(messages.some(m => m.text() === "Begin initialization...")).toBe(true);
+        expect(messages.some(m => m.text() === "Initialization complete!")).toBe(true);
     });
 });
 
@@ -39,13 +33,13 @@ test.describe('App API and State', () => {
     test.describe('Body Management', () => {
         test('createBody() should synchronize state across AppData and Bridge.', async ({ page }) => {
             const res = await page.evaluate(async() => {
-                const initialCount = window.App.Bridge.state.sim.bodyCount;
+                const initialCount = window.App.parts.bridge.state.sim.bodyCount;
                 const bodyId = await window.App.createBody();
                 return {
                     initialCount,
-                    appDataHasBody: window.App.appData.state.bodies.has(bodyId),
-                    bridgeHasBody: window.App.Bridge.state.bodies.has(bodyId),
-                    finalCount: window.App.Bridge.state.sim.bodyCount
+                    appDataHasBody: window.App.parts.appData.state.bodies.has(bodyId),
+                    bridgeHasBody: window.App.parts.bridge.state.bodies.has(bodyId),
+                    finalCount: window.App.parts.bridge.state.sim.bodyCount
                 }
             });
             expect(res.appDataHasBody, 'Body should exist in AppData').toBe(true);
@@ -57,7 +51,7 @@ test.describe('App API and State', () => {
             const hasBody = await page.evaluate(async () => {
                 const bodyId = await window.App.createBody();
                 await window.App.deleteBody(bodyId);
-                return window.App.appData.state.bodies.has(bodyId)
+                return window.App.parts.appData.state.bodies.has(bodyId)
             });
             expect(hasBody).toBe(false);
         });
@@ -65,23 +59,23 @@ test.describe('App API and State', () => {
         test("Bridge.state.bodies.size, AppData.state.bodies.size, and Bridge.state.sim.bodyCount should always be synchronized.", async ({ page }) => {
             const res = await page.evaluate(async() => {
                 const initial = {
-                    bodyCount: window.App.Bridge.state.sim.bodyCount,
-                    physicsSize: window.App.Bridge.state.bodies.size,
-                    appSize: window.App.appData.state.bodies.size
+                    bodyCount: window.App.parts.bridge.state.sim.bodyCount,
+                    physicsSize: window.App.parts.bridge.state.bodies.size,
+                    appSize: window.App.parts.appData.state.bodies.size
                 };
                 
                 const bodyId = await window.App.createBody();
                 const afterCreate = {
-                    bodyCount: window.App.Bridge.state.sim.bodyCount,
-                    physicsSize: window.App.Bridge.state.bodies.size,
-                    appSize: window.App.appData.state.bodies.size
+                    bodyCount: window.App.parts.bridge.state.sim.bodyCount,
+                    physicsSize: window.App.parts.bridge.state.bodies.size,
+                    appSize: window.App.parts.appData.state.bodies.size
                 };
 
                 await window.App.deleteBody(bodyId);
                 const afterDelete = {
-                    bodyCount: window.App.Bridge.state.sim.bodyCount,
-                    physicsSize: window.App.Bridge.state.bodies.size,
-                    appSize: window.App.appData.state.bodies.size
+                    bodyCount: window.App.parts.bridge.state.sim.bodyCount,
+                    physicsSize: window.App.parts.bridge.state.bodies.size,
+                    appSize: window.App.parts.appData.state.bodies.size
                 };
 
                 return { initial, afterCreate, afterDelete }
@@ -104,15 +98,15 @@ test.describe('App API and State', () => {
                 // Create a body to be deleted
                 const bodyId = await window.App.createBody();
                 const afterCreate = {
-                    physics: window.App.Bridge.state.bodies.has(bodyId),
-                    app: window.App.appData.state.bodies.has(bodyId)
+                    physics: window.App.parts.bridge.state.bodies.has(bodyId),
+                    app: window.App.parts.appData.state.bodies.has(bodyId)
                 };
 
                 // Delete the body
                 await window.App.deleteBody(bodyId);
                 const afterDelete = {
-                    physics: window.App.Bridge.state.bodies.has(bodyId),
-                    app: window.App.appData.state.bodies.has(bodyId)
+                    physics: window.App.parts.bridge.state.bodies.has(bodyId),
+                    app: window.App.parts.appData.state.bodies.has(bodyId)
                 };
 
                 // Get the final state from both state managers
@@ -136,7 +130,7 @@ test.describe('App API and State', () => {
                     const success = await window.App.updateBody(id, data);
                     return {
                         success,
-                        physicsData: window.App.Bridge.state.bodies.get(id)
+                        physicsData: window.App.parts.bridge.state.bodies.get(id)
                     };
                 }, { id: bodyId, data: updates });
 
@@ -153,7 +147,7 @@ test.describe('App API and State', () => {
                     const success = await window.App.updateBody(id, data);
                     return {
                         success,
-                        appData: window.App.appData?.state.bodies.get(id)
+                        appData: window.App.parts.appData.state.bodies.get(id)
                     };
                 }, { id: bodyId, data: updates });
 
@@ -174,12 +168,12 @@ test.describe('App API and State', () => {
     // TODO: Replace with unit tests
     test.describe('Engine and State', () => {   
         test('App.Bridge.state.bodies should be empty on initialization.', async ({ page }) => {
-            const mapSize = await page.evaluate(() => window.App.Bridge.state.bodies.size);
+            const mapSize = await page.evaluate(() => window.App.parts.bridge.state.bodies.size);
             expect(mapSize).toBe(0);
         });
 
         test('App.Bridge.state.sim.bodyCount should be 0 on initialization.', async ({ page }) => {
-            const bodyCount = await page.evaluate(() => window.App.Bridge.state.sim.bodyCount);
+            const bodyCount = await page.evaluate(() => window.App.parts.bridge.state.sim.bodyCount);
             expect(bodyCount).toBe(0);
         });
     });
@@ -187,7 +181,7 @@ test.describe('App API and State', () => {
     // TODO: Replace with unit tests
     test.describe('AppData', () => {
         test('App.appData.state.bodies should be empty on initialization.', async ({ page }) => {
-            const mapSize = await page.evaluate(() => window.App.appData.state.bodies.size);
+            const mapSize = await page.evaluate(() => window.App.parts.appData.state.bodies.size);
             expect(mapSize).toBe(0);
         });
 
@@ -195,7 +189,7 @@ test.describe('App API and State', () => {
             const bodyId1 = await page.evaluate(async() => await window.App.createBody());
             const bodyId2 = await page.evaluate(async () => await window.App.createBody());
             const hasCreatedBodies = await page.evaluate(([id1, id2]) => {
-                const bodyData = window.App.appData?.state.bodies;
+                const bodyData = window.App.parts.appData.state.bodies;
                 return bodyData instanceof Map
                     && bodyData.size === 2
                     && bodyData.has(id1)
