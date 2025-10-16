@@ -16,7 +16,7 @@ const addBody = (
     appState.bodies.set(id, appBody);
 };
 
-describe('DataViews', () => {
+describe("DataViews", () => {
     let dataViews: DataViews;
     let physicsState: PhysicsState;
     let appState: AppState;
@@ -32,8 +32,8 @@ describe('DataViews', () => {
         appDiff = mockAppDiff();
     });
 
-    describe('constructor and initial state', () => {
-        it('should initialize with an empty initial state', () => {
+    describe("constructor and initial state", () => {
+        it("should initialize with an empty initial state", () => {
             expect(dataViews).toBeInstanceOf(DataViews);
             expect(dataViews.bodyViews.size).toBe(0);
             expect(dataViews.bodyFrameData.created).toEqual([]);
@@ -42,7 +42,7 @@ describe('DataViews', () => {
             expect(dataViews.appDiff).toBeUndefined()
         });
 
-        it('should throw when accessing data sources before the first refresh', () => {
+        it("should throw when accessing data sources before the first refresh", () => {
             expect(() => dataViews.simView.app).toThrow();
             expect(() => dataViews.simView.physics).toThrow();
             expect(() => dataViews.simFrameData.app).toThrow();
@@ -51,8 +51,8 @@ describe('DataViews', () => {
         });
     });
 
-    describe('refresh method', () => {
-        it('should set internal state and diff references on the first call', () => {
+    describe("refresh method", () => {
+        it("should set internal state and diff references on the first call", () => {
             dataViews.refresh(physicsState, physicsDiff, appState, appDiff);
 
             expect(dataViews.simView.app).toBe(appState.sim);
@@ -61,7 +61,7 @@ describe('DataViews', () => {
             expect(dataViews.appDiff).toBe(appDiff);
         });
 
-        it('should update diff references on subsequent calls', () => {
+        it("should update diff references on subsequent calls", () => {
             dataViews.refresh(physicsState, physicsDiff, appState, appDiff);
             expect(dataViews.physicsDiff).toBe(physicsDiff);
             expect(dataViews.appDiff).toBe(appDiff);
@@ -77,8 +77,8 @@ describe('DataViews', () => {
         });
     });
 
-    describe('Body Lifecycle Management', () => {
-        it('should handle body creation', () => {
+    describe("Body Lifecycle Management", () => {
+        it("should handle body creation", () => {
             addBody(1, physicsState, appState);
             physicsDiff.bodies.created.add(1);
 
@@ -98,7 +98,7 @@ describe('DataViews', () => {
             expect(dataViews.bodyFrameData.deleted.size).toBe(0);
         });
 
-        it('should handle body updates from physics diff', () => {
+        it("should handle body updates from physics diff", () => {
             // Frame 1: Create body
             addBody(1, physicsState, appState);
             physicsDiff.bodies.created.add(1);
@@ -117,7 +117,7 @@ describe('DataViews', () => {
             expect(dataViews.bodyFrameData.deleted.size).toBe(0);
         });
 
-        it('should handle body updates from app diff', () => {
+        it("should handle body updates from app diff", () => {
             // Frame 1: Create body
             addBody(1, physicsState, appState);
             physicsDiff.bodies.created.add(1);
@@ -136,7 +136,7 @@ describe('DataViews', () => {
             expect(dataViews.bodyFrameData.deleted.size).toBe(0);
         });
 
-        it('should handle body updates from both diffs without duplication', () => {
+        it("should handle body updates from both diffs without duplication", () => {
             // Frame 1: Create body
             addBody(1, physicsState, appState);
             physicsDiff.bodies.created.add(1);
@@ -153,7 +153,7 @@ describe('DataViews', () => {
             expect(dataViews.bodyFrameData.updated[0].id).toBe(1);
         });
 
-        it('should handle body deletion', () => {
+        it("should handle body deletion", () => {
             // Frame 1: Create body
             addBody(1, physicsState, appState);
             physicsDiff.bodies.created.add(1);
@@ -174,7 +174,7 @@ describe('DataViews', () => {
             expect(dataViews.bodyFrameData.deleted.has(1)).toBe(true);
         });
 
-        it('should handle combined create, update, and delete in one frame', () => {
+        it("should handle combined create, update, and delete in one frame", () => {
             // Initial state: bodies 2 and 3 exist
             addBody(2, physicsState, appState);
             addBody(3, physicsState, appState);
@@ -214,7 +214,7 @@ describe('DataViews', () => {
             expect(dataViews.bodyFrameData.deleted.has(3)).toBe(true);
         });
 
-        it('should handle multiple creates, updates, and deletes in one frame', () => {
+        it("should handle multiple creates, updates, and deletes in one frame", () => {
             // Initial state: bodies 3, 4, 5, 6 exist
             addBody(3, physicsState, appState);
             addBody(4, physicsState, appState);
@@ -260,8 +260,8 @@ describe('DataViews', () => {
         });
     });
 
-    describe('Frame Data Management', () => {
-        it('should clear and repopulate bodyFrameData on each refresh', () => {
+    describe("Frame Data Management", () => {
+        it("should clear and repopulate bodyFrameData on each refresh", () => {
             // Frame 1: Create body 1
             addBody(1, physicsState, appState);
             physicsDiff.bodies.created.add(1);
@@ -282,7 +282,7 @@ describe('DataViews', () => {
             expect(dataViews.bodyFrameData.deleted.size).toBe(0);
         });
 
-        it('simFrameData should correctly proxy the diff data', () => {
+        it("simFrameData should correctly proxy the diff data", () => {
             physicsDiff.sim.add("theta");
             appDiff.sim.add("enableOrbitPaths");
             
@@ -303,33 +303,33 @@ describe('DataViews', () => {
         });
     });
 
-    describe('Validation with __DEBUG__ enabled', () => {
-        beforeAll(() => vi.stubGlobal('__DEBUG__', true));
+    describe("Validation with __DEBUG__ enabled", () => {
+        beforeAll(() => vi.stubGlobal("__DEBUG__", true));
         afterAll(() => vi.unstubAllGlobals());
 
-        it('should throw DataValidationError if physicsState reference changes on subsequent calls', () => {
+        it("should throw DataValidationError if physicsState reference changes on subsequent calls", () => {
             dataViews.refresh(physicsState, physicsDiff, appState, appDiff);
             const newPhysicsState = mockPhysicsState();
             expect(() => dataViews.refresh(newPhysicsState, physicsDiff, appState, appDiff)).toThrow(DataValidationError);
         });
 
-        it('should throw DataValidationError if appState reference changes on subsequent calls', () => {
+        it("should throw DataValidationError if appState reference changes on subsequent calls", () => {
             dataViews.refresh(physicsState, physicsDiff, appState, appDiff);
             const newAppState = mockAppState();
             expect(() => dataViews.refresh(physicsState, physicsDiff, newAppState, appDiff)).toThrow(DataValidationError);
         });
 
-        it('should not throw if state references remain the same on subsequent calls', () => {
+        it("should not throw if state references remain the same on subsequent calls", () => {
             dataViews.refresh(physicsState, physicsDiff, appState, appDiff);
             expect(() => dataViews.refresh(physicsState, physicsDiff, appState, appDiff)).not.toThrow();
         });
 
-        it('should throw if a created body is not in physicsState', () => {
+        it("should throw if a created body is not in physicsState", () => {
             physicsDiff.bodies.created.add(1); // Body 1 does not exist in physicsState
             expect(() => dataViews.refresh(physicsState, physicsDiff, appState, appDiff)).toThrowError(DataValidationError);
         });
 
-        it('should throw if a created body is in physicsState but not appState', () => {
+        it("should throw if a created body is in physicsState but not appState", () => {
             // Manually add body 1 to physicsState but NOT to appState
             const physicsBody = mockPhysicsStateBody({ id: 1 });
             physicsState.bodies.set(1, physicsBody);
@@ -337,33 +337,33 @@ describe('DataViews', () => {
             expect(() => dataViews.refresh(physicsState, physicsDiff, appState, appDiff)).toThrowError(DataValidationError);
         });
 
-        it('should throw for overlap between created and deleted body diffs', () => {
+        it("should throw for overlap between created and deleted body diffs", () => {
             addBody(1, physicsState, appState);
             physicsDiff.bodies.created.add(1);
             physicsDiff.bodies.deleted.add(1);
             expect(() => dataViews.refresh(physicsState, physicsDiff, appState, appDiff)).toThrowError(DataValidationError);
         });
 
-        it('should throw if a deleted body does not have a DataView', () => {
+        it("should throw if a deleted body does not have a DataView", () => {
             physicsDiff.bodies.deleted.add(1); // Body 1 was never created, so no DataView exists for it
             expect(() => dataViews.refresh(physicsState, physicsDiff, appState, appDiff)).toThrowError(DataValidationError);
         });
         
-        it('should throw for overlap between created and updated(app) body diffs', () => {
+        it("should throw for overlap between created and updated(app) body diffs", () => {
             addBody(1, physicsState, appState);
             physicsDiff.bodies.created.add(1);
             appDiff.updatedBodies.add(1);
             expect(() => dataViews.refresh(physicsState, physicsDiff, appState, appDiff)).toThrowError(DataValidationError);
         });
 
-        it('should throw for overlap between created and updated(physics) body diffs', () => {
+        it("should throw for overlap between created and updated(physics) body diffs", () => {
             addBody(1, physicsState, appState);
             physicsDiff.bodies.created.add(1);
             physicsDiff.bodies.updated.add(1);
             expect(() => dataViews.refresh(physicsState, physicsDiff, appState, appDiff)).toThrowError(DataValidationError);
         });
         
-        it('should throw for overlap between deleted and updated(app) body diffs', () => {
+        it("should throw for overlap between deleted and updated(app) body diffs", () => {
             addBody(1, physicsState, appState);
             // Frame 1: Create the body so a DataView exists.
             const pDiff1 = mockPhysicsDiff();
@@ -378,7 +378,7 @@ describe('DataViews', () => {
             expect(() => dataViews.refresh(physicsState, pDiff2, appState, aDiff2)).toThrowError(DataValidationError);
         });
         
-        it('should throw for overlap between deleted and updated(physics) body diffs', () => {
+        it("should throw for overlap between deleted and updated(physics) body diffs", () => {
             addBody(1, physicsState, appState);
             // Frame 1: Create the body so a DataView exists.
             const pDiff1 = mockPhysicsDiff();
@@ -392,12 +392,12 @@ describe('DataViews', () => {
             expect(() => dataViews.refresh(physicsState, pDiff2, appState, mockAppDiff())).toThrowError(DataValidationError);
         });
 
-        it('should throw if an updated body does not have a DataView', () => {
+        it("should throw if an updated body does not have a DataView", () => {
             physicsDiff.bodies.updated.add(1); // Body 1 was never created, so no DataView
             expect(() => dataViews.refresh(physicsState, physicsDiff, appState, appDiff)).toThrowError(DataValidationError);
         });
 
-        it('should not throw for valid diffs', () => {
+        it("should not throw for valid diffs", () => {
             // Setup a complex but valid frame
             addBody(2, physicsState, appState);
             addBody(3, physicsState, appState);
