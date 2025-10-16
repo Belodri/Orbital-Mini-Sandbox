@@ -1,7 +1,7 @@
 import { BodyId } from "@bridge";
 import { ColorSource } from "pixi.js";
 
-// TODO: Add preset verification and cleaning
+// TODO: Add separate class for preset input verification and cleaning
 
 export const DEFAULT_SIM_DATA: Readonly<AppStateSim> = {
     bgColor: "black",
@@ -80,11 +80,12 @@ export interface IAppData {
      */
     getPresetData(): AppDataPreset;
     /**
-     * Loads preset data into the AppData store. Current data is overwritten and the diff data is cleared.
+     * Loads pre-validated preset data into the AppData store. Current data is updated if possible, overwritten otherwise.
+     * Existing bodies with ids that found in the preset are updated with the preset data to ensure object references remain stable.
      * The loaded data appears in the diff only after the next {@link syncDiff} call.
-     * @param preset The preset data to load.
+     * @param validPreset The pre-validated preset data to load.
      */
-    loadPresetData(preset: AppDataPreset): void;
+    loadPresetData(validPreset: AppDataPreset): void;
 }
 
 export default class AppData implements IAppData {
@@ -152,22 +153,16 @@ export default class AppData implements IAppData {
      * Creates a new entry in {@link AppData.state} for a given body ID with default data.
      * @param id The unique ID for the body.
      */
-    #createBodyData(id: BodyId): void;
-    /**
-     * Creates a new entry in {@link AppData.state} from a full data object.  
-     * @param data The complete state data for the body.
-     * @overload
-     */
-    #createBodyData(data: AppStateBody): void;
-    #createBodyData(idOrData: BodyId | AppStateBody): void {
-        const id = typeof idOrData === "number" ? idOrData : idOrData.id;
-        if(__DEBUG__ && this.#state.bodies.has(id)) throw new Error(`AppData: Data for body id "${id}" already exists.`); 
+    #createBodyData(id: BodyId): void {
+        // Don't overwrite existing state so that the sync after loadPreset doesn't
+        // overwrite the data of said loaded preset.
+        if(this.#state.bodies.has(id)) return;
         
-        const state = typeof idOrData === "number" ? {
+        const state = {
             ...DEFAULT_BODY_DATA_OMIT_ID_NAME, 
-            id: idOrData, 
-            name: `New Body #${idOrData}`
-        } : idOrData;
+            id: id, 
+            name: `New Body #${id}`
+        };
 
         this.#state.bodies.set(state.id, state);
     }
@@ -177,22 +172,36 @@ export default class AppData implements IAppData {
      * @param id ID of the respective body.
      */
     #deleteBodyData(id: BodyId): void {
-        this.#state.bodies.delete(id)
+        this.#state.bodies.delete(id);
+        // Also delete the body from the updated set!
+        this.#nextFrameDiff.updatedBodies.delete(id);
     }
 
     getPresetData(): AppDataPreset {
         return {
-            sim: this.#state.sim,
-            bodies: [...this.#state.bodies.values()]
+            sim: { ...this.#state.sim },
+            bodies: [...this.#state.bodies.values().map(data => ({...data}))]
         };
     }
 
     loadPresetData(preset: AppDataPreset): void {
-        this.#state.bodies.clear();
-        this.#diff.updatedBodies.clear();
-        this.#diff.sim.clear();
+        // Clear next frame diffs before repopulating them.
+        this.#nextFrameDiff.updatedBodies.clear();
+        this.#nextFrameDiff.sim.clear();
 
-        for(const data of preset.bodies) this.#createBodyData(data);
+        const newBodyIds = new Set();
+        for(const data of preset.bodies) {
+            newBodyIds.add(data.id);
+
+            // Update existing bodies if the preset has a body with the same id.
+            // Otherwise set them directly
+            if(!this.updateBodyData(data.id, data)) this.#state.bodies.set(data.id, data);
+        }
+
+        // Delete bodies with ids that are not in the preset
+        for(const id of this.#state.bodies.keys()) {
+            if(!newBodyIds.has(id)) this.#state.bodies.delete(id);
+        }
 
         this.updateSimulationData(preset.sim);
     }
