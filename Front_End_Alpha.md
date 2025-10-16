@@ -214,6 +214,34 @@ Certain actions that completely reset the entire system state such as `App.api.l
 
 ---
 
+# Preset Loading
+
+`App.loadPreset()`
+1. `RenderLoop.togglePaused(true)` => Pause time advancement
+1. `Bridge.loadPreset()` => Overwrites physicsState
+2. `AppData.loadPreset()` => Overwrites appState
+    - `#nextFrameDiff.sim` is overwritten right away
+    - `#nextFrameDiff.updatedBodies` is cleared, then populated with **ONLY** the ids of bodies that exist in both `#state.bodies` and presetData. This is because created and deleted bodies are handled by the `syncDiff` call during the next preRender phase.
+3. `Pixi.render()` => to immediately render this new frame.
+
+In the preRender phase:
+- `Bridge.tick(false)` => Calculates derived data without advancing time (because `RenderLoop.togglePaused(true)` was called before) and updates `Bridge.state` and `Bridge.diff`
+    - **IMPORTANT**: Bodies with existing ID are counted as updated, not created!!!
+- `AppData.syncDiff(Bridge.diff.bodies.created, Bridge.diff.bodies.deleted)` => 
+    - 'created' **MUST NOT OVERWRITE** existing data which has already been imported during `AppData.loadPreset()`
+
+Rest works as normal.
+
+---
+
+
+
+
+
+
+
+
+
 
 
 
