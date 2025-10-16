@@ -88,7 +88,20 @@ export interface IAppData {
 }
 
 export default class AppData implements IAppData {
-    //#region Interface Implementation
+    #state = {
+        sim: { ...DEFAULT_SIM_DATA } as AppStateSim,
+        bodies: new Map() as Map<BodyId, AppStateBody>
+    }
+
+    #diff = { 
+        sim: new Set() as Set<keyof AppStateSim>,
+        updatedBodies: new Set as Set<BodyId>
+    };
+
+    #nextFrameDiff = {
+        sim: new Set() as Set<keyof AppStateSim>,
+        updatedBodies: new Set as Set<BodyId>
+    };
 
     get diff(): AppDiff { return this.#diff }
     get state(): AppState { return this.#state }
@@ -135,42 +148,6 @@ export default class AppData implements IAppData {
         [this.#diff, this.#nextFrameDiff] = [this.#nextFrameDiff, this.#diff];
     }
 
-    getPresetData(): AppDataPreset {
-        return {
-            sim: this.#state.sim,
-            bodies: [...this.#state.bodies.values()]
-        };
-    }
-
-    loadPresetData(preset: AppDataPreset): void {
-        this.#state.bodies.clear();
-        this.#diff.updatedBodies.clear();
-        this.#diff.sim.clear();
-
-        for(const data of preset.bodies) this.#createBodyData(data);
-
-        this.updateSimulationData(preset.sim);
-    }
-
-    //#endregion
-
-    //#region Private implementation
-
-    #state = {
-        sim: { ...DEFAULT_SIM_DATA } as AppStateSim,
-        bodies: new Map() as Map<BodyId, AppStateBody>
-    }
-
-    #diff = { 
-        sim: new Set() as Set<keyof AppStateSim>,
-        updatedBodies: new Set as Set<BodyId>
-    };
-
-    #nextFrameDiff = {
-        sim: new Set() as Set<keyof AppStateSim>,
-        updatedBodies: new Set as Set<BodyId>
-    };
-
     /**
      * Creates a new entry in {@link AppData.state} for a given body ID with default data.
      * @param id The unique ID for the body.
@@ -203,5 +180,20 @@ export default class AppData implements IAppData {
         this.#state.bodies.delete(id)
     }
 
-    //#endregion
+    getPresetData(): AppDataPreset {
+        return {
+            sim: this.#state.sim,
+            bodies: [...this.#state.bodies.values()]
+        };
+    }
+
+    loadPresetData(preset: AppDataPreset): void {
+        this.#state.bodies.clear();
+        this.#diff.updatedBodies.clear();
+        this.#diff.sim.clear();
+
+        for(const data of preset.bodies) this.#createBodyData(data);
+
+        this.updateSimulationData(preset.sim);
+    }
 }
