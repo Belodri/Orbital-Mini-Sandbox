@@ -3,14 +3,14 @@ import { ColorSource } from "pixi.js";
 
 // TODO: Add preset verification and cleaning
 
-const DEFAULT_SIM_DATA: Readonly<AppStateSim> = {
+export const DEFAULT_SIM_DATA: Readonly<AppStateSim> = {
     bgColor: "black",
     enableOrbitPaths: true,
     enableBodyLabels: true,
-    enableVelocityTrais: true
+    enableVelocityTrails: true
 } as const;
 
-const DEFAULT_BODY_DATA_OMIT_ID_NAME: Readonly<Omit<AppStateBody, "id" | "name">> = {
+export const DEFAULT_BODY_DATA_OMIT_ID_NAME: Readonly<Omit<AppStateBody, "id" | "name">> = {
     tint: "white"
 } as const;
 
@@ -26,7 +26,7 @@ export type AppStateBody = {
 export type AppStateSim = {
     bgColor: ColorSource,
     enableOrbitPaths: boolean,
-    enableVelocityTrais: boolean,
+    enableVelocityTrails: boolean,
     enableBodyLabels: boolean,
 }
 
@@ -47,7 +47,7 @@ export type AppDiff = {
     readonly updatedBodies: ReadonlySet<BodyId> 
 }
 
-type AppDataPreset = { sim: AppStateSim, bodies: AppStateBody[] }
+export type AppDataPreset = { sim: AppStateSim, bodies: AppStateBody[] }
 
 /** Manages application-level, non-physics related data. */
 export interface IAppData {
@@ -75,11 +75,13 @@ export interface IAppData {
      */
     syncDiff(created: ReadonlySet<BodyId>, deleted: ReadonlySet<BodyId>): void;
     /** 
-     * Returns the current state of the AppData store as a preset that can be loaded via `loadPresetData()`.
+     * Returns the current state of the AppData store as a preset that can be loaded via 
+     * the {@link loadPresetData} method.
      */
     getPresetData(): AppDataPreset;
     /**
-     * Loads preset data into the AppData store. Current data is overwritten.
+     * Loads preset data into the AppData store. Current data is overwritten and the diff data is cleared.
+     * The loaded data appears in the diff only after the next {@link syncDiff} call.
      * @param preset The preset data to load.
      */
     loadPresetData(preset: AppDataPreset): void;
@@ -143,8 +145,9 @@ export default class AppData implements IAppData {
     loadPresetData(preset: AppDataPreset): void {
         this.#state.bodies.clear();
         this.#diff.updatedBodies.clear();
+        this.#diff.sim.clear();
 
-        for(const data of preset.bodies) this.#createBodyData(data.id, data);
+        for(const data of preset.bodies) this.#createBodyData(data);
 
         this.updateSimulationData(preset.sim);
     }
@@ -169,21 +172,27 @@ export default class AppData implements IAppData {
     };
 
     /**
-     * Creates a new BodyData entry for a given body's id with default data if it doesn't exist already.
-     * @param id ID of the respective body.
-     * @param data The full state data of the body.
+     * Creates a new entry in {@link AppData.state} for a given body ID with default data.
+     * @param id The unique ID for the body.
      */
-    #createBodyData(id: BodyId, data?: AppStateBody): void {
-        if(data && data.id !== id) throw new Error(`AppData: ID in 'data' argument (${data.id}) did not match body id (${id}).`);
-        if(this.#state.bodies.has(id)) return;   
-
-        const state = data ?? {
+    #createBodyData(id: BodyId): void;
+    /**
+     * Creates a new entry in {@link AppData.state} from a full data object.  
+     * @param data The complete state data for the body.
+     * @overload
+     */
+    #createBodyData(data: AppStateBody): void;
+    #createBodyData(idOrData: BodyId | AppStateBody): void {
+        const id = typeof idOrData === "number" ? idOrData : idOrData.id;
+        if(__DEBUG__ && this.#state.bodies.has(id)) throw new Error(`AppData: Data for body id "${id}" already exists.`); 
+        
+        const state = typeof idOrData === "number" ? {
             ...DEFAULT_BODY_DATA_OMIT_ID_NAME, 
-            id, 
-            name: `New Body #${id}`
-        };
+            id: idOrData, 
+            name: `New Body #${idOrData}`
+        } : idOrData;
 
-        this.#state.bodies.set(id, state);
+        this.#state.bodies.set(state.id, state);
     }
 
     /**
