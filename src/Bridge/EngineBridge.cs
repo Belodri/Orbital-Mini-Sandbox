@@ -175,7 +175,6 @@ public static partial class EngineBridge
 
         PresetData? data = ParseJsonPreset(jsonPreset) ?? throw new ArgumentException("Failed to load: Preset data was null or empty.", nameof(jsonPreset));
         physicsEngine.Import(data.Sim, data.Bodies);
-        memoryBufferHandler.WriteViewToMemory(physicsEngine.View);
 
         Logger.Entry().Log("Preset Imported");
     }
