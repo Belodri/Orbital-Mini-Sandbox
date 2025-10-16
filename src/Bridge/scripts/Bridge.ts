@@ -153,7 +153,7 @@ class Bridge implements IBridge {
 
     loadPreset(jsonPreset: string) {
         this.#engineBridge.LoadPreset(jsonPreset);
-        this.#stateManager.refresh();
+        // state refresh happens on the next tickEngine call
     }
 
     createBody() {
