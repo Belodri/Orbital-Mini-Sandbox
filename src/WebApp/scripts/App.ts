@@ -82,7 +82,7 @@ export default class App implements IApp {
         App.#instance = new App(parts, controller, renderLoop);
 
         log("Initializing UI Components...");
-        uiManager.initializeComponents(controller);
+        uiManager.injectController(controller);
 
         log("Initialization complete!");
     }

@@ -43,7 +43,7 @@ export default abstract class ViewModel implements IViewModel {
 
         const templateEl = document.createElement("template");
         templateEl.innerHTML = cfg.template.trim();
-        this.container.appendChild(templateEl);
+        this.container.appendChild(templateEl.content);
     }
 
     abstract render(...args: any[]): void;

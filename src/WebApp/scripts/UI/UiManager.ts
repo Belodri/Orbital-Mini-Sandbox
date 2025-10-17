@@ -3,6 +3,8 @@ import { IDataViews, BodyFrameData, SimFrameData, type BodyView } from "../Data/
 import { IViewModelMovable } from "./abstract/ViewModelMovable";
 import { INotifications } from "./Notifications/Notifications";
 import { IController } from "../Controller/Controller";
+import TimeControls from "./components/TimeControls/TimeControls";
+import { IViewModel } from "./abstract/ViewModel";
 
 /** Owner and orchestrator of UI components. */
 export interface IUiManager {
@@ -10,7 +12,7 @@ export interface IUiManager {
      * Initializes the individual UI components managed by the UIManager.
      * @param controller The central controller to be injected into components. 
      */
-    initializeComponents(controller: IController): void;
+    injectController(controller: IController): void;
     /**
      * Updates UI components based on the provided data views.
      * @param views The processed and validated data views for the frame to render.
@@ -24,6 +26,7 @@ export default class UiManager implements IUiManager {
     // Permanent UI components
     #pixi: IPixiHandler;
     #notif: INotifications;
+    #timeControls!: IViewModel; // initialized late
 
     /** Map of temporary UI components. */
     #temp: Map<IViewModelMovable["id"], IViewModelMovable> = new Map();
@@ -35,19 +38,25 @@ export default class UiManager implements IUiManager {
         this.#notif = notif;
     }
 
-    initializeComponents(controller: IController) {
+    injectController(controller: IController) {
         this.#controller = controller;
     }
 
     render(views: IDataViews): void {
+        if(this.#frameCounter === 0) this.#onFirstRender(views);
+        
         this.#renderSim(views.simFrameData);
         this.#renderBodies(views.bodyFrameData);
 
         this.#frameCounter++;
     }
 
+    #onFirstRender(views: IDataViews) {
+        this.#timeControls ??= new TimeControls("time-controls", this.#controller, views.simView);
+    }
+
     #renderSim(frameData: SimFrameData): void {
-        
+        this.#timeControls.render(frameData);
     }
 
     #renderBodies(frameData: BodyFrameData): void {
