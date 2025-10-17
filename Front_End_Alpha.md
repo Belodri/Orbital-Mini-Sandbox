@@ -35,8 +35,6 @@ Vertically collapsible container with individual subsections.
 
 **Subsections**
 - **Simulation Options:**  
-    - play/pause: button
-    - time step: number
     - gravitational constant: number
     - theta: number (min=0, max=1)
     - epsilon: number (min=0.0001)
@@ -47,6 +45,13 @@ Vertically collapsible container with individual subsections.
     - body scale: range (min=0.01, max=1)
 - **Presets:** => Button to open PresetUI
 - **Hotkeys** static reference only
+
+
+### TimeControls (bottom center)
+Simple container, always visible.
+- **play/pause**: button
+- **Simulation Time**: number (readonly)
+- **Time Step**: number
 
 
 ### BodyListUI (right sidebar)
@@ -143,7 +148,7 @@ For BodyConfig and BodyDetails components
 
 ## Render Loop - Overview
 The application uses a render-loop execution model similar to ones used in video games, especially older titles.
-- **Pixi Controlled:** The render loop is ultimately controlled by Pixi via callbacks from Pixi's `Ticker` plugin. These callbacks are methods on central `App` orchestrator and are registered during initialization. 
+- **Pixi Controlled:** The render loop is ultimately controlled by Pixi via callbacks from Pixi's `Ticker` plugin. These callbacks are methods on central `RenderLoop` orchestrator and are registered during initialization. 
 - **Max FPS:** Pixi settings lock the maximum frame rate to 60 frames per second.
 - **FPS-locked Timesteps:** While unpaused, the simulation advances by 1 timestep every frame, locking the rate of execution to the FPS. This could be decoupled relatively easily later if needed by inserting a controller in between Pixi and the render-phase callbacks. 
 - **Render-Phases:** The render loop is split into three distinct phases:
@@ -152,24 +157,24 @@ The application uses a render-loop execution model similar to ones used in video
     - **Post-Render:** Resolves deferred promises (see API section). The thread is then unblocked, allowing user inputs to be processed until the next Pre-Render.
 
 ### Pre-Render Phase
-1. `App.#preRender()` is called by the Pixi `Ticker` callback with `UPDATE_PRIORITY.HIGH`. The thread is blocked from now until the end of the next Post-Render Phase.
+1. `RenderLoop.#preRender()` is called by the Pixi `Ticker` callback with `UPDATE_PRIORITY.HIGH`. The thread is blocked from now until the end of the next Post-Render Phase.
 2. (C# `PhysicsEngine`) Physics timestep calculations.
 3. (C# `Bridge`) Writes physics state into shared memory.
 4. (JS `Bridge`) Reads physics state from shared memory, parses & creates diff => refreshes `Physics.state` and `Physics.diff`.
 5. (`AppData`) Uses `Physics.diff` to keep non-physics data store in sync => refreshes `AppData.state` and `AppData.diff`.
-6. (`UiData`) Uses `Physics.diff.bodies` and `AppData.diff.bodies` to keep the store of `DataViewBody` objects in sync with actual bodies in the simulation.
-`App.#preRender()` returns to Pixi `Ticker`
+6. (`DataViews`) Uses `Physics.diff.bodies` and `AppData.diff.bodies` to keep the store of `DataViewBody` objects in sync with actual bodies in the simulation. It also prepares `BodyFrameData` and `SimFrameData` transient data objects containing the data for bodies and simulation properties that were modified since the last frame.
+`RenderLoop.#preRender()` returns to Pixi `Ticker`
 
 ### Render Phase
-7. `App.#render()` is called by the Pixi `Ticker` callback with `UPDATE_PRIORITY.NORMAL`.
-8. (`UiHandler`) Uses `Physics.diff` and `AppData.diff` to selectively create, delete, and update individual UI components as required, passing the `DataViewBody` and/or `DataViewSim` objects as required.
-9. `App.#render()` returns to Pixi `Ticker`
+7. `RenderLoop.#render()` is called by the Pixi `Ticker` callback with `UPDATE_PRIORITY.NORMAL`.
+8. (`UiManager`) Uses `BodyFrameData` and `SimFrameData` to selectively create, delete, and update individual UI components as required, passing the `DataViewBody` and/or `DataViewSim` objects as required.
+9. `RenderLoop.#render()` returns to Pixi `Ticker`
 10. Pixi handles the canvas rendering
 
 ### Post-Render Phase
-11. `App.#postRender()` is called by the `PixiHandler` wrapper around Pixi's `render()` method, after Pixi has fully rendered the canvas.
+11. `RenderLoop.#postRender()` is called by the `PixiHandler` wrapper around Pixi's `render()` method, after Pixi has fully rendered the canvas.
 12. (`DeferredResolver`) Resolves any promises returned by API calls that were executed since the last frame's pre-render phase.
-13. `App.#postRender()` returns and eventually unblocks the thread.
+13. `RenderLoop.#postRender()` returns and eventually unblocks the thread.
 
 ---
 
