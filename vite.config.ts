@@ -15,6 +15,7 @@ export default defineConfig(({ command, mode }) => {
             include: ["Tests/AppTests/*"],
             root: __dirname
         },
+        assetsInclude: ["**/*.html"],
         root: 'src/WebApp', // required for the dev server to work correctly
         build: {
             // The output directory is relative to the project root, not the `root` option.

@@ -21,6 +21,8 @@
             "dotnet-runtime": ["types/external/dotnet.d.ts"],
             "@webapp/*": ["src/WebApp/*"]
         },
+
+        "types": ["vite/client"]
     },
     "include": ["src/**/*.ts", "Tests/**/*.ts", "types/custom/**/*.d.ts"],
     "exclude": ["node_modules", "wwwroot"]
