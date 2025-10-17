@@ -21,7 +21,7 @@ export type Parts =  {
 
 export interface IApp extends 
     Pick<IController, "createBody" | "deleteBody" | "updateBody" | "updateSimulation">,
-    Pick<IRenderLoop, "togglePause" | "start" | "stop">
+    Pick<IRenderLoop, "start" | "stop">
 {};
 
 export interface IAppDebug extends IApp {
@@ -108,7 +108,6 @@ export default class App implements IApp {
     get deleteBody() { return this.#controller.deleteBody; }
     get updateBody() { return this.#controller.updateBody; }
     get updateSimulation() { return this.#controller.updateSimulation; }
-    get togglePause() { return this.#renderLoop.togglePause; }
     get start() { return this.#renderLoop.start; }
     get stop() { return this.#renderLoop.stop; }
 }

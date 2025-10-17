@@ -1,12 +1,6 @@
 import { Parts } from "../App";
 
 export interface IRenderLoop {
-    paused: boolean;
-    /**
-     * Toggles or sets the paused state of the simulation.
-     * @param force     If provided, sets the paused state directly (`true` for paused, `false` for running). If omitted, the state is toggled.
-     */
-    togglePause(force?: boolean): void;
     /** Orchestrates physics calculations and data transformations. Called by PixiHandler at the very beginning of a new render frame. */
     preRender(): void;
     /** Orchestrates rendering. Called by PixiHandler after preRender tasks are completed. */
@@ -26,17 +20,9 @@ export default class RenderLoop implements IRenderLoop {
         this.#parts = parts;
     }
 
-    #paused: boolean = false;
-    get paused() { return this.#paused; }
-
-    togglePause = (force?: boolean) => {
-        const newState = typeof force === "boolean" ? force : !this.#paused;
-        this.#paused = newState;
-    };
-
     preRender = () => {
         try {
-            const syncOnly = this.#paused;
+            const syncOnly = this.#parts.appData.state.sim.paused;
             this.#parts.bridge.tickEngine(syncOnly);
 
             this.#parts.appData.syncDiff(

@@ -4,6 +4,7 @@ import { ColorSource } from "pixi.js";
 // TODO: Add separate class for preset input verification and cleaning
 
 export const DEFAULT_SIM_DATA: Readonly<AppStateSim> = {
+    paused: true,
     bgColor: "black",
     enableOrbitPaths: true,
     enableBodyLabels: true,
@@ -24,6 +25,7 @@ export type AppStateBody = {
 }
 
 export type AppStateSim = {
+    paused: boolean,
     bgColor: ColorSource,
     enableOrbitPaths: boolean,
     enableVelocityTrails: boolean,
