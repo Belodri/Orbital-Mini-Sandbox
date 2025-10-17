@@ -58,19 +58,19 @@ export default class App implements IApp {
         log("Initialize Resolver...");
         const resolver = new DeferredResolver();
 
-        // UI
         log("Initialize PixiHandler...");
         const pixi = await PixiHandler.init();
-        log("Initialize UiManager...");
-        const uiManager = new UiManager(pixi, notif);
 
-        const parts = { bridge, appData, views, notif, resolver, pixi, uiManager };
+        log("Initialize Controller...");
+        const controller = new Controller(appData, bridge, notif, resolver, pixi);
+
+        log("Initializing UI Components...");
+        const uiManager = new UiManager(pixi, controller);
 
         // Orchestrators
+        const parts = { bridge, appData, views, notif, resolver, pixi, uiManager };
         log("Initialize RenderLoop...");
         const renderLoop = new RenderLoop(parts);
-        log("Initialize Controller...");
-        const controller = new Controller(parts);
         
         // Wiring
         log("Register Pixi Events...");
@@ -80,9 +80,6 @@ export default class App implements IApp {
 
         log("Create App Instance...");
         App.#instance = new App(parts, controller, renderLoop);
-
-        log("Initializing UI Components...");
-        uiManager.injectController(controller);
 
         log("Initialization complete!");
     }
@@ -99,8 +96,8 @@ export default class App implements IApp {
         if(__DEBUG__) {
             Object.defineProperties(this, {
                 "parts": { get() { return this.#parts; }, enumerable: true },
-                "controller": { get() { return this.#controller }, enumerable: true},
-                "renderLoop": { get() { return this.#renderLoop }, enumerable: true}
+                "controller": { get() { return this.#controller }, enumerable: true },
+                "renderLoop": { get() { return this.#renderLoop }, enumerable: true }
             });
 
             globalThis.window.App = this as unknown as IAppDebug;

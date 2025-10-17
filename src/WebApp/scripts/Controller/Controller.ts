@@ -1,6 +1,8 @@
 import { IBridge, BodyId } from "@bridge";
 import { IAppData } from "../Data/AppData";
-import { Parts } from "../App";
+import { INotifications } from "../UI/Notifications/Notifications";
+import { IDeferredResolver } from "../utils/DeferredResolver";
+import { IPixiHandler } from "../UI/PixiHandler/PixiHandler";
 
 export interface IController {
     /**
@@ -44,10 +46,18 @@ export interface IController {
 }
 
 export default class Controller implements IController {
-    #parts: Parts;
+    #appData: IAppData;
+    #bridge: IBridge;
+    #notif: INotifications;
+    #resolver: IDeferredResolver;
+    #pixi: IPixiHandler;
 
-    constructor(parts: Parts) {
-        this.#parts = parts;
+    constructor(appData: IAppData, bridge: IBridge, notif: INotifications, resolver: IDeferredResolver, pixi: IPixiHandler) {
+        this.#appData = appData;
+        this.#bridge = bridge;
+        this.#notif = notif;
+        this.#resolver = resolver;
+        this.#pixi = pixi;
 
         // Bind overloaded methods
         this.updateBody = this.updateBody.bind(this);
@@ -55,30 +65,30 @@ export default class Controller implements IController {
     }
 
     togglePaused = (force?: boolean) => {
-        const curr = this.#parts.appData.state.sim.paused;
+        const curr = this.#appData.state.sim.paused;
         const newState = typeof force === "boolean" ? force : !curr;
         return this.updateSimulation({app: { paused: newState }});
     }
 
-    createBody = () => this.#parts.resolver.execute(() => this.#parts.bridge.createBody());
+    createBody = () => this.#resolver.execute(() => this.#bridge.createBody());
 
-    deleteBody = (id: BodyId) => this.#parts.resolver.execute(() => this.#parts.bridge.deleteBody(id));
+    deleteBody = (id: BodyId) => this.#resolver.execute(() => this.#bridge.deleteBody(id));
 
     updateSimulation(updates: { physics: Parameters<IBridge["updateSimulation"]>[0]; }): Promise<void>;
     updateSimulation(updates: { app: Parameters<IAppData["updateSimulationData"]>[0]; }): Promise<void>;
     updateSimulation(updates: { app: Parameters<IAppData["updateSimulationData"]>[0]; } | { physics: Parameters<IBridge["updateSimulation"]>[0]; }): Promise<void> {
-        return this.#parts.resolver.execute(() => "app" in updates 
-            ? this.#parts.appData.updateSimulationData(updates.app)
-            : this.#parts.bridge.updateSimulation(updates.physics)
+        return this.#resolver.execute(() => "app" in updates 
+            ? this.#appData.updateSimulationData(updates.app)
+            : this.#bridge.updateSimulation(updates.physics)
         );
     }
 
     updateBody(id: BodyId, updates: { physics: Parameters<IBridge["updateBody"]>[1]; }): Promise<boolean>;
     updateBody(id: BodyId, updates: { app: Parameters<IAppData["updateBodyData"]>[1]; }): Promise<boolean>;
     updateBody(id: BodyId, updates: { app: Parameters<IAppData["updateBodyData"]>[1]; } | { physics: Parameters<IBridge["updateBody"]>[1]; }): Promise<boolean> {
-        return this.#parts.resolver.execute(() => "app" in updates
-            ? this.#parts.appData.updateBodyData(id, updates.app)
-            : this.#parts.bridge.updateBody(id, updates.physics)
+        return this.#resolver.execute(() => "app" in updates
+            ? this.#appData.updateBodyData(id, updates.app)
+            : this.#bridge.updateBody(id, updates.physics)
         );
     }
 }

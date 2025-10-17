@@ -9,11 +9,6 @@ import { IViewModel } from "./abstract/ViewModel";
 /** Owner and orchestrator of UI components. */
 export interface IUiManager {
     /**
-     * Initializes the individual UI components managed by the UIManager.
-     * @param controller The central controller to be injected into components. 
-     */
-    injectController(controller: IController): void;
-    /**
      * Updates UI components based on the provided data views.
      * @param views The processed and validated data views for the frame to render.
      */
@@ -21,29 +16,25 @@ export interface IUiManager {
 }
 
 export default class UiManager implements IUiManager {
-    #controller!: IController;
+    #controller: IController;
 
     // Permanent UI components
     #pixi: IPixiHandler;
-    #notif: INotifications;
     #timeControls!: IViewModel; // initialized late
 
     /** Map of temporary UI components. */
     #temp: Map<IViewModelMovable["id"], IViewModelMovable> = new Map();
     /** Simple counter for throttled updated. */
     #frameCounter: number = 0;
+    #isFirstRender: boolean = true;
 
-    constructor(pixi: IPixiHandler, notif: INotifications) {
+    constructor(pixi: IPixiHandler, controller: IController) {
         this.#pixi = pixi;
-        this.#notif = notif;
-    }
-
-    injectController(controller: IController) {
         this.#controller = controller;
     }
 
     render(views: IDataViews): void {
-        if(this.#frameCounter === 0) this.#onFirstRender(views);
+        if(this.#isFirstRender) this.#onFirstRender(views);
         
         this.#renderSim(views.simFrameData);
         this.#renderBodies(views.bodyFrameData);
@@ -51,8 +42,10 @@ export default class UiManager implements IUiManager {
         this.#frameCounter++;
     }
 
+    /** Creates all static UI components. */
     #onFirstRender(views: IDataViews) {
-        this.#timeControls ??= new TimeControls("time-controls", this.#controller, views.simView);
+        this.#isFirstRender = false;
+        this.#timeControls = new TimeControls("time-controls", this.#controller, views.simView);
     }
 
     #renderSim(frameData: SimFrameData): void {
