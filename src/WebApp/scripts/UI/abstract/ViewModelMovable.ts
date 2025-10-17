@@ -10,7 +10,7 @@ export interface IViewModelMovable extends IViewModel {
     bringToFront(): void;
 }
 
-export default abstract class ViewModelMovable extends ViewModel {
+export default abstract class ViewModelMovable<TRenderArgs extends any[] = []> extends ViewModel<TRenderArgs> {
     static #topZ = 101; // See Docs/Front_End_Alpha.md for reasoning behind hardcoding this value.
 
     /** The id of the element that is or was in front, which might no longer exist. */
