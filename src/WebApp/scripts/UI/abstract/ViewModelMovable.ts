@@ -3,7 +3,7 @@ import ViewModel, { type ViewModelConfig, IViewModel } from "./ViewModel";
 export const CSS_CLASS_MOVABLE = "movable-view" as const;
 
 /** Css class added to the <body> element while a {@link ViewModelMovable} is being dragged. */
-export const CSS_CLASS_DRAGGING = "dragging" as const;
+export const CSS_CLASS_DRAGGING = "is-dragging" as const;
 
 export interface IViewModelMovable extends IViewModel {
     /** Brings the element of this ViewModel to the front, if it isn't already. */
