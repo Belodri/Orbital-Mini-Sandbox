@@ -1,11 +1,16 @@
 import { IPixiHandler } from "./PixiHandler/PixiHandler";
 import { IDataViews, BodyFrameData, SimFrameData, type BodyView } from "../Data/DataViews";
-import type { ViewModelMovable } from "./abstract/ViewModelMovable";
+import { IViewModelMovable } from "./abstract/ViewModelMovable";
 import { INotifications } from "./Notifications/Notifications";
-
+import { IController } from "../Controller/Controller";
 
 /** Owner and orchestrator of UI components. */
 export interface IUiManager {
+    /**
+     * Initializes the individual UI components managed by the UIManager.
+     * @param controller The central controller to be injected into components. 
+     */
+    initializeComponents(controller: IController): void;
     /**
      * Updates UI components based on the provided data views.
      * @param views The processed and validated data views for the frame to render.
@@ -14,18 +19,24 @@ export interface IUiManager {
 }
 
 export default class UiManager implements IUiManager {
+    #controller!: IController;
+
     // Permanent UI components
     #pixi: IPixiHandler;
     #notif: INotifications;
 
     /** Map of temporary UI components. */
-    #temp: Map<ViewModelMovable["id"], ViewModelMovable> = new Map();
+    #temp: Map<IViewModelMovable["id"], IViewModelMovable> = new Map();
     /** Simple counter for throttled updated. */
     #frameCounter: number = 0;
 
     constructor(pixi: IPixiHandler, notif: INotifications) {
         this.#pixi = pixi;
         this.#notif = notif;
+    }
+
+    initializeComponents(controller: IController) {
+        this.#controller = controller;
     }
 
     render(views: IDataViews): void {
