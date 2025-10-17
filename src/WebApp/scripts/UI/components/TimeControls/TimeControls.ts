@@ -9,39 +9,39 @@ const IDs = {
     togglePause: "toggle-pause"
 } as const;
 
-
-export default class TimeControls extends ViewModel {
+export default class TimeControls extends ViewModel<[SimFrameData]> {
     readonly #controller: IController;
     readonly #view: SimView;
 
     #togglePauseEl: HTMLButtonElement;
-    #simeTimeEl: HTMLInputElement;
+    #simulationTimeEl: HTMLInputElement;
 
     constructor(id: string, controller: IController, view: SimView) {
         super({id, containerOrId: IDs.container, template});
         this.#controller = controller;
         this.#view = view;
 
-        this.#simeTimeEl = document.getElementById(IDs.simulationTime) as HTMLInputElement;
-        this.#togglePauseEl = document.getElementById(IDs.togglePause) as HTMLButtonElement;
+        this.#simulationTimeEl = this.container.querySelector(`#${IDs.simulationTime}`) as HTMLInputElement;
+        this.#togglePauseEl = this.container.querySelector(`#${IDs.togglePause}`) as HTMLButtonElement;
 
         this.#togglePauseEl.addEventListener("pointerdown", () => this.#controller.togglePaused());
-
-        this.#setPaused();
-        this.#setSimulationTime();
     }
 
-    render(data: SimFrameData): void {
+    onRender(data: SimFrameData): void {
         if(data.app.has("paused")) this.#setPaused();
         if(data.physics.has("simulationTime")) this.#setSimulationTime();
     }
 
+    onFirstRender(data: SimFrameData): void {
+        this.#setPaused();
+        this.#setSimulationTime();
+    }
+
     #setPaused() {
-        const { paused } = this.#view.app;
-        this.#togglePauseEl.textContent = paused ? "Play" : "Pause"
+        this.#togglePauseEl.textContent =  this.#view.app.paused ? "Play" : "Pause"
     }
 
     #setSimulationTime() {
-        this.#simeTimeEl.value = this.#view.physics.simulationTime.toFixed(2);
+        this.#simulationTimeEl.value = this.#view.physics.simulationTime.toFixed(2);
     }
 }

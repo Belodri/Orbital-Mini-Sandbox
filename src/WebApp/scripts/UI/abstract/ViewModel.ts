@@ -22,9 +22,10 @@ export interface IViewModel {
     destroy(): void;
 }
 
-export default abstract class ViewModel implements IViewModel {
+export default abstract class ViewModel<TRenderArgs extends any[] = []> implements IViewModel {
     readonly #id: string;
     readonly #isStatic: boolean;
+    #isFirstRender: boolean = true;
 
     get id() { return this.#id; }
     get isStatic() { return this.#isStatic; }
@@ -46,7 +47,16 @@ export default abstract class ViewModel implements IViewModel {
         this.container.appendChild(templateEl.content);
     }
 
-    abstract render(...args: any[]): void;
+    render(...args: TRenderArgs): void {
+        if(this.#isFirstRender) {
+            this.onFirstRender(...args);
+            this.#isFirstRender = false;
+        } else this.onRender(...args)
+    }
+
+    abstract onRender(...args: TRenderArgs): void;
+
+    abstract onFirstRender(...args: TRenderArgs): void;
 
     /** Removes the ViewModel from the DOM. Subclasses should override this to remove event listeners. */
     destroy(): void {
