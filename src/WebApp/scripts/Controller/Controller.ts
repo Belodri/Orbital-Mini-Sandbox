@@ -4,6 +4,12 @@ import { Parts } from "../App";
 
 export interface IController {
     /**
+     * Toggles or sets the paused state of the simulation.
+     * Code is executed immediately and can throw synchronous errors!
+     * @param force     If provided, sets the paused state directly (`true` for paused, `false` for running). If omitted, the state is toggled.
+     */
+    togglePaused(force?: boolean): Promise<void>;
+    /**
      * Creates a new body in the simulation.  
      * Code is executed immediately and can throw synchronous errors!
      * @returns         A promise that resolves with the unique ID of the new body at the start of the next post-render phase.
@@ -46,6 +52,12 @@ export default class Controller implements IController {
         // Bind overloaded methods
         this.updateBody = this.updateBody.bind(this);
         this.updateSimulation = this.updateSimulation.bind(this);
+    }
+
+    togglePaused = (force?: boolean) => {
+        const curr = this.#parts.appData.state.sim.paused;
+        const newState = typeof force === "boolean" ? force : !curr;
+        return this.updateSimulation({app: { paused: newState }});
     }
 
     createBody = () => this.#parts.resolver.execute(() => this.#parts.bridge.createBody());
