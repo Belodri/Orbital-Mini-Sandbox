@@ -1,3 +1,7 @@
+:root {
+    --color-background: rgba(40, 40, 40, 0.85);
+}
+
 .hidden { display: none !important; }
 
 .is-dragging { 
@@ -38,4 +42,26 @@
     margin: 1em;
 }
 
-.vm-movable { position: absolute; }
+#time-controls {
+    position: fixed;
+    bottom: 1%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 20vw;
+    min-width: 20vw;
+    background-color: rgba;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    color: white;
+    background-color: var(--color-background);
+
+    margin: 5px;
+    border-radius: 5px;
+    
+
+    #toggle-pause {
+        color: white;
+        background-color: var(--color-background);
+    }
+}
