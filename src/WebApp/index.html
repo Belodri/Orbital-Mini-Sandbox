@@ -7,18 +7,24 @@
     <link rel="stylesheet" href="styles/styles.css">
 </head>
 <body>
-    <!-- Fatal Error -->
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+
     <div id="error-fatal" class="hidden">
         <h1>Fatal Application Error</h1>
         <p>A problem has occurred and the application cannot continue.</p>
         <p>See developer console (F12 or ctrl/cmd + shift + I) for details.</p>
     </div>
 
-    <!-- Notifications -->
     <div id="notifications-container"></div>
 
-    <div id="time-controls"></div>
-    
+    <div id="side-container-left" class="side-container left"></div>
+
+    <div id="side-container-right" class="side-container right"></div>
+
+    <div id="bottom-container"></div>
+
+    <!-- <canvas> (created by PIXI) -->
+
     <script type="module" src="scripts/main.js"></script>
 </body>
 </html>

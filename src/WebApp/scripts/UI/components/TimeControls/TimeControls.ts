@@ -4,7 +4,7 @@ import { SimFrameData, SimView } from "@webapp/scripts/Data/DataViews";
 import { IController } from "@webapp/scripts/Controller/Controller";
 
 const IDs = {
-    container: "time-controls",
+    container: "bottom-container",
     simulationTime: "simulation-time",
     togglePause: "toggle-pause"
 } as const;
