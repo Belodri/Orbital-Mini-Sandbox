@@ -5,6 +5,7 @@
         "checkJs": true,
         "moduleResolution": "bundler",
         "strict": true,
+        "noImplicitOverride": true,
         
         "skipLibCheck": true,
         "esModuleInterop": true,
