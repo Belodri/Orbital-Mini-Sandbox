@@ -10,7 +10,7 @@
         "skipLibCheck": true,
         "esModuleInterop": true,
         "allowImportingTsExtensions": true,
-        "lib": ["esnext", "dom"],
+        "lib": ["esnext", "dom", "DOM.Iterable"],
 
         "noEmit": true,
 
