@@ -23,7 +23,16 @@ const DEFAULT_OPTIONS: NumberFieldOptions = {
 } as const;
 
 export default class NumberField extends BaseTypeField<number, NumberFieldOptions> {
-    override getDefaultOptions(): Readonly<NumberFieldOptions> { return DEFAULT_OPTIONS; }
+    constructor(options: NumberFieldOptions = {}) {
+        if(__DEBUG__) {
+            const { min, max } = options;
+            if(typeof min === "number" && typeof max === "number" && min >= max) throw new Error("If min and max are both given, min must be smaller than max.");
+        }
+
+        super(options);
+    }
+
+    override _getDefaultOptions(): Readonly<NumberFieldOptions> { return DEFAULT_OPTIONS; }
 
     override cast(value: any): number | null {
         if(typeof value === "bigint" || typeof value === "symbol") return null;
@@ -31,21 +40,19 @@ export default class NumberField extends BaseTypeField<number, NumberFieldOption
         return super.cast(Number(value));
     }
 
-    validate(value: any): void | ValidationFailure {
-        const Fail = ValidationFailure;
-
-        if(typeof value !== "number" || Number.isNaN(value)) return new Fail(value, "Must be a number.");
+    override validate(value: any): void | ValidationFailure {
+        if(typeof value !== "number" || Number.isNaN(value)) return new ValidationFailure(value, "Must be a number.");
 
         const { min, max, step, safeInteger, choices } = this.options;
 
-        if(min !== undefined && value < min) return new Fail(value, `Must be greater than or equal to ${min}.`);
-        if(max !== undefined && value > max) return new Fail(value, `Must be smaller than or equal to ${max}.`);
+        if(min !== undefined && value < min) return new ValidationFailure(value, `Must be greater than or equal to ${min}.`);
+        if(max !== undefined && value > max) return new ValidationFailure(value, `Must be smaller than or equal to ${max}.`);
         if(step !== undefined) {
             const remainder = ( value - ( min ?? 0 ) ) / step;
             const floatDiff = Math.abs(remainder - Math.round(remainder));
-            if(floatDiff > Number.EPSILON) return new Fail(value, `Must be a multiple of ${step}` + (min !== undefined ? `from ${min}.` : "."));
+            if(floatDiff > Number.EPSILON) return new ValidationFailure(value, `Must be a multiple of ${step}` + (min !== undefined ? `from ${min}.` : "."));
         }
-        if(safeInteger && !Number.isSafeInteger(value)) return new Fail(value, `Must be a safe integer.`);
-        if(choices && !choices.has(value)) return new Fail(value, "Must be a valid choice.");
+        if(safeInteger && !Number.isSafeInteger(value)) return new ValidationFailure(value, `Must be a safe integer.`);
+        if(choices && !choices.has(value)) return new ValidationFailure(value, "Must be a valid choice.");
     }
 }

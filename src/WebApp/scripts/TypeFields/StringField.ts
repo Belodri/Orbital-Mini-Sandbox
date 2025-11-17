@@ -29,7 +29,17 @@ export const DEFAULT_OPTIONS: StringFieldOptions = {
 } as const;
 
 export default class StringField extends BaseTypeField<string, StringFieldOptions> {
-    override getDefaultOptions(): Readonly<StringFieldOptions> { return DEFAULT_OPTIONS; }
+    constructor(options: StringFieldOptions = {}) {
+        if(__DEBUG__) {
+            const { minLength, maxLength } = options;
+            if(typeof minLength === "number" && typeof maxLength === "number" && minLength >= maxLength) 
+                throw new Error("If minLength and maxLength are both given, minLength must be smaller than maxLength.");
+            if( typeof maxLength === "number" && maxLength < 0) throw new Error("If maxLength is given, it must not be negative.");
+        }
+        super(options);
+    }
+
+    override _getDefaultOptions(): Readonly<StringFieldOptions> { return DEFAULT_OPTIONS; }
 
     override cast(value: any): string | null {
         const { castNullAsString, castUndefinedAsString } = this.options;
@@ -41,17 +51,15 @@ export default class StringField extends BaseTypeField<string, StringFieldOption
         return super.cast(String(value));
     }
 
-    validate(value: any): void | ValidationFailure {
-        const Fail = ValidationFailure;
-
-        if(typeof value !== "string") return new Fail(value, "Must be a string.");
+    override validate(value: any): void | ValidationFailure {
+        if(typeof value !== "string") return new ValidationFailure(value, "Must be a string.");
 
         const { blank, minLength, maxLength, choices, wellFormed } = this.options;
 
-        if(!blank && !value.trim().length) return new Fail(value, "Must not be blank.");
-        if(minLength !== undefined && value.length < minLength) return new Fail(value, `Must be at least ${minLength} characters long.`);
-        if(maxLength !== undefined && value.length > maxLength) return new Fail(value, `Must be no more than ${maxLength} characters long.`);
-        if(wellFormed && !value.isWellFormed()) return new Fail(value, `Must be well formed without any unpaired or unordered leading or trailing surrogates.`);
-        if(choices && !choices.has(value)) return new Fail(value, "Must be a valid choice.");
+        if(!blank && !value.trim().length) return new ValidationFailure(value, "Must not be blank.");
+        if(minLength !== undefined && value.length < minLength) return new ValidationFailure(value, `Must be at least ${minLength} characters long.`);
+        if(maxLength !== undefined && value.length > maxLength) return new ValidationFailure(value, `Must be no more than ${maxLength} characters long.`);
+        if(wellFormed && !value.isWellFormed()) return new ValidationFailure(value, `Must be well formed without any unpaired or unordered leading or trailing surrogates.`);
+        if(choices && !choices.has(value)) return new ValidationFailure(value, "Must be a valid choice.");
     }
 }
