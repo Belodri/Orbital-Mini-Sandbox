@@ -1,3 +1,4 @@
+import "./utils/primitives";
 import Bridge, { IBridge } from "@bridge";
 import AppData, { IAppData } from "./Data/AppData";
 import DataViews, { IDataViews } from "./Data/DataViews";
