@@ -14,18 +14,18 @@ export const DEFAULT_OPTIONS: BooleanFieldOptions = {
 } as const;
 
 export default class BooleanField extends BaseTypeField<boolean, BooleanFieldOptions> {
-    constructor(options: BooleanFieldOptions = {}) {
+    constructor(options: Partial<BooleanFieldOptions> = {}) {
+        const opts = { ...DEFAULT_OPTIONS, ...options };
+
         if(__DEBUG__) {
-            const { castAsTrue, castAsFalse } = options;
+            const { castAsTrue, castAsFalse } = opts;
             if(castAsFalse && !castAsTrue?.isDisjointFrom(castAsFalse)) throw new Error(`The castAsTrue and castAsFalse Sets must be disjoint.`);
             if(castAsTrue?.has(false)) throw new Error("Boolean false cannot be cast as true.");
             if(castAsFalse?.has(true)) throw new Error("Boolean true cannot be cast as false.");
         }
         
-        super(options);
+        super(opts);
     }
-
-    override _getDefaultOptions(): Readonly<BooleanFieldOptions> { return DEFAULT_OPTIONS; }
 
     override cast(value: any): boolean | null {
         const { castAsTrue, castAsFalse } = this.options;

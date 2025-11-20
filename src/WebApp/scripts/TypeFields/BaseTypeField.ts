@@ -29,12 +29,8 @@ export default abstract class BaseTypeField<
 > implements ITypeField<T, TOptions> {
     readonly options: Readonly<TOptions>;
     
-    constructor(options: TOptions = {} as TOptions) {
-        const defaultOptions = this._getDefaultOptions?.() ?? {};
-        this.options = Object.freeze({
-            ...defaultOptions,
-            ...options
-        });
+    constructor(options: TOptions) {
+        this.options = Object.freeze({...options}) as TOptions;
     }
  
     cast(value: any): T | null {
@@ -46,7 +42,4 @@ export default abstract class BaseTypeField<
     }
 
     abstract validate(value: any): void | ValidationFailure;
-
-    /** The options to which the TypeField defaults to. */
-    protected _getDefaultOptions?(): Readonly<TOptions>;
 }

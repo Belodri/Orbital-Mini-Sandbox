@@ -7,11 +7,6 @@ export type InferredType<T extends FieldsSchema> = {
     [K in keyof T]: T[K] extends ITypeField<infer U> ? U : never;
 };
 
-export type ObjectFieldOptions<T extends FieldsSchema> = {
-    /** The fields schema used to validate the object's properties. */
-    schema: T;
-}
-
 export default class ObjectField<
     TSchema extends FieldsSchema, 
     T extends InferredType<TSchema> = InferredType<TSchema>

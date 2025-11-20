@@ -2,44 +2,45 @@ import BaseTypeField from "./BaseTypeField";
 import ValidationFailure from "./ValidationFailure";
 
 export type StringFieldOptions = {
-    /** Is the string allowed to be empty? (default=false) */
-    blank?: boolean;
-    /** A Set of values which represent allowed choices. */
-    choices?: Set<string>;
+    /** Is the string allowed to be empty? Default = false */
+    blank: boolean;
+    /** A Set of values which represent allowed choices or a Map of choice values to corresponding string labels. */
+    choices?: Set<string> | Map<string, string>;
     /** The minimum lenght the string must have. */
-    minLength?: number;
+    minLength: number;
     /** The maximum length the string must have. */
-    maxLength?: number;
-    /** Must the string be well formed and have no unpaired or unordered leading or trailing surrogates? */
-    wellFormed?: boolean;
-    /** Should null be cast to `null`? */
-    castNullAsString?: boolean;
-    /** Should undefined be cast to `undefined`? */
-    castUndefinedAsString?: boolean;
+    maxLength: number;
+    /** Must the string be well formed and have no unpaired or unordered leading or trailing surrogates? Default = false */
+    wellFormed: boolean;
+    /** Should null be cast to `null`? Default = false */
+    castNullAsString: boolean;
+    /** Should undefined be cast to `undefined`? Default = false */
+    castUndefinedAsString: boolean;
 }
 
 export const DEFAULT_OPTIONS: StringFieldOptions = {
     blank: false,
     choices: undefined,
-    minLength: undefined,
-    maxLength: undefined,
+    minLength: 0,
+    maxLength: Number.MAX_SAFE_INTEGER,
     wellFormed: false,
     castNullAsString: false,
     castUndefinedAsString: false,
 } as const;
 
 export default class StringField extends BaseTypeField<string, StringFieldOptions> {
-    constructor(options: StringFieldOptions = {}) {
-        if(__DEBUG__) {
-            const { minLength, maxLength } = options;
-            if(typeof minLength === "number" && typeof maxLength === "number" && minLength >= maxLength) 
-                throw new Error("If minLength and maxLength are both given, minLength must be smaller than maxLength.");
-            if( typeof maxLength === "number" && maxLength < 0) throw new Error("If maxLength is given, it must not be negative.");
-        }
-        super(options);
-    }
+    constructor(options: Partial<StringFieldOptions> = {}) {
+        const opts = { ...DEFAULT_OPTIONS, ...options };
 
-    override _getDefaultOptions(): Readonly<StringFieldOptions> { return DEFAULT_OPTIONS; }
+        if(__DEBUG__) {
+            const { minLength, maxLength } = opts;
+            if(minLength > maxLength) throw new Error("MinLength must be smaller than or equal to maxLength.");
+            if(maxLength < 0) throw new Error("MaxLength must not be negative.");
+        }
+
+
+        super(opts);
+    }
 
     override cast(value: any): string | null {
         const { castNullAsString, castUndefinedAsString } = this.options;
