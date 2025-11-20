@@ -7,6 +7,8 @@ export type InferredType<T extends FieldsSchema> = {
     [K in keyof T]: T[K] extends ITypeField<infer U> ? U : never;
 };
 
+export type ObjectFieldOptions = Record<string, any>; // placeholder in case future options are added.
+
 export default class ObjectField<
     TSchema extends FieldsSchema, 
     T extends InferredType<TSchema> = InferredType<TSchema>
@@ -14,13 +16,17 @@ export default class ObjectField<
     readonly #schemaKeys: ReadonlySet<keyof TSchema>;
     readonly #schema: Readonly<TSchema>;
 
-    constructor(schema: TSchema, options: Record<string, any> = {}) {
+    constructor(schema: TSchema, options: Partial<ObjectFieldOptions> = {}) {
         const schemaKeys = Object.keys(schema ?? {});
         if(__DEBUG__ && !schemaKeys.length) throw new Error("Must provide a valid, non-empty schema.");
 
         super(options);
         this.#schema = Object.freeze({...schema});
         this.#schemaKeys = new Set(schemaKeys);
+    }
+
+    protected override prepareOptions(partialOptions: Partial<ObjectFieldOptions>): ObjectFieldOptions {
+        return partialOptions;
     }
 
     get schema(): Readonly<TSchema> { return this.#schema; }
@@ -59,7 +65,7 @@ export default class ObjectField<
             if(validationFailure) return new ValidationFailure(value, `'${String(key)}': ${validationFailure.reason}`);
         }
 
-        for(const key in value) {
+        for(const key of Object.keys(value)) {
             if(!this.#schemaKeys.has(key)) return new ValidationFailure(value, "Extra properties are not permitted.");
         }
     }

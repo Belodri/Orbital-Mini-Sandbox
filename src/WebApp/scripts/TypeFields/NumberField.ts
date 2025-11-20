@@ -42,18 +42,14 @@ const DEFAULT_OPTIONS: NumberFieldOptions = {
 } as const;
 
 export default class NumberField extends BaseTypeField<number, NumberFieldOptions> {
-    constructor(options: Partial<NumberFieldOptions> = {}) {
-        const opts = { ...DEFAULT_OPTIONS, ...options };
-
-        if(__DEBUG__) NumberField.#validateOptions(opts);
-
-        super(opts);
+    protected override prepareOptions(partialOptions: Partial<NumberFieldOptions>): NumberFieldOptions {
+        return { ...DEFAULT_OPTIONS, ...partialOptions };
     }
 
-    static #validateOptions(opts: NumberFieldOptions): void {
-        const { min, max, step, stepBase, choices, integer, epsilon } = opts;
+    protected override validateOptions(options: Readonly<NumberFieldOptions>): void {
+        const { min, max, step, stepBase, choices, integer, epsilon } = options;
 
-        for(const [key, value] of Object.entries(opts)) {
+        for(const [key, value] of Object.entries(options)) {
             if(typeof value === "number" && Number.isNaN(value))
                 throw new Error(`Numeric argument "${key}" cannot be NaN.`);
         }
@@ -107,7 +103,7 @@ export default class NumberField extends BaseTypeField<number, NumberFieldOption
         return v;
     }
 
-    #castToNumber = (value: any): number | null => {
+    #castToNumber(value: any): number | null {
         if(typeof value === "symbol") return null;
         if(typeof value === "bigint") {
             const n = Number(value);
@@ -124,9 +120,14 @@ export default class NumberField extends BaseTypeField<number, NumberFieldOption
         return Number.isNaN(v) ? null : v;
     }
 
-    #castChoice = (value: number ): number | null => {
-        const { choices, epsilon } = this.options;
+    #castChoice(value: number ): number | null {
+        const { choices, epsilon, integer } = this.options;
         if(!choices?.size) return null;
+
+        if(integer) {
+            const round = Math.round(value);
+            if(choices.has(round)) return round;
+        }
 
         for(const key of choices.keys()) {
             if(value.approxEquals(key, epsilon)) return key;
@@ -137,7 +138,7 @@ export default class NumberField extends BaseTypeField<number, NumberFieldOption
 
     #minSteps?: number;
     #maxSteps?: number;
-    #tryCastStep = (value: number): number | null => {
+    #tryCastStep(value: number): number | null {
         const { min, max, step, stepBase, epsilon } = this.options;
         if(!step) return null;
 

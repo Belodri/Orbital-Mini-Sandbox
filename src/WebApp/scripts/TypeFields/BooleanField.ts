@@ -14,24 +14,23 @@ export const DEFAULT_OPTIONS: BooleanFieldOptions = {
 } as const;
 
 export default class BooleanField extends BaseTypeField<boolean, BooleanFieldOptions> {
-    constructor(options: Partial<BooleanFieldOptions> = {}) {
-        const opts = { ...DEFAULT_OPTIONS, ...options };
-
-        if(__DEBUG__) {
-            const { castAsTrue, castAsFalse } = opts;
-            if(castAsFalse && !castAsTrue?.isDisjointFrom(castAsFalse)) throw new Error(`The castAsTrue and castAsFalse Sets must be disjoint.`);
-            if(castAsTrue?.has(false)) throw new Error("Boolean false cannot be cast as true.");
-            if(castAsFalse?.has(true)) throw new Error("Boolean true cannot be cast as false.");
-        }
-        
-        super(opts);
+    protected override prepareOptions(partialOptions: Partial<BooleanFieldOptions>): BooleanFieldOptions {
+        return { ...DEFAULT_OPTIONS, ...partialOptions }
+    }
+    protected override validateOptions(options: Readonly<BooleanFieldOptions>): void {
+        const { castAsTrue, castAsFalse } = options;
+        if(castAsFalse?.size && castAsTrue?.size && !castAsTrue.isDisjointFrom(castAsFalse))
+            throw new Error(`The castAsTrue and castAsFalse Sets must be disjoint.`);
+        if(castAsTrue?.has(false)) throw new Error("Boolean false cannot be cast as true.");
+        if(castAsFalse?.has(true)) throw new Error("Boolean true cannot be cast as false.");
     }
 
     override cast(value: any): boolean | null {
+        if(typeof value === "boolean") return value;
+
         const { castAsTrue, castAsFalse } = this.options;
 
-        return typeof value === "boolean" ? value
-            : castAsTrue?.has(value) ? true
+        return castAsTrue?.has(value) ? true
             : castAsFalse?.has(value) ? false
             : null;
     }

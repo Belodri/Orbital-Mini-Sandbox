@@ -6,7 +6,7 @@ export type StringFieldOptions = {
     blank: boolean;
     /** A Set of values which represent allowed choices or a Map of choice values to corresponding string labels. */
     choices?: Set<string> | Map<string, string>;
-    /** The minimum lenght the string must have. */
+    /** The minimum length the string must have. */
     minLength: number;
     /** The maximum length the string must have. */
     maxLength: number;
@@ -29,17 +29,13 @@ export const DEFAULT_OPTIONS: StringFieldOptions = {
 } as const;
 
 export default class StringField extends BaseTypeField<string, StringFieldOptions> {
-    constructor(options: Partial<StringFieldOptions> = {}) {
-        const opts = { ...DEFAULT_OPTIONS, ...options };
-
-        if(__DEBUG__) {
-            const { minLength, maxLength } = opts;
-            if(minLength > maxLength) throw new Error("MinLength must be smaller than or equal to maxLength.");
-            if(maxLength < 0) throw new Error("MaxLength must not be negative.");
-        }
-
-
-        super(opts);
+    protected override prepareOptions(partialOptions: Partial<StringFieldOptions>): StringFieldOptions {
+        return { ...DEFAULT_OPTIONS, ...partialOptions };
+    }
+    protected override validateOptions(options: Readonly<StringFieldOptions>): void {
+        const { minLength, maxLength } = options;
+        if(minLength > maxLength) throw new Error("MinLength must be smaller than or equal to maxLength.");
+        if(maxLength < 0) throw new Error("MaxLength must not be negative.");
     }
 
     override cast(value: any): string | null {
@@ -58,8 +54,8 @@ export default class StringField extends BaseTypeField<string, StringFieldOption
         const { blank, minLength, maxLength, choices, wellFormed } = this.options;
 
         if(!blank && !value.trim().length) return new ValidationFailure(value, "Must not be blank.");
-        if(minLength !== undefined && value.length < minLength) return new ValidationFailure(value, `Must be at least ${minLength} characters long.`);
-        if(maxLength !== undefined && value.length > maxLength) return new ValidationFailure(value, `Must be no more than ${maxLength} characters long.`);
+        if(value.length < minLength) return new ValidationFailure(value, `Must be at least ${minLength} characters long.`);
+        if(value.length > maxLength) return new ValidationFailure(value, `Must be no more than ${maxLength} characters long.`);
         if(wellFormed && !value.isWellFormed()) return new ValidationFailure(value, `Must be well formed without any unpaired or unordered leading or trailing surrogates.`);
         if(choices && !choices.has(value)) return new ValidationFailure(value, "Must be a valid choice.");
     }
