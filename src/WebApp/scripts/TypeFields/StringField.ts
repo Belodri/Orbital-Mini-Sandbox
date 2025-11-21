@@ -33,9 +33,18 @@ export default class StringField extends BaseTypeField<string, StringFieldOption
         return { ...DEFAULT_OPTIONS, ...partialOptions };
     }
     protected override validateOptions(options: Readonly<StringFieldOptions>): void {
-        const { minLength, maxLength } = options;
+        const { minLength, maxLength, choices, blank, wellFormed } = options;
         if(minLength > maxLength) throw new Error("MinLength must be smaller than or equal to maxLength.");
         if(maxLength < 0) throw new Error("MaxLength must not be negative.");
+        
+        if(choices) {
+            for(const choice of choices.keys()) {
+                if(!blank && choice.trim().length === 0) throw new Error("Blank values are not allowed as choices.");
+                if(choice.length < minLength) throw new Error("Choices must be longer than minLength.");
+                if(choice.length > maxLength) throw new Error("Choices must be greater than maxLength");
+                if(wellFormed && !choice.isWellFormed()) throw new Error("Choices must be well formed.");
+            }
+        }
     }
 
     override cast(value: any): string | null {
