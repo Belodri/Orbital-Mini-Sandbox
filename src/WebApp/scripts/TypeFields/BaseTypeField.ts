@@ -3,8 +3,6 @@ import ValidationFailure from "./ValidationFailure";
 export interface ITypeField<T extends unknown, TOptions extends Record<string, any> = Record<string, any>> {
     /** The options with which this TypeField was instantiated. Frozen upon instantiation and should never be mutated! */
     readonly options: Readonly<TOptions>;
-    /** The unique id of this TypeField. */
-    get id(): number;
     /**
      * Tries to cast a given value into the the field's type.
      * @param value The value to cast into the field's type.
@@ -26,22 +24,15 @@ export interface ITypeField<T extends unknown, TOptions extends Record<string, a
 }
 
 export default abstract class BaseTypeField<T, TOptions extends Record<string, any> = Record<string, any>> implements ITypeField<T, TOptions> {
-    static #nextId = 0;
-
     readonly options: Readonly<TOptions>;
-    readonly #id: number;
     
     constructor(options: Partial<TOptions> = {}) {
         const opts = this.prepareOptions({...options});
         const frozen = Object.freeze(opts);
 
         this.validateOptions(frozen);
-        
         this.options = frozen;
-        this.#id = ++BaseTypeField.#nextId;
     }
-
-    get id(): number { return this.#id; }
 
     /**
      * Prepares the options object for the type field during the field's instatiation.
