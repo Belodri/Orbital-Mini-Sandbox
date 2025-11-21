@@ -239,7 +239,41 @@ Rest works as normal.
 
 ---
 
+## Type-Safe User Input Casting & Validation via TypeField
+Implemented via `ITypeField<T>` interface, `BaseTypeField` abstract class, and its subclasses.
+The interface enforces a a frozen `options` object which holds the immutable configuration for a TypeField instance and dictates the methods:
+- `cast(value: any): T | null` - Tries to cast any value into the field's type and following the field's configuration.
+- `validate(value: any): void | ValidationFailure` - Tests if a given value is valid as per the field's configuration. On a failure, the `ValidationFailure` object contains information about the reason for the failure and can be thrown as an error.
+- `isValid(value: any): value is T` - Acts not only as a type guard but also ensures that the value is valid as per the field's configuration.
 
+This architecture is easily expandable with new fields such as an ArrayField or a ColorField. Since the fields themselves are pure validators that don't hold the validated value, instances of them can be reused and shared by different consumers that share the same requirements.
+
+TODO: A global `TypeFieldStore` where TypeFields can be stored for easier sharing. 
+
+### Subclasses
+The subclasses implemented so far (as of 21/11/2025) are:
+
+`BooleanField` 
+- Allows casting of any input value to boolean, based on configuration via the `castAsTrue` and `castAsFalse` options.
+
+`StringField`
+- Allows casting of any input to string, based on configuration via `castNullAsString`, `castUndefinedAsString`, and other options.
+- Options offer constraints such as `minLength`, `maxLenght`, allowing `blank` strings, forcing `wellFormed`, or a predefined selection of `choices`.
+
+`NumberField`
+- Allows casting of any input to a number, based on configuration via `castUndefinedAsZero`, `castNullAsZero`, `castBlankStringAsZero`, and other options.
+- Options offer constraints such as `min`, `max`, `step` & `stepBase`, `integer`, or a selection of `choices`.
+- IEEE 754 floating point issues during casting are handled via a configurable `epsilon` value.
+
+`ObjectField`
+- Constructed from a schema of string keys to `ITypeField` implementation instances.
+- Relies on recursive calls to schema fields for casting and validation.
+- Fails fast on any mismatch, returing the first encountered `ValidationFailure`.
+- Validation is strict, any extra or missing keys fail validation.
+- Cast creates a new object that strips any extra entries from the source, which ensures the resulting object can pass validation.
+- Also includes an `InferredType` which infers the type of an object validated by the field from the field's schema.
+
+---
 
 
 
@@ -266,6 +300,283 @@ Rest works as normal.
 
 
 -------------------------------------------------------------------
+
+
+
+
+## Display & Edit - V2
+
+Just separate display and edit entirely.
+Each UI element where editable data is displayed also has a button to open a form to edit said data.
+
+```html
+
+<form id="simulation-options">
+    <div class="form-fields">
+        <div class="form-field">
+            <label for="21upd09uf">Gravitational Constant (m³kg⁻¹s⁻²)</label>
+            <!-- Hidden while .is-editing is active. -->
+            <!-- Updated by UiManager when simulation data changes. -->
+            <output data-output-for="G">6.6743e-11</output>
+            <!-- Shown only while .is-editing is active -->
+            <div class="form-input" data-field-name="G">
+                <input id="21upd09uf" name="G" type="number" value="6.6743e-11" required>
+                <span class="invalid-input">_set by JS_</span>
+            </div>
+        </div>
+
+        <!-- ... more form-field elements -->
+    </div>
+
+    <div class="form-controls">
+        <!-- Hidden while .is-editing is active. -->
+        <!-- Enables the .is-editing class on the <form> element. -->
+        <button type="button" data-action="open-edit">Edit</button>
+
+        <!-- Shown only while .is-editing is active -->
+        <!-- Submits the form and removes .is-editing from the <form> element. -->
+        <button type="submit" data-action="save-edit">Save</button>
+
+        <!-- Shown only while .is-editing is active -->
+        <!-- Resets the form and removes .is-editing from the <form> element. -->
+        <button type="reset" data-action="cancel-edit">Cancel</button>
+    </div>
+</form>
+```
+
+```html
+<form id="{{form_id}}">
+    <div class="form-fields">
+        <div class="form-field">
+            <label for="{{G_input_id}}">Gravitational Constant (m³kg⁻¹s⁻²)</label>
+            <!-- Hidden while .is-editing is active. -->
+            <!-- Updated by UiManager when simulation data changes. -->
+            <output data-output-for="G">6.6743e-11</output>
+            <!-- Shown only while .is-editing is active -->
+            <div class="input-container" data-field-name="G">
+                <input id="{{G_input_id}}" name="G" type="number" value="6.6743e-11" required>
+                <span class="invalid-input">_set by JS_</span>
+            </div>
+        </div>
+
+        <div class="form-field">
+            <label for="position">Position (au)</label>
+
+            <div class="output-fields">
+                <output data-output-for="posX"></output>
+                <output data-output-for="posY"></output>
+            </div>
+
+            <div class="input-fields">
+                <div class="input-container">
+                    <input id="posX" name="posX">
+                </div>
+            </div>
+        </div>
+
+
+        <form-field config-id="G" />
+
+        
+
+        <form-field
+            data-config-id=""
+            data-field-name="G"
+            data-label="Gravitational Constant (m³kg⁻¹s⁻²)"
+        ></form-field>
+
+        <!-- ... more form-field elements -->
+    
+
+    <div class="form-controls">
+        <!-- Hidden while .is-editing is active. -->
+        <!-- Enables the .is-editing class on the <form> element. -->
+        <button type="button" data-action="open-edit">Edit</button>
+
+        <!-- Shown only while .is-editing is active -->
+        <!-- Submits the form and removes .is-editing from the <form> element. -->
+        <button type="submit" data-action="save-edit">Save</button>
+
+        <!-- Shown only while .is-editing is active -->
+        <!-- Resets the form and removes .is-editing from the <form> element. -->
+        <button type="reset" data-action="cancel-edit">Cancel</button>
+    </div>
+</form>
+```
+
+```html
+<div class="form-group">
+    <label>Mass
+        <span class="units">(kg)</span>
+    </label>
+    <div class="form-fields">
+        <input type="number" name="mass" min="0">
+    </div>
+</div>
+
+<div class="form-group">
+    <label>Position
+        <span class="units">(m)</span>
+    </label>
+    <div class="form-fields">
+        <label>x</label>
+        <input type="number" name="position.x" min="0">
+        <label>y</label>
+        <input type="number" name="position.y" min="0">
+    </div>
+</div>
+
+<div class="form-field">
+    <label>Mass (kg)</label>
+    <div class="input-wrapper">
+        <input type="number" name="mass" min="0">
+    </div>
+</div>
+<div class="form-field">
+    <label>Position (m)</label>
+    <div class="input-wrapper">
+        <input type="number" name="posX">
+        <input type="number" name="posY">
+    </div>
+</div>
+```
+
+
+
+## Display & Edit - V1
+
+```html
+
+Each field is structured as 
+
+<div class="data-field">
+    <label data-hint="_text_">_text_</label>                // data-hint displays a floating <aside> on hover. Handled globally.
+
+    <div class="display-container">
+        <output></output>
+    </div>
+</div>
+
+<div class="data-field editable">
+    <label data-hint="_text_">_text_</label>                
+
+    <div class="display-container">
+        <output></output>
+        <div class="edit-button-container">
+            <button data-action="open-edit">✏️</button>     // Hidden while .data-field .is-editing. Sets .is-editing to the .data-field div.
+            <button data-action="submit-edit">✔️</button>   // Displayed while .data-field .is-editing. Submits input value and removes .is-editing from the .data-field div.
+            <button data-action="cancel-edit">❌</button>   // Displayed while .data-field .is-editing. Cancels the input and removes .is-editing from the .data-field div.
+        </div>
+    </div>
+
+    <div class="input-container">                           // Displayed while .data-field .is-editing
+        <input></input> OR <select></select>
+        <span class="invalid-input">_text_</span>
+    </div>
+</div>
+
+---------------
+Examples
+---------------
+
+<div class="data-field">
+    <label data-hint="Time in days since T=0.">Time(d): </label>
+
+    <div class="display-container">
+        <output></output>
+    </div>
+</div>
+
+<div class="data-field editable">
+    <label data-hint="Gravitational constant G in m³/kg/s²">G(m³/kg/s²): </label>                
+
+    <div class="display-container">
+        <output></output>
+        <div class="edit-button-container">
+            <button data-action="open-edit">✏️</button>     // Hidden while .data-field .is-editing. Sets .is-editing to the .data-field div.
+            <button data-action="submit-edit">✔️</button>   // Displayed while .data-field .is-editing. Submits input value and removes .is-editing from the .data-field div.
+            <button data-action="cancel-edit">❌</button>   // Displayed while .data-field .is-editing. Cancels the input and removes .is-editing from the .data-field div.
+        </div>
+    </div>
+
+    <div class="input-container">                           // Displayed while .data-field .is-editing
+        <input></input> OR <select></select>
+        <span class="invalid-input">_text_</span>
+    </div>
+</div>
+```
+
+---
+
+## IDEA: Browser-App Event Delegation Interface 
+**Goal:** Create a global interface that listens to browser events and delegates them to application code.
+**Reasoning:**
+- Remove the need for every component to manage its own event listeners and clean up after itself.
+- Ensure consistent, predictable, and controllable behaviour for the rest of the codebase.
+- Reduce the overall code needed to manage events and standardize behaviour.
+
+### Plan
+- Create a global `EventManager`, which servers as a delegator and interface between browser events and application code.
+- `EventManager` binds and listens to browser events.
+- DOM elements have a `data-component-id` which maps to the id of the element's owner in the `UiManager`'s component store.
+- DOM elements signal that they're listening to a certain event via a `data-event-x="y"` attribute where:
+    - x is the name of the event
+    - y is the name of the event handler method on the component
+- When a browser event fires, the `EventManager` uses `event.target.closest()` to find the closest element that has both a `data-component-id` and a `data-on-x="y"` attribute, where the x of the latter matches the name of the fired event.
+    - The `EventManager` 
+- The `EventManager` then tries to get the component with the matching ID from the `UiManager` and the handler method on that component.
+    - If both are found, the `EventManager` calls the handler method, passing the `event`. Once the handler method returns, the `EventManager` checks if event propagation was stopped. 
+        - If it was stopped, the `EventManager` simply exits, otherwise it continues bubbling by finding the next closest element that matches the criteria above.
+    - If the component or the handler cannot be found, the `EventManager` removes the respective dataset attribute from the element, logs a warning, and continues bubbling.
+
+**Example:**
+```html
+<div data-component-id="41" data-on-click="onClick"></div>
+```
+
+```ts
+class ExampleComponent {
+    readonly id: string; // 41
+    readonly element: HTMLElement; // HTMLDivElement
+
+    //...
+
+    onClick(event: MouseEvent) {
+
+    }
+}
+```
+
+**Advantages:**
+- The `EventHandler` does not need to have a direct reference to components. This means that `UiManager` remains the sole owner and holder of component references.
+- Since browser event listeners are bound to the `EventHandler` instead of individual components, there is no risk for dangling event listeners.
+- The `EventHandler` automatically cleans up dataset attributes, should individual components fail to do so.
+
+
+# Ideas
+
+### User-Facing Errors
+- custom Error class for errors that SHOULD be visible to the user in some way (other errors that are expected to be handled internally should still use other error classes).
+- additional, non-optional constructor argument `tasks` to configure how the error should be handled when it's caught:
+    - display notification?
+    - pause simulation?
+    - stop render loop?
+    - offer reset to last snapshot?
+- a user-facing message (or localization string) in addition to the regular dev-facing error message
+- static utility method, which catching code can call and pass the caught error to, that takes care of executing the configured `tasks`
+- **Reasoning:** This shifts the conscious consideration of the consequences of a thrown error from the code that catches the error to the code that throws it. Catching code can obviously still choose to ignore it, override the behaviour, or add additional behaviour.
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 ## Step 2 - Render Model
