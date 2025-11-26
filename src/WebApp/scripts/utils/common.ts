@@ -34,3 +34,24 @@ export function createRegexFromStrings(strings: string[], mode: "capture" | "mat
     
     return new RegExp(pattern, flags);
 }
+
+/**
+ * Retrieve a potentially nested value from a object by a string key.  
+ * If an exact match of the flat key `{ "a.b": 1 }` is present at the root, it is prioritized over nested keys `{ a: { b: 2} }`.
+ * @param record    The object to search.
+ * @param key       A property with the notation a.b.c
+ * @returns         The value of the property found. `undefined` if the property is not found.
+ */
+export function getProperty(record: any, key: string): unknown {
+    if(!key || record === null || record === undefined) return undefined;
+    if( key in record ) return record[key];
+    let current = record;
+    for(const segment of key.split(".")) {
+        if(current === null || current === undefined) return undefined;
+        const type = typeof current;
+        if( type !== "object" && type !== "function" ) return undefined;
+        if(segment in current) current = current[segment];
+        else return undefined;
+    }
+    return current;
+}
