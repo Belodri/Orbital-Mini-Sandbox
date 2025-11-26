@@ -1,7 +1,7 @@
 import ValidationFailure from "./ValidationFailure";
 
-export interface ITypeField<T extends unknown, TOptions extends Record<string, any> = Record<string, any>> {
-    /** The options with which this TypeField was instantiated. Frozen upon instantiation and should never be mutated! */
+export interface IValidationField<T extends unknown, TOptions extends Record<string, any> = Record<string, any>> {
+    /** The options with which this ValidationField was instantiated. Frozen upon instantiation and should never be mutated! */
     readonly options: Readonly<TOptions>;
     /**
      * Tries to cast a given value into the the field's type.
@@ -23,7 +23,7 @@ export interface ITypeField<T extends unknown, TOptions extends Record<string, a
     isValid(value: any): value is T;
 }
 
-export default abstract class BaseTypeField<T, TOptions extends Record<string, any> = Record<string, any>> implements ITypeField<T, TOptions> {
+export default abstract class AbstractValidationField<T, TOptions extends Record<string, any> = Record<string, any>> implements IValidationField<T, TOptions> {
     readonly options: Readonly<TOptions>;
     
     constructor(options: Partial<TOptions> = {}) {
@@ -35,7 +35,7 @@ export default abstract class BaseTypeField<T, TOptions extends Record<string, a
     }
 
     /**
-     * Prepares the options object for the type field during the field's instatiation.
+     * Prepares the options object for the ValidationField during the field's instatiation.
      * @param partialOptions A shallow copy of the partial options object.
      * @returns A fully constructed options object.
      */

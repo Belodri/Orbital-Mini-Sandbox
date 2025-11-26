@@ -239,8 +239,8 @@ Rest works as normal.
 
 ---
 
-## Type-Safe User Input Casting & Validation via TypeField
-Implemented via `ITypeField<T>` interface, `BaseTypeField` abstract class, and its subclasses.
+## Type-Safe User Input Casting & Validation via ValidationFields
+Implemented via `IValidationField<T>` interface, `AbstractValidationField` abstract class, and its subclasses.
 The interface enforces a a frozen `options` object which holds the immutable configuration for a TypeField instance and dictates the methods:
 - `cast(value: any): T | null` - Tries to cast any value into the field's type and following the field's configuration.
 - `validate(value: any): void | ValidationFailure` - Tests if a given value is valid as per the field's configuration. On a failure, the `ValidationFailure` object contains information about the reason for the failure and can be thrown as an error.
@@ -248,7 +248,7 @@ The interface enforces a a frozen `options` object which holds the immutable con
 
 This architecture is easily expandable with new fields such as an ArrayField or a ColorField. Since the fields themselves are pure validators that don't hold the validated value, instances of them can be reused and shared by different consumers that share the same requirements.
 
-TODO: A global `TypeFieldStore` where TypeFields can be stored for easier sharing. 
+TODO: A global `ValidationFieldStore` where ValidationFields can be stored for easier sharing. 
 
 ### Subclasses
 The subclasses implemented so far (as of 21/11/2025) are:
@@ -266,7 +266,7 @@ The subclasses implemented so far (as of 21/11/2025) are:
 - IEEE 754 floating point issues during casting are handled via a configurable `epsilon` value.
 
 `ObjectField`
-- Constructed from a schema of string keys to `ITypeField` implementation instances.
+- Constructed from a schema of string keys to `IValidationField` implementation instances.
 - Relies on recursive calls to schema fields for casting and validation.
 - Fails fast on any mismatch, returing the first encountered `ValidationFailure`.
 - Validation is strict, any extra or missing keys fail validation.

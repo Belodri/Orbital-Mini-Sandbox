@@ -1,4 +1,4 @@
-import BaseTypeField from "./BaseTypeField";
+import AbstractValidationField from "./AbstractValidationField";
 import ValidationFailure from "./ValidationFailure";
 
 /** Options to configure a {@link NumberField}. A value validated by this field is guaranteed to meet all given requirements. */
@@ -41,7 +41,7 @@ const DEFAULT_OPTIONS: NumberFieldOptions = {
     epsilon: 1e-12
 } as const;
 
-export default class NumberField extends BaseTypeField<number, NumberFieldOptions> {
+export default class NumberField extends AbstractValidationField<number, NumberFieldOptions> {
     protected override prepareOptions(partialOptions: Partial<NumberFieldOptions>): NumberFieldOptions {
         return { ...DEFAULT_OPTIONS, ...partialOptions };
     }
