@@ -1,4 +1,4 @@
-import AbstractValidationField from "./AbstractValidationField";
+import BaseValidationField from "./AbstractValidationField";
 import ValidationFailure from "./ValidationFailure";
 
 export type StringFieldOptions = {
@@ -28,7 +28,7 @@ export const DEFAULT_OPTIONS: StringFieldOptions = {
     castUndefinedAsString: false,
 } as const;
 
-export default class StringField extends AbstractValidationField<string, StringFieldOptions> {
+export default class StringField extends BaseValidationField<string, StringFieldOptions> {
     protected override prepareOptions(partialOptions: Partial<StringFieldOptions>): StringFieldOptions {
         return { ...DEFAULT_OPTIONS, ...partialOptions };
     }

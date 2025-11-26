@@ -1,10 +1,11 @@
-import AbstractValidationField, { IValidationField } from "./AbstractValidationField";
+import BaseValidationField from "./AbstractValidationField";
+import ValidationField from "./ValidationField";
 import ValidationFailure from "./ValidationFailure";
 
-export type FieldsSchema = Record<string, IValidationField<any>>;
+export type FieldsSchema = Record<string, ValidationField<any>>;
 
 export type InferredType<T extends FieldsSchema> = {
-    [K in keyof T]: T[K] extends IValidationField<infer U> ? U : never;
+    [K in keyof T]: T[K] extends ValidationField<infer U> ? U : never;
 };
 
 export type ObjectFieldOptions = Record<string, any>; // placeholder in case future options are added.
@@ -12,7 +13,7 @@ export type ObjectFieldOptions = Record<string, any>; // placeholder in case fut
 export default class ObjectField<
     TSchema extends FieldsSchema, 
     T extends InferredType<TSchema> = InferredType<TSchema>
-> extends AbstractValidationField<T> {
+> extends BaseValidationField<T> {
     readonly #schemaKeys: ReadonlySet<keyof TSchema>;
     readonly #schema: Readonly<TSchema>;
 

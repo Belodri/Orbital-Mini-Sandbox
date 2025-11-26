@@ -1,32 +1,10 @@
-import ValidationFailure from "./ValidationFailure";
+import ValidationField from "./ValidationField";
 
-export interface IValidationField<T extends unknown, TOptions extends Record<string, any> = Record<string, any>> {
-    /** The options with which this ValidationField was instantiated. Frozen upon instantiation and should never be mutated! */
-    readonly options: Readonly<TOptions>;
-    /**
-     * Tries to cast a given value into the the field's type.
-     * @param value The value to cast into the field's type.
-     * @returns The correctly typed and validated value or `null`.
-     */
-    cast(value: any): T | null;
-    /**
-     * Validates potential input for this field.
-     * @param value The value to be tested.
-     * @returns `void` if valid, otherwise {@link ValidationFailure} that includes the value and the reason it failed
-     */
-    validate(value: any): void | ValidationFailure;
-    /**
-     * Type guard that verifies that a potential input for this field is valid.
-     * @param value The value to be tested.
-     * @returns `true` if valid and of the expected type.
-     */
-    isValid(value: any): value is T;
-}
-
-export default abstract class AbstractValidationField<T, TOptions extends Record<string, any> = Record<string, any>> implements IValidationField<T, TOptions> {
+export default abstract class BaseValidationField<T, TOptions extends Record<string, any> = Record<string, any>> extends ValidationField<T, TOptions> {
     readonly options: Readonly<TOptions>;
     
     constructor(options: Partial<TOptions> = {}) {
+        super();
         const opts = this.prepareOptions({...options});
         const frozen = Object.freeze(opts);
 
@@ -53,6 +31,4 @@ export default abstract class AbstractValidationField<T, TOptions extends Record
     isValid(value: any): value is T {
         return this.validate(value) === undefined;
     }
-
-    abstract validate(value: any): void | ValidationFailure;
 }

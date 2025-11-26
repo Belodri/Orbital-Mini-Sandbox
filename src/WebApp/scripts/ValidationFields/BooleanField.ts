@@ -1,4 +1,4 @@
-import AbstractValidationField from "./AbstractValidationField";
+import BaseValidationField from "./AbstractValidationField";
 import ValidationFailure from "./ValidationFailure";
 
 export type BooleanFieldOptions = {
@@ -13,7 +13,7 @@ export const DEFAULT_OPTIONS: BooleanFieldOptions = {
     castAsFalse: new Set([undefined, null, "", 0, -0]),
 } as const;
 
-export default class BooleanField extends AbstractValidationField<boolean, BooleanFieldOptions> {
+export default class BooleanField extends BaseValidationField<boolean, BooleanFieldOptions> {
     protected override prepareOptions(partialOptions: Partial<BooleanFieldOptions>): BooleanFieldOptions {
         return { ...DEFAULT_OPTIONS, ...partialOptions }
     }
