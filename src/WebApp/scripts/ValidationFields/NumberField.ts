@@ -1,4 +1,4 @@
-import BaseValidationField from "./AbstractValidationField";
+import BaseValidationField from "./BaseValidationField";
 import ValidationFailure from "./ValidationFailure";
 
 /** Options to configure a {@link NumberField}. A value validated by this field is guaranteed to meet all given requirements. */

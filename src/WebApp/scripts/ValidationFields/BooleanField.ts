@@ -1,4 +1,4 @@
-import BaseValidationField from "./AbstractValidationField";
+import BaseValidationField from "./BaseValidationField";
 import ValidationFailure from "./ValidationFailure";
 
 export type BooleanFieldOptions = {

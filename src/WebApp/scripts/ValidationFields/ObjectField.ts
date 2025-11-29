@@ -1,4 +1,4 @@
-import BaseValidationField from "./AbstractValidationField";
+import BaseValidationField from "./BaseValidationField";
 import ValidationField from "./ValidationField";
 import ValidationFailure from "./ValidationFailure";
 
