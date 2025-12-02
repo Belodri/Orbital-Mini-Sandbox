@@ -234,11 +234,7 @@ export function GetBaseCustomFormElement<TValue, const TConfig extends BaseCusto
         protected _toggleDisabled(disabled: boolean): void {};
     }
 
-    // Define concrete subclass to satisfy runtime requirements.
-    class FakeBaseCustomFormElement extends BaseCustomFormElement {};
-
-    // Return the concrete class but cast it as the abstract class because TS doesn't allow returning abstract classes from functions.
-    return FakeBaseCustomFormElement as typeof BaseCustomFormElement;
+    return BaseCustomFormElement;
 }
 
 /**
