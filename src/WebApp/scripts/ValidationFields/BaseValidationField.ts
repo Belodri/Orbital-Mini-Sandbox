@@ -1,6 +1,8 @@
-import ValidationField from "./ValidationField";
+import ValidationField, { type ValidationFieldOptions } from "./ValidationField";
 
-export default abstract class BaseValidationField<T, TOptions extends Record<string, any> = Record<string, any>> extends ValidationField<T, TOptions> {
+export type BaseValidationFieldOptions = ValidationFieldOptions;
+
+export default abstract class BaseValidationField<T, TOptions extends BaseValidationFieldOptions = BaseValidationFieldOptions> extends ValidationField<T, TOptions> {
     readonly options: Readonly<TOptions>;
     
     constructor(options: Partial<TOptions> = {}) {
