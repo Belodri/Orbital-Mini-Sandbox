@@ -1,7 +1,7 @@
-import BaseValidationField from "./BaseValidationField";
+import BaseValidationField, { type BaseValidationFieldOptions } from "./BaseValidationField";
 import ValidationFailure from "./ValidationFailure";
 
-export type StringFieldOptions = {
+export type StringFieldOptions = BaseValidationFieldOptions & {
     /** Is the string allowed to be empty? Default = false */
     blank: boolean;
     /** A Set of values which represent allowed choices or a Map of choice values to corresponding string labels. */
@@ -67,5 +67,9 @@ export default class StringField extends BaseValidationField<string, StringField
         if(value.length > maxLength) return new ValidationFailure(value, `Must be no more than ${maxLength} characters long.`);
         if(wellFormed && !value.isWellFormed()) return new ValidationFailure(value, `Must be well formed without any unpaired or unordered leading or trailing surrogates.`);
         if(choices && !choices.has(value)) return new ValidationFailure(value, "Must be a valid choice.");
+    }
+
+    override valueToStringUnsafe(value: string): string {
+        return value;
     }
 }
