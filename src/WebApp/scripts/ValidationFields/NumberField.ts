@@ -1,8 +1,8 @@
-import BaseValidationField from "./BaseValidationField";
+import BaseValidationField, { type BaseValidationFieldOptions } from "./BaseValidationField";
 import ValidationFailure from "./ValidationFailure";
 
 /** Options to configure a {@link NumberField}. A value validated by this field is guaranteed to meet all given requirements. */
-export type NumberFieldOptions = {
+export type NumberFieldOptions = BaseValidationFieldOptions & {
     /** The minimum allowed value. Default = {@link Number.MIN_SAFE_INTEGER}. */
     min: number;
     /** The maximum allowed value. Default = {@link Number.MAX_SAFE_INTEGER}. */
@@ -14,10 +14,10 @@ export type NumberFieldOptions = {
     /** Must the field value be an integer? Values cast to integers are rounded.  Default = false */
     integer: boolean;
     /** 
-     * A Set of values which represent allowed choices or a Map of choice values to corresponding string labels.
-     * For validation, only values that strictly equal a choice are considered valid!
+     * A `Set` of values which represent allowed choices. Only values that strictly equal a choice are considered valid!  
+     * Instead of a `Set`, a `Map` of choice keys may be given. The values of the Map are neither used nor validated by the field.
      */
-    choices?: Set<number> | Map<number, string>;
+    choices: Set<number> | Map<number, string> | undefined;    // If non-string Map values are ever required, change the value type to any.
     /** Cast undefined values as 0? Default = false */
     castUndefinedAsZero: boolean;
     /** Cast null values as 0? Default = false */
@@ -124,9 +124,12 @@ export default class NumberField extends BaseValidationField<number, NumberField
         const { choices, epsilon, integer } = this.options;
         if(!choices?.size) return null;
 
+        if(choices.has(value)) return value;
+
         if(integer) {
             const round = Math.round(value);
             if(choices.has(round)) return round;
+            else return null;
         }
 
         for(const key of choices.keys()) {
@@ -163,7 +166,12 @@ export default class NumberField extends BaseValidationField<number, NumberField
             const approxEq = remainder.approxEquals(Math.round(remainder), epsilon);
             if(!approxEq) return new ValidationFailure(value, `Must be a multiple of ${step} from ${stepBase}.`);
         }
-        if(integer && !Number.isSafeInteger(value)) return new ValidationFailure(value, `Must be a safe integer.`);
+        if(integer && !Number.isInteger(value)) return new ValidationFailure(value, `Must be an integer.`);
         if(choices && !choices?.has(value)) return new ValidationFailure(value, "Must be a valid choice.");
+    }
+
+    override valueToStringUnsafe(value: number): string {
+        if(value === 0 && this.options.castBlankStringAsZero) return "";
+        return String(value);
     }
 }
